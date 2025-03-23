@@ -8,8 +8,7 @@ class DBCModel(QObject):
     
     def __init__(self):
         super().__init__()
-        self.current_dbc = None
-        self.current_file_path = None
+        self.dbc_files = {}  # Dictionary to store multiple DBC files
         
     def load_dbc(self, file_path):
         """
@@ -17,29 +16,32 @@ class DBCModel(QObject):
         Returns True if successful, False otherwise
         """
         try:
-            self.current_dbc = cantools.database.load_file(file_path)
-            self.current_file_path = file_path
+            db = cantools.database.load_file(file_path)
+            self.dbc_files[file_path] = db
             self.dbc_loaded.emit(file_path)
             return True
         except Exception as e:
             self.dbc_error.emit(str(e))
             return False
             
-    def get_current_dbc(self):
+    def get_dbc(self, file_path):
         """
-        Returns the currently loaded DBC database
+        Returns the DBC database for the given file path
         """
-        return self.current_dbc
+        return self.dbc_files.get(file_path)
         
-    def get_current_file_path(self):
+    def remove_dbc(self, file_path):
         """
-        Returns the path of the currently loaded DBC file
+        Removes a DBC file from the model
+        Returns True if successful, False otherwise
         """
-        return self.current_file_path
+        if file_path in self.dbc_files:
+            del self.dbc_files[file_path]
+            return True
+        return False
         
-    def clear_current_dbc(self):
+    def get_all_dbc_files(self):
         """
-        Clears the currently loaded DBC database
+        Returns a list of all loaded DBC file paths
         """
-        self.current_dbc = None
-        self.current_file_path = None 
+        return list(self.dbc_files.keys()) 

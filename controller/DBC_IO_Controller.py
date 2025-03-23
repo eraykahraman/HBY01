@@ -19,7 +19,7 @@ class DBC_IO_Controller:
         
         if file_name:
             if self.model.load_dbc(file_name):
-                return self.model.get_current_dbc(), file_name, None
+                return self.model.get_dbc(file_name), file_name, None
             else:
                 return None, None, "Failed to load DBC file"
         
@@ -30,19 +30,16 @@ class DBC_IO_Controller:
         Removes a DBC file from the model
         Returns True if successful, False otherwise
         """
-        if self.model.get_current_file_path() == file_path:
-            self.model.clear_current_dbc()
-            return True
-        return False
+        return self.model.remove_dbc(file_path)
     
-    def get_current_dbc(self):
+    def get_dbc(self, file_path):
         """
-        Returns the currently loaded DBC database
+        Returns the DBC database for the given file path
         """
-        return self.model.get_current_dbc()
+        return self.model.get_dbc(file_path)
     
-    def clear_current_dbc(self):
+    def get_all_dbc_files(self):
         """
-        Clears the currently loaded DBC database
+        Returns a list of all loaded DBC file paths
         """
-        self.model.clear_current_dbc() 
+        return self.model.get_all_dbc_files() 
