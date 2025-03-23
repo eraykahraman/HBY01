@@ -137,8 +137,6 @@ The application follows the Model-View-Controller (MVC) pattern:
 
 ## License
 
-[Your License Here]
 
 ## Contact
 
-[Your Contact Information] 
