@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
 from PyQt5.QtCore import Qt
 from controller.DBC_IO_Controller import DBC_IO_Controller
 from view.dbc_listview import DBCListView
+from view.dbc_display_view import DBCDisplayView
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -13,6 +14,9 @@ class MainWindow(QMainWindow):
         
         # Initialize the DBC controller
         self.dbc_controller = DBC_IO_Controller()
+        
+        # Initialize display view
+        self.display_view = None
         
         # Create central widget and main layout
         central_widget = QWidget()
@@ -74,10 +78,17 @@ class MainWindow(QMainWindow):
         # Also show in status bar for reference
         self.statusBar.showMessage(f"Error: {error_message}")
         
-    def on_dbc_selected(self, file_path):
+    def on_dbc_selected(self, instance_id):
         """Handle DBC file selection from the list"""
-        self.statusBar.showMessage(f"Selected DBC file: {file_path}")
-        # TODO: Update the main view with the selected DBC's contents
+        self.statusBar.showMessage(f"Selected DBC file: {instance_id}")
+        
+        # Create or show display view
+        if not self.display_view:
+            self.display_view = DBCDisplayView(self)
+            self.display_view.show()
+        
+        # Update display view with DBC content
+        self.display_view.display_dbc_content(instance_id)
         
     def on_dbc_removed(self, file_path):
         """Handle DBC file removal from the list"""
