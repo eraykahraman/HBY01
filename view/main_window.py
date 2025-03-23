@@ -52,22 +52,26 @@ class MainWindow(QMainWindow):
         self.statusBar = QStatusBar()
         self.setStatusBar(self.statusBar)
         
-        # Connect to model signals
-        self.dbc_controller.model.dbc_loaded.connect(self.on_dbc_loaded)
-        self.dbc_controller.model.dbc_error.connect(self.on_dbc_error)
+        # Connect to controller signals
+        self.dbc_controller.dbc_loaded.connect(self.on_dbc_loaded)
+        self.dbc_controller.dbc_error.connect(self.on_dbc_error)
+        self.dbc_controller.dbc_removed.connect(self.on_dbc_removed)
         
         # Connect to list view signals
         self.dbc_list.dbc_selected.connect(self.on_dbc_selected)
         self.dbc_list.dbc_removed.connect(self.on_dbc_removed)
         
     def import_dbc(self):
-        db, file_name, error = self.dbc_controller.import_dbc(self)
+        """Handle DBC file import"""
+        self.dbc_controller.import_dbc(self)
         
-    def on_dbc_loaded(self, file_path):
+    def on_dbc_loaded(self, file_path, db):
+        """Handle successful DBC file load"""
         self.statusBar.showMessage(f"Loaded DBC file: {file_path}")
         self.dbc_list.add_dbc_file(file_path)
         
     def on_dbc_error(self, error_message):
+        """Handle DBC file load error"""
         # Show error in popup message
         QMessageBox.critical(
             self,
@@ -91,19 +95,11 @@ class MainWindow(QMainWindow):
         self.display_view.display_dbc_content(instance_id)
         
     def on_dbc_removed(self, file_path):
-        """Handle DBC file removal from the list"""
-        if self.dbc_controller.remove_dbc(file_path):
-            self.statusBar.showMessage(f"Removed DBC file: {file_path}")
-            # Remove from list view
-            for i in range(self.dbc_list.list_widget.count()):
-                item = self.dbc_list.list_widget.item(i)
-                if item.data(Qt.UserRole) == file_path:
-                    self.dbc_list.list_widget.takeItem(i)
-                    break
-        else:
-            QMessageBox.warning(
-                self,
-                "Remove Error",
-                f"Failed to remove DBC file: {file_path}",
-                QMessageBox.Ok
-            ) 
+        """Handle DBC file removal"""
+        self.statusBar.showMessage(f"Removed DBC file: {file_path}")
+        # Remove from list view
+        for i in range(self.dbc_list.list_widget.count()):
+            item = self.dbc_list.list_widget.item(i)
+            if item.data(Qt.UserRole) == file_path:
+                self.dbc_list.list_widget.takeItem(i)
+                break 

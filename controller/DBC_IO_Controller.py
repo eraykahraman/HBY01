@@ -1,14 +1,21 @@
 from PyQt5.QtWidgets import QFileDialog
+from PyQt5.QtCore import QObject, pyqtSignal
 from model.dbc_model import DBCModel
 
-class DBC_IO_Controller:
+class DBC_IO_Controller(QObject):
+    # Signals for DBC operations
+    dbc_loaded = pyqtSignal(str, object)  # Emits (file_path, db) when DBC is loaded
+    dbc_error = pyqtSignal(str)           # Emits error message when loading fails
+    dbc_removed = pyqtSignal(str)         # Emits file_path when DBC is removed
+    
     def __init__(self):
+        super().__init__()
         self.model = DBCModel()
         
     def import_dbc(self, parent_window=None):
         """
         Opens a file dialog to select and load a DBC file
-        Returns the loaded database if successful, None otherwise
+        Emits appropriate signals based on the result
         """
         file_name, _ = QFileDialog.getOpenFileName(
             parent_window,
@@ -19,18 +26,24 @@ class DBC_IO_Controller:
         
         if file_name:
             if self.model.load_dbc(file_name):
-                return self.model.get_dbc(file_name), file_name, None
+                db = self.model.get_dbc(file_name)
+                self.dbc_loaded.emit(file_name, db)
+                return True
             else:
-                return None, None, "Failed to load DBC file"
+                self.dbc_error.emit("Failed to load DBC file")
+                return False
         
-        return None, None, None
+        return False
     
     def remove_dbc(self, file_path):
         """
         Removes a DBC file from the model
-        Returns True if successful, False otherwise
+        Emits dbc_removed signal if successful
         """
-        return self.model.remove_dbc(file_path)
+        if self.model.remove_dbc(file_path):
+            self.dbc_removed.emit(file_path)
+            return True
+        return False
     
     def get_dbc(self, file_path):
         """

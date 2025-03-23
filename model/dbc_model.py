@@ -1,13 +1,7 @@
 import cantools
-from PyQt5.QtCore import QObject, pyqtSignal
 
-class DBCModel(QObject):
-    # Signals for notifying the view of changes
-    dbc_loaded = pyqtSignal(str)  # Emitted when a DBC file is successfully loaded
-    dbc_error = pyqtSignal(str)   # Emitted when there's an error loading a DBC file
-    
+class DBCModel:
     def __init__(self):
-        super().__init__()
         self.dbc_files = {}  # Dictionary to store multiple DBC files
         
     def load_dbc(self, file_path):
@@ -18,10 +12,8 @@ class DBCModel(QObject):
         try:
             db = cantools.database.load_file(file_path)
             self.dbc_files[file_path] = db
-            self.dbc_loaded.emit(file_path)
             return True
-        except Exception as e:
-            self.dbc_error.emit(str(e))
+        except Exception:
             return False
             
     def get_dbc(self, file_path):
