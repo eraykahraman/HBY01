@@ -7,14 +7,14 @@ class DBCModel:
     def load_dbc(self, file_path):
         """
         Loads a DBC file from the given path
-        Returns True if successful, False otherwise
+        Returns (True, None) if successful, (False, error_message) otherwise
         """
         try:
             db = cantools.database.load_file(file_path)
             self.dbc_files[file_path] = db
-            return True
-        except Exception:
-            return False
+            return True, None
+        except Exception as e:
+            return False, str(e)
             
     def get_dbc(self, file_path):
         """

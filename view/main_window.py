@@ -76,7 +76,7 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(
             self,
             "DBC Load Error",
-            f"Failed to load DBC file:\n{error_message}",
+            error_message,
             QMessageBox.Ok
         )
         # Also show in status bar for reference

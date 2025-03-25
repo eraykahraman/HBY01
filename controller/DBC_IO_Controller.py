@@ -25,12 +25,15 @@ class DBC_IO_Controller(QObject):
         )
         
         if file_name:
-            if self.model.load_dbc(file_name):
+            success, error_msg = self.model.load_dbc(file_name)
+            if success:
                 db = self.model.get_dbc(file_name)
                 self.dbc_loaded.emit(file_name, db)
                 return True
             else:
-                self.dbc_error.emit("Failed to load DBC file")
+                # Use the detailed error message from the model
+                error_message = f"Failed to load DBC file: {error_msg}"
+                self.dbc_error.emit(error_message)
                 return False
         
         return False
