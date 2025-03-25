@@ -2,9 +2,10 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                             QTreeWidget, QTreeWidgetItem, QLabel,
                             QSplitter, QTableWidget, QTableWidgetItem,
                             QHeaderView, QHBoxLayout, QLineEdit,
-                            QComboBox, QPushButton, QFrame, QStyledItemDelegate)
+                            QComboBox, QPushButton, QFrame, QStyledItemDelegate,
+                            QToolButton, QStyle)
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QColor
 from view.message_detail_view import MessageDetailView
 
 class FilterHeaderView(QHeaderView):
@@ -255,15 +256,27 @@ class DBCDisplayView(QMainWindow):
     
     def on_table_cell_double_clicked(self, row, column):
         """Handle double clicks on table cells to show message details"""
-        # Get the ID from the first column of the clicked row
-        id_item = self.table.item(row, 0)
-        if id_item:
-            hex_id = id_item.text()
-            # Find the matching message from all_messages
-            for msg in self.all_messages:
-                if f"0x{msg.frame_id:X}" == hex_id:
-                    self.show_message_details(msg)
-                    break
+        # Get the message object from the row
+        cell_widget = self.table.cellWidget(row, 0)
+        if cell_widget:
+            # Find the button in the cell widget to get the message
+            for child in cell_widget.children():
+                if isinstance(child, QToolButton) and hasattr(child, 'msg'):
+                    self.show_message_details(child.msg)
+                    return
+                    
+        # For signal rows, find the parent message
+        # This works because signal rows don't have a cell widget in column 0
+        parent_row = row
+        while parent_row >= 0:
+            parent_cell = self.table.cellWidget(parent_row, 0)
+            if parent_cell:
+                # Find the button in the cell widget
+                for child in parent_cell.children():
+                    if isinstance(child, QToolButton) and hasattr(child, 'msg'):
+                        self.show_message_details(child.msg)
+                        return
+            parent_row -= 1
     
     def show_message_details(self, message):
         """Show detailed message information in a popup"""
@@ -301,6 +314,9 @@ class DBCDisplayView(QMainWindow):
         # Reapply filters (which will show all messages)
         self.apply_filters()
         
+        # Close any expanded signal rows by resetting the table
+        self.populate_messages_table()
+    
     def on_header_clicked(self, logical_index):
         """Handle sorting when a header is clicked"""
         # Toggle sort order if clicking the same column
@@ -329,6 +345,9 @@ class DBCDisplayView(QMainWindow):
         if not hasattr(self, 'all_messages') or not self.all_messages:
             return
             
+        # Close any expanded signal rows first to avoid sorting issues
+        self.collapse_all_signals()
+            
         # Get current filtered messages
         if self.table.rowCount() == 0:
             return
@@ -337,13 +356,12 @@ class DBCDisplayView(QMainWindow):
         current_messages = []
         for row in range(self.table.rowCount()):
             # Get ID from first column to find the message object
-            id_item = self.table.item(row, 0)
-            if id_item:
-                hex_id = id_item.text()
-                # Find the matching message from all_messages
-                for msg in self.all_messages:
-                    if f"0x{msg.frame_id:X}" == hex_id:
-                        current_messages.append(msg)
+            cell_widget = self.table.cellWidget(row, 0)
+            if cell_widget:
+                # Find the button in the cell widget to get the message
+                for child in cell_widget.children():
+                    if isinstance(child, QToolButton) and hasattr(child, 'msg'):
+                        current_messages.append(child.msg)
                         break
         
         # Sort the messages based on the column clicked
@@ -367,10 +385,28 @@ class DBCDisplayView(QMainWindow):
         for row, msg in enumerate(current_messages):
             self.populate_message_row(row, msg)
     
+    def collapse_all_signals(self):
+        """Collapse all expanded signal rows"""
+        # First check if we need to do anything
+        row = 0
+        while row < self.table.rowCount():
+            cell_widget = self.table.cellWidget(row, 0)
+            if cell_widget:
+                # Find the button in the cell widget
+                for child in cell_widget.children():
+                    if isinstance(child, QToolButton) and hasattr(child, 'is_expanded') and child.is_expanded:
+                        # Collapse this row
+                        self.toggle_signal_rows(child)
+                        break
+            row += 1
+    
     def apply_filters(self):
         """Apply all filters to the messages table"""
         if not hasattr(self, 'all_messages') or not self.all_messages:
             return
+            
+        # Collapse all expanded signals first to avoid filtering issues
+        self.collapse_all_signals()
             
         # Clear previous table content
         self.table.clearContents()
@@ -442,9 +478,30 @@ class DBCDisplayView(QMainWindow):
     
     def populate_message_row(self, row, msg):
         """Populate a single table row with message data"""
-        # ID (in hex)
-        id_item = QTableWidgetItem(f"0x{msg.frame_id:X}")
-        self.table.setItem(row, 0, id_item)
+        # Create expand/collapse button in first column
+        expand_button = QToolButton()
+        expand_button.setArrowType(Qt.RightArrow)
+        expand_button.setCheckable(True)
+        expand_button.setStyleSheet("QToolButton { border: none; }")
+        
+        # Store the message and whether row is expanded
+        expand_button.msg = msg
+        expand_button.is_expanded = False
+        expand_button.row = row
+        
+        # Connect button click to expand/collapse
+        expand_button.clicked.connect(lambda checked, b=expand_button: 
+                                     self.toggle_signal_rows(b))
+        
+        # Add the expand button to a cell widget
+        id_cell = QWidget()
+        id_layout = QHBoxLayout(id_cell)
+        id_layout.setContentsMargins(0, 0, 0, 0)
+        id_layout.addWidget(expand_button)
+        id_layout.addWidget(QLabel(f"0x{msg.frame_id:X}"))
+        id_layout.setAlignment(Qt.AlignLeft)
+        
+        self.table.setCellWidget(row, 0, id_cell)
         
         # Name
         name_item = QTableWidgetItem(msg.name)
@@ -455,7 +512,9 @@ class DBCDisplayView(QMainWindow):
         self.table.setItem(row, 2, length_item)
         
         # Signal count
-        signal_count_item = QTableWidgetItem(str(len(msg.signals)))
+        signal_count = len(msg.signals)
+        signal_text = f"{signal_count} signal{'s' if signal_count != 1 else ''}"
+        signal_count_item = QTableWidgetItem(signal_text)
         self.table.setItem(row, 3, signal_count_item)
         
         # Extended Frame
@@ -483,7 +542,86 @@ class DBCDisplayView(QMainWindow):
         comment = getattr(msg, 'comment', None)
         comment_item = QTableWidgetItem(comment if comment else "")
         self.table.setItem(row, 8, comment_item)
-
+    
+    def toggle_signal_rows(self, button):
+        """Expand or collapse signal rows for a message"""
+        if button.is_expanded:
+            # Collapse - remove signal rows
+            button.setArrowType(Qt.RightArrow)
+            
+            # Find how many rows to remove (number of signals)
+            signal_count = len(button.msg.signals)
+            
+            # Remove rows starting from the next row after the message
+            self.table.removeRow(button.row + 1)
+            # We need to adjust row numbers for all buttons below this one
+            self.adjust_button_rows(button.row, -signal_count)
+            
+            button.is_expanded = False
+        else:
+            # Expand - insert signal rows
+            button.setArrowType(Qt.DownArrow)
+            
+            # Insert a row for each signal
+            for i, signal in enumerate(button.msg.signals):
+                signal_row = button.row + i + 1
+                self.table.insertRow(signal_row)
+                
+                # Create indented signal name with type indicator
+                signal_cell = QWidget()
+                signal_layout = QHBoxLayout(signal_cell)
+                signal_layout.setContentsMargins(0, 0, 0, 0)
+                signal_layout.addSpacing(30)  # Indentation
+                
+                # Add a different icon for signals
+                icon_label = QLabel("↳")
+                signal_layout.addWidget(icon_label)
+                
+                # Add signal name and details
+                signal_name = QLabel(f"<b>{signal.name}</b>")
+                signal_layout.addWidget(signal_name)
+                
+                # Add type info after the name
+                bit_info = QLabel(f" ({signal.start}|{signal.length})")
+                bit_info.setStyleSheet("color: gray;")
+                signal_layout.addWidget(bit_info)
+                
+                signal_layout.addStretch()
+                self.table.setCellWidget(signal_row, 1, signal_cell)
+                
+                # Add empty or N/A items for the other columns
+                for col in range(2, self.table.columnCount()):
+                    self.table.setItem(signal_row, col, QTableWidgetItem(""))
+                
+                # Set row background color to differentiate from message rows
+                for col in range(self.table.columnCount()):
+                    if self.table.item(signal_row, col):
+                        self.table.item(signal_row, col).setBackground(QColor("#f8f8f8"))
+            
+            # We need to adjust row numbers for all buttons below this one
+            self.adjust_button_rows(button.row, len(button.msg.signals))
+            
+            button.is_expanded = True
+    
+    def adjust_button_rows(self, changed_row, offset):
+        """Adjust the row property of buttons below the changed row"""
+        # Get the number of rows in the table
+        row_count = self.table.rowCount()
+        
+        # Update row numbers for buttons below the changed row
+        for row in range(changed_row + 1 + max(offset, 0), row_count):
+            cell_widget = self.table.cellWidget(row, 0)
+            if cell_widget:
+                # Find the button in the cell widget
+                button = None
+                for child in cell_widget.children():
+                    if isinstance(child, QToolButton):
+                        button = child
+                        break
+                
+                if button and hasattr(button, 'row'):
+                    button.row = row  # Update the row number
+    
     def closeEvent(self, event):
         """Handle window close event"""
         # Close all open detail views
