@@ -1,12 +1,18 @@
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, 
                             QTreeWidget, QTreeWidgetItem, QLabel)
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 
 class DBCDisplayView(QMainWindow):
+    # Signal emitted when window is closed
+    window_closed = pyqtSignal(str)  # Emits file_path of the associated DBC
+    
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("DBC Content Viewer")
         self.setGeometry(200, 200, 800, 600)
+        
+        # Property to store which DBC file this view is for
+        self.dbc_file_path = None
         
         # Create central widget and layout
         central_widget = QWidget()
@@ -22,6 +28,7 @@ class DBCDisplayView(QMainWindow):
     def display_dbc_content(self, instance_id):
         """Display the content of a DBC file in the tree view"""
         self.tree.clear()
+        self.dbc_file_path = instance_id
         
         # Get the DBC content from the controller
         db = self.parent().dbc_controller.get_dbc(instance_id)
@@ -51,7 +58,7 @@ class DBCDisplayView(QMainWindow):
 
     def closeEvent(self, event):
         """Handle window close event"""
-        # Notify parent window that this view is being closed
-        if self.parent():
-            self.parent().display_view = None
+        # Emit signal that this window is closing
+        if self.dbc_file_path:
+            self.window_closed.emit(self.dbc_file_path)
         super().closeEvent(event) 

@@ -15,8 +15,8 @@ class MainWindow(QMainWindow):
         # Initialize the DBC controller
         self.dbc_controller = DBC_IO_Controller()
         
-        # Initialize display view
-        self.display_view = None
+        # Initialize display views dictionary (file_path -> display_view)
+        self.display_views = {}
         
         # Create central widget and main layout
         central_widget = QWidget()
@@ -86,17 +86,43 @@ class MainWindow(QMainWindow):
         """Handle DBC file selection from the list"""
         self.statusBar.showMessage(f"Selected DBC file: {instance_id}")
         
-        # Create or show display view
-        if not self.display_view:
-            self.display_view = DBCDisplayView(self)
-            self.display_view.show()
-        
-        # Update display view with DBC content
-        self.display_view.display_dbc_content(instance_id)
-        
+        # Check if a display view already exists for this DBC file
+        if instance_id in self.display_views and self.display_views[instance_id].isVisible():
+            # If it exists, just bring it to front
+            self.display_views[instance_id].activateWindow()
+            self.display_views[instance_id].raise_()
+        else:
+            # Create a new display view for this DBC file
+            display_view = DBCDisplayView(self)
+            display_view.setWindowTitle(f"DBC Viewer - {instance_id.split('/')[-1]}")
+            
+            # Set a property to identify which DBC file this view is for
+            display_view.dbc_file_path = instance_id
+            
+            # Connect to the window close event
+            display_view.window_closed.connect(self.on_display_view_closed)
+            
+            # Store in our dictionary
+            self.display_views[instance_id] = display_view
+            
+            # Show the window and populate it
+            display_view.show()
+            display_view.display_dbc_content(instance_id)
+    
+    def on_display_view_closed(self, file_path):
+        """Handle when a display view is closed"""
+        if file_path in self.display_views:
+            del self.display_views[file_path]
+    
     def on_dbc_removed(self, file_path):
         """Handle DBC file removal"""
         self.statusBar.showMessage(f"Removed DBC file: {file_path}")
+        
+        # Close any open display view for this file
+        if file_path in self.display_views and self.display_views[file_path].isVisible():
+            self.display_views[file_path].close()
+            del self.display_views[file_path]
+            
         # Remove from list view
         for i in range(self.dbc_list.list_widget.count()):
             item = self.dbc_list.list_widget.item(i)
