@@ -88,6 +88,31 @@ class DBCDisplayView(QMainWindow):
         self.table = QTableWidget()
         self.table.setColumnCount(len(self.column_names))
         
+        # We'll manage sorting ourselves without Qt's built-in mechanism
+        self.table.setSortingEnabled(False)
+        
+        # Variables to track current sort
+        self.current_sort_column = -1
+        self.current_sort_order = Qt.AscendingOrder
+        
+        # Make sort indicators more visible
+        self.table.setStyleSheet("""
+            QHeaderView::down-arrow { 
+                width: 12px; 
+                height: 12px; 
+                background: #007bff;
+                padding: 2px;
+                border-radius: 6px;
+            }
+            QHeaderView::up-arrow { 
+                width: 12px; 
+                height: 12px; 
+                background: #007bff;
+                padding: 2px;
+                border-radius: 6px;
+            }
+        """)
+        
         # Set up header with filter widgets
         self.filters = {}
         
@@ -96,6 +121,9 @@ class DBCDisplayView(QMainWindow):
         self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setVisible(True)
         self.table.setHorizontalHeaderLabels(self.column_names)
+        
+        # Connect header click to manage sorting and filters
+        self.table.horizontalHeader().sectionClicked.connect(self.on_header_clicked)
         
         # Make the table have two header rows - increase height to avoid overlap
         base_height = self.table.horizontalHeader().height()
@@ -225,6 +253,72 @@ class DBCDisplayView(QMainWindow):
         # Reapply filters (which will show all messages)
         self.apply_filters()
         
+    def on_header_clicked(self, logical_index):
+        """Handle sorting when a header is clicked"""
+        # Toggle sort order if clicking the same column
+        if self.current_sort_column == logical_index:
+            # Toggle sort order
+            if self.current_sort_order == Qt.AscendingOrder:
+                self.current_sort_order = Qt.DescendingOrder
+            else:
+                self.current_sort_order = Qt.AscendingOrder
+        else:
+            # New column, default to ascending
+            self.current_sort_column = logical_index
+            self.current_sort_order = Qt.AscendingOrder
+        
+        # Apply the sort indicator to the header
+        self.table.horizontalHeader().setSortIndicator(logical_index, self.current_sort_order)
+        
+        # Sort the filtered messages
+        self.sort_table(self.current_sort_column, self.current_sort_order)
+        
+        # Make sure our filters are visible after sorting
+        self.position_filter_widgets()
+    
+    def sort_table(self, column, order):
+        """Sort the table content by a specific column"""
+        if not hasattr(self, 'all_messages') or not self.all_messages:
+            return
+            
+        # Get current filtered messages
+        if self.table.rowCount() == 0:
+            return
+            
+        # Collect the currently visible messages
+        current_messages = []
+        for row in range(self.table.rowCount()):
+            # Get ID from first column to find the message object
+            id_item = self.table.item(row, 0)
+            if id_item:
+                hex_id = id_item.text()
+                # Find the matching message from all_messages
+                for msg in self.all_messages:
+                    if f"0x{msg.frame_id:X}" == hex_id:
+                        current_messages.append(msg)
+                        break
+        
+        # Sort the messages based on the column clicked
+        def get_sort_key(msg):
+            value = self.get_message_column_value(msg, column)
+            # Special handling for hex IDs
+            if column == 0:  # ID column
+                # Convert hex to int for proper numerical sorting
+                try:
+                    return int(value, 16)
+                except ValueError:
+                    return 0
+            # For other columns, use string comparison
+            return str(value).lower()
+        
+        current_messages.sort(key=get_sort_key, reverse=(order == Qt.DescendingOrder))
+        
+        # Redisplay the sorted messages
+        self.table.clearContents()
+        self.table.setRowCount(len(current_messages))
+        for row, msg in enumerate(current_messages):
+            self.populate_message_row(row, msg)
+    
     def apply_filters(self):
         """Apply all filters to the messages table"""
         if not hasattr(self, 'all_messages') or not self.all_messages:
@@ -266,6 +360,10 @@ class DBCDisplayView(QMainWindow):
         self.table.setRowCount(len(filtered_messages))
         for row, msg in enumerate(filtered_messages):
             self.populate_message_row(row, msg)
+        
+        # Apply current sort if any
+        if self.current_sort_column >= 0:
+            self.sort_table(self.current_sort_column, self.current_sort_order)
     
     def get_message_column_value(self, msg, col):
         """Get the value for a specific column from a message object"""
