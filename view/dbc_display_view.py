@@ -174,9 +174,25 @@ class DBCDisplayView(QMainWindow):
         self.table.horizontalHeader().sectionResized.connect(self.position_filter_widgets)
         self.table.horizontalScrollBar().valueChanged.connect(self.position_filter_widgets)
         
-        # Setup horizontal header options
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setStretchLastSection(True)  # Stretch the comment column
+        # Setup horizontal header options - Make columns resizable by user
+        header = self.table.horizontalHeader()
+        
+        # Configure column resize behavior - Interactive allows user to resize
+        for i in range(len(self.column_names)):
+            header.setSectionResizeMode(i, QHeaderView.Interactive)
+        
+        # Set initial default column widths
+        header.resizeSection(0, 100)  # ID column
+        header.resizeSection(1, 150)  # Name column
+        header.resizeSection(2, 80)   # Length column
+        header.resizeSection(3, 80)   # Signals column
+        header.resizeSection(4, 100)  # Extended Frame
+        header.resizeSection(5, 100)  # Cycle Time
+        header.resizeSection(6, 120)  # Senders
+        header.resizeSection(7, 100)  # Bus Name
+        
+        # Last column (Comment) stretches to fill remaining space
+        header.setStretchLastSection(True)
     
     def resizeEvent(self, event):
         """Handle resize event to reposition filter widgets"""
@@ -709,15 +725,41 @@ class DBCDisplayView(QMainWindow):
         # Sort by signal name
         all_signals.sort(key=lambda x: x[0].name)
         
-        # Set up column names for signals view
+        # Set up column names for signals view - include all available signal attributes
         signal_columns = [
             "Signal Name", "Message", "Start Bit", "Length", 
-            "Byte Order", "Signed", "Scale", "Offset", "Unit"
+            "Byte Order", "Signed", "Initial", "Scale", "Offset", 
+            "Min Value", "Max Value", "Unit", "Multiplexer",
+            "Choices", "Comment", "Receivers"
         ]
         
         # Update table headers
         self.table.setColumnCount(len(signal_columns))
         self.table.setHorizontalHeaderLabels(signal_columns)
+        
+        # Configure column resize behavior for signal table - make columns resizable by user
+        header = self.table.horizontalHeader()
+        for i in range(len(signal_columns)):
+            header.setSectionResizeMode(i, QHeaderView.Interactive)
+        
+        # Set default widths for signal table columns
+        header.resizeSection(0, 150)  # Signal Name
+        header.resizeSection(1, 200)  # Message
+        header.resizeSection(2, 70)   # Start Bit
+        header.resizeSection(3, 70)   # Length
+        header.resizeSection(4, 100)  # Byte Order
+        header.resizeSection(5, 70)   # Signed
+        header.resizeSection(6, 70)   # Initial
+        header.resizeSection(7, 70)   # Scale
+        header.resizeSection(8, 70)   # Offset
+        header.resizeSection(9, 80)   # Min Value
+        header.resizeSection(10, 80)  # Max Value
+        header.resizeSection(11, 70)  # Unit
+        header.resizeSection(12, 120) # Multiplexer
+        header.resizeSection(13, 150) # Choices
+        
+        # Comment and Receivers columns can stretch
+        header.setStretchLastSection(True)
         
         # Populate the table
         self.table.setRowCount(len(all_signals))
@@ -742,17 +784,60 @@ class DBCDisplayView(QMainWindow):
             is_signed = getattr(signal, 'is_signed', False)
             self.table.setItem(row, 5, QTableWidgetItem("Yes" if is_signed else "No"))
             
+            # Initial Value
+            initial = getattr(signal, 'initial', None)
+            self.table.setItem(row, 6, QTableWidgetItem(str(initial) if initial is not None else ""))
+            
             # Scale
             scale = getattr(signal, 'scale', 1.0)
-            self.table.setItem(row, 6, QTableWidgetItem(str(scale)))
+            self.table.setItem(row, 7, QTableWidgetItem(str(scale)))
             
             # Offset
             offset = getattr(signal, 'offset', 0.0)
-            self.table.setItem(row, 7, QTableWidgetItem(str(offset)))
+            self.table.setItem(row, 8, QTableWidgetItem(str(offset)))
+            
+            # Min Value
+            minimum = getattr(signal, 'minimum', None)
+            self.table.setItem(row, 9, QTableWidgetItem(str(minimum) if minimum is not None else ""))
+            
+            # Max Value
+            maximum = getattr(signal, 'maximum', None)
+            self.table.setItem(row, 10, QTableWidgetItem(str(maximum) if maximum is not None else ""))
             
             # Unit
             unit = getattr(signal, 'unit', "")
-            self.table.setItem(row, 8, QTableWidgetItem(unit if unit else ""))
+            self.table.setItem(row, 11, QTableWidgetItem(unit if unit else ""))
+            
+            # Multiplexer
+            multiplexer_signal = getattr(signal, 'multiplexer_signal', None)
+            multiplexer_ids = getattr(signal, 'multiplexer_ids', [])
+            multiplexer_info = ""
+            
+            if multiplexer_signal:
+                multiplexer_info = f"Dependent on: {multiplexer_signal}"
+            elif multiplexer_ids:
+                multiplexer_info = f"Is multiplexer, IDs: {multiplexer_ids}"
+                
+            self.table.setItem(row, 12, QTableWidgetItem(multiplexer_info))
+            
+            # Choices (enum values)
+            choices = getattr(signal, 'choices', None)
+            choices_text = ""
+            if choices:
+                choices_items = []
+                for value, name in choices.items():
+                    choices_items.append(f"{value}={name}")
+                choices_text = ", ".join(choices_items)
+            self.table.setItem(row, 13, QTableWidgetItem(choices_text))
+            
+            # Comment
+            comment = getattr(signal, 'comment', "")
+            self.table.setItem(row, 14, QTableWidgetItem(comment if comment else ""))
+            
+            # Receivers
+            receivers = getattr(signal, 'receivers', [])
+            receivers_text = ", ".join(receivers) if receivers else ""
+            self.table.setItem(row, 15, QTableWidgetItem(receivers_text))
     
     def on_table_cell_double_clicked(self, row, column):
         """Handle double clicks on table cells to show message details"""
