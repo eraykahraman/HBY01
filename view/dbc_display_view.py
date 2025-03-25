@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                             QComboBox, QPushButton, QFrame, QStyledItemDelegate)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
+from view.message_detail_view import MessageDetailView
 
 class FilterHeaderView(QHeaderView):
     """Custom header view with built-in filters"""
@@ -38,6 +39,9 @@ class DBCDisplayView(QMainWindow):
         
         # Property to store which DBC file this view is for
         self.dbc_file_path = None
+        
+        # Keep track of open message detail views
+        self.open_detail_views = []
         
         # Create central widget
         central_widget = QWidget()
@@ -94,6 +98,9 @@ class DBCDisplayView(QMainWindow):
         # Variables to track current sort
         self.current_sort_column = -1
         self.current_sort_order = Qt.AscendingOrder
+        
+        # Connect to item double-click for message details
+        self.table.cellDoubleClicked.connect(self.on_table_cell_double_clicked)
         
         # Make sort indicators more visible
         self.table.setStyleSheet("""
@@ -233,8 +240,49 @@ class DBCDisplayView(QMainWindow):
     
     def on_tree_item_clicked(self, item, column):
         """Handle clicks on tree items to update the table view"""
+        # Check if this is a message node (parent is the Messages node)
+        if item.parent() == self.messages_item:
+            # Get the message name and find the corresponding message object
+            msg_name = item.text(0)
+            for msg in self.db.messages:
+                if msg.name == msg_name:
+                    self.show_message_details(msg)
+                    return
+        
+        # Handle the existing Messages node click
         if item == self.messages_item:
             self.populate_messages_table()
+    
+    def on_table_cell_double_clicked(self, row, column):
+        """Handle double clicks on table cells to show message details"""
+        # Get the ID from the first column of the clicked row
+        id_item = self.table.item(row, 0)
+        if id_item:
+            hex_id = id_item.text()
+            # Find the matching message from all_messages
+            for msg in self.all_messages:
+                if f"0x{msg.frame_id:X}" == hex_id:
+                    self.show_message_details(msg)
+                    break
+    
+    def show_message_details(self, message):
+        """Show detailed message information in a popup"""
+        # Create a non-modal dialog with DBC file information
+        detail_view = MessageDetailView(self, message, self.dbc_file_path)
+        
+        # Keep a reference to prevent garbage collection
+        self.open_detail_views.append(detail_view)
+        
+        # Connect the dialog's finished signal to remove it from our list
+        detail_view.finished.connect(lambda: self.remove_detail_view(detail_view))
+        
+        # Show the dialog as non-modal
+        detail_view.show()
+    
+    def remove_detail_view(self, view):
+        """Remove a detail view from our tracking list when it's closed"""
+        if view in self.open_detail_views:
+            self.open_detail_views.remove(view)
     
     def populate_messages_table(self):
         """Populate the table with message details when Messages node is clicked"""
@@ -438,6 +486,10 @@ class DBCDisplayView(QMainWindow):
 
     def closeEvent(self, event):
         """Handle window close event"""
+        # Close all open detail views
+        for view in self.open_detail_views[:]:
+            view.close()
+            
         # Emit signal that this window is closing
         if self.dbc_file_path:
             self.window_closed.emit(self.dbc_file_path)
