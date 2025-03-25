@@ -223,60 +223,115 @@ class DBCDisplayView(QMainWindow):
         root.setText(0, f"DBC Instance: {instance_id}")
         root.setExpanded(True)
         
-        # Add messages
+        # Add nodes section if available
+        if hasattr(self.db, 'nodes') and self.db.nodes:
+            self.nodes_item = QTreeWidgetItem(root)
+            self.nodes_item.setText(0, "Nodes")
+            self.nodes_item.setExpanded(True)
+            
+            # Add all nodes to the tree
+            for node in self.db.nodes:
+                node_item = QTreeWidgetItem(self.nodes_item)
+                node_item.setText(0, node.name)
+                
+                # Add node comment if available
+                if hasattr(node, 'comment') and node.comment:
+                    comment_item = QTreeWidgetItem(node_item)
+                    comment_item.setText(0, f"Comment: {node.comment}")
+        
+        # Add messages section
         self.messages_item = QTreeWidgetItem(root)
         self.messages_item.setText(0, "Messages")
         self.messages_item.setExpanded(True)
         
+        # Add all messages directly under the Messages node without grouping by sender
         for msg in self.db.messages:
             msg_item = QTreeWidgetItem(self.messages_item)
-            msg_item.setText(0, msg.name)
+            msg_item.setText(0, f"{msg.name} (0x{msg.frame_id:X})")
             
-            # Add signals for this message
-            signals_item = QTreeWidgetItem(msg_item)
-            signals_item.setText(0, "Signals")
+            # Add signals group
+            if msg.signals:
+                signals_item = QTreeWidgetItem(msg_item)
+                signals_item.setText(0, f"Signals ({len(msg.signals)})")
+                
+                # Add signals with details
+                for signal in msg.signals:
+                    signal_item = QTreeWidgetItem(signals_item)
+                    signal_item.setText(0, signal.name)
+                    
+                    # Add signal details as children
+                    bit_info = QTreeWidgetItem(signal_item)
+                    bit_info.setText(0, f"Bits: {signal.start}|{signal.length}")
+                    
+                    byte_order = getattr(signal, 'byte_order', "Unknown")
+                    order_item = QTreeWidgetItem(signal_item)
+                    order_item.setText(0, f"Byte Order: {byte_order}")
+                    
+                    is_signed = getattr(signal, 'is_signed', False)
+                    signed_item = QTreeWidgetItem(signal_item)
+                    signed_item.setText(0, f"Signed: {'Yes' if is_signed else 'No'}")
+                    
+                    if hasattr(signal, 'comment') and signal.comment:
+                        sig_comment_item = QTreeWidgetItem(signal_item)
+                        sig_comment_item.setText(0, f"Comment: {signal.comment}")
+        
+        # Add separate signals section at root level
+        self.signals_item = QTreeWidgetItem(root)
+        signal_count = sum(len(msg.signals) for msg in self.db.messages)
+        self.signals_item.setText(0, f"All Signals ({signal_count})")
+        
+        # Create alphabetically sorted list of all signals
+        all_signals = []
+        for msg in self.db.messages:
             for signal in msg.signals:
-                signal_item = QTreeWidgetItem(signals_item)
-                signal_item.setText(0, signal.name)
+                all_signals.append((signal, msg))
+        
+        # Sort by signal name
+        all_signals.sort(key=lambda x: x[0].name)
+        
+        # Add all signals to the signals section
+        for signal, parent_msg in all_signals:
+            signal_item = QTreeWidgetItem(self.signals_item)
+            signal_item.setText(0, f"{signal.name} - {parent_msg.name} (0x{parent_msg.frame_id:X})")
     
     def on_tree_item_clicked(self, item, column):
         """Handle clicks on tree items to update the table view"""
-        # Check if this is a message node (parent is the Messages node)
-        if item.parent() == self.messages_item:
-            # Get the message name and find the corresponding message object
-            msg_name = item.text(0)
-            for msg in self.db.messages:
-                if msg.name == msg_name:
-                    self.show_message_details(msg)
-                    return
-        
-        # Handle the existing Messages node click
+        # Check if this is the Messages node
         if item == self.messages_item:
             self.populate_messages_table()
-    
-    def on_table_cell_double_clicked(self, row, column):
-        """Handle double clicks on table cells to show message details"""
-        # Get the message object from the row
-        cell_widget = self.table.cellWidget(row, 0)
-        if cell_widget:
-            # Find the button in the cell widget to get the message
-            for child in cell_widget.children():
-                if isinstance(child, QToolButton) and hasattr(child, 'msg'):
-                    self.show_message_details(child.msg)
-                    return
-                    
-        # For signal rows, find the parent message
-        # This works because signal rows don't have a cell widget in column 0
-        parent_row = row
-        while parent_row >= 0:
-            parent_cell = self.table.cellWidget(parent_row, 0)
-            if parent_cell:
-                # Find the button in the cell widget
-                for child in parent_cell.children():
-                    if isinstance(child, QToolButton) and hasattr(child, 'msg'):
-                        self.show_message_details(child.msg)
+            return
+            
+        # Check if this is the Signals node
+        if hasattr(self, 'signals_item') and item == self.signals_item:
+            self.populate_signals_table()
+            return
+        
+        # Check if this is a message node (direct child of Messages node)
+        if item.parent() == self.messages_item:
+            # This is a message node
+            msg_text = item.text(0)
+            if " (0x" in msg_text:
+                msg_name = msg_text.split(" (0x")[0]  # Extract message name
+                for msg in self.db.messages:
+                    if msg.name == msg_name:
+                        self.show_message_details(msg)
                         return
-            parent_row -= 1
+        
+        # Check if this is an individual signal in the "All Signals" section
+        if hasattr(self, 'signals_item') and item.parent() == self.signals_item:
+            # Extract signal name and message name from the text
+            signal_text = item.text(0)
+            if " - " in signal_text and " (0x" in signal_text:
+                signal_name = signal_text.split(" - ")[0]
+                msg_name = signal_text.split(" - ")[1].split(" (0x")[0]
+                
+                # Find the message and signal
+                for msg in self.db.messages:
+                    if msg.name == msg_name:
+                        for signal in msg.signals:
+                            if signal.name == signal_name:
+                                self.show_signal_details(signal, msg)
+                                return
     
     def show_message_details(self, message):
         """Show detailed message information in a popup"""
@@ -621,6 +676,107 @@ class DBCDisplayView(QMainWindow):
                 
                 if button and hasattr(button, 'row'):
                     button.row = row  # Update the row number
+    
+    def show_signal_details(self, signal, parent_msg):
+        """Show detailed information about a signal"""
+        # Create a non-modal dialog with signal and DBC file information
+        detail_view = MessageDetailView(self, parent_msg, self.dbc_file_path, selected_signal=signal)
+        
+        # Keep a reference to prevent garbage collection
+        self.open_detail_views.append(detail_view)
+        
+        # Connect the dialog's finished signal to remove it from our list
+        detail_view.finished.connect(lambda: self.remove_detail_view(detail_view))
+        
+        # Show the dialog as non-modal
+        detail_view.show()
+        
+    def populate_signals_table(self):
+        """Populate the table with all signals when the Signals node is clicked"""
+        if not hasattr(self, 'db') or not self.db.messages:
+            return
+            
+        # Clear the table
+        self.table.clearContents()
+        self.table.setRowCount(0)
+        
+        # Collect all signals from all messages
+        all_signals = []
+        for msg in self.db.messages:
+            for signal in msg.signals:
+                all_signals.append((signal, msg))
+        
+        # Sort by signal name
+        all_signals.sort(key=lambda x: x[0].name)
+        
+        # Set up column names for signals view
+        signal_columns = [
+            "Signal Name", "Message", "Start Bit", "Length", 
+            "Byte Order", "Signed", "Scale", "Offset", "Unit"
+        ]
+        
+        # Update table headers
+        self.table.setColumnCount(len(signal_columns))
+        self.table.setHorizontalHeaderLabels(signal_columns)
+        
+        # Populate the table
+        self.table.setRowCount(len(all_signals))
+        for row, (signal, msg) in enumerate(all_signals):
+            # Signal Name
+            self.table.setItem(row, 0, QTableWidgetItem(signal.name))
+            
+            # Message
+            self.table.setItem(row, 1, QTableWidgetItem(f"{msg.name} (0x{msg.frame_id:X})"))
+            
+            # Start Bit
+            self.table.setItem(row, 2, QTableWidgetItem(str(signal.start)))
+            
+            # Length
+            self.table.setItem(row, 3, QTableWidgetItem(str(signal.length)))
+            
+            # Byte Order
+            byte_order = getattr(signal, 'byte_order', "Unknown")
+            self.table.setItem(row, 4, QTableWidgetItem(byte_order))
+            
+            # Signed
+            is_signed = getattr(signal, 'is_signed', False)
+            self.table.setItem(row, 5, QTableWidgetItem("Yes" if is_signed else "No"))
+            
+            # Scale
+            scale = getattr(signal, 'scale', 1.0)
+            self.table.setItem(row, 6, QTableWidgetItem(str(scale)))
+            
+            # Offset
+            offset = getattr(signal, 'offset', 0.0)
+            self.table.setItem(row, 7, QTableWidgetItem(str(offset)))
+            
+            # Unit
+            unit = getattr(signal, 'unit', "")
+            self.table.setItem(row, 8, QTableWidgetItem(unit if unit else ""))
+    
+    def on_table_cell_double_clicked(self, row, column):
+        """Handle double clicks on table cells to show message details"""
+        # Get the message object from the row
+        cell_widget = self.table.cellWidget(row, 0)
+        if cell_widget:
+            # Find the button in the cell widget to get the message
+            for child in cell_widget.children():
+                if isinstance(child, QToolButton) and hasattr(child, 'msg'):
+                    self.show_message_details(child.msg)
+                    return
+                    
+        # For signal rows, find the parent message
+        # This works because signal rows don't have a cell widget in column 0
+        parent_row = row
+        while parent_row >= 0:
+            parent_cell = self.table.cellWidget(parent_row, 0)
+            if parent_cell:
+                # Find the button in the cell widget
+                for child in parent_cell.children():
+                    if isinstance(child, QToolButton) and hasattr(child, 'msg'):
+                        self.show_message_details(child.msg)
+                        return
+            parent_row -= 1
     
     def closeEvent(self, event):
         """Handle window close event"""

@@ -7,10 +7,11 @@ from PyQt5.QtGui import QFont, QColor
 class MessageDetailView(QDialog):
     """Popup dialog to display detailed message information"""
     
-    def __init__(self, parent=None, message=None, dbc_file_path=None):
+    def __init__(self, parent=None, message=None, dbc_file_path=None, selected_signal=None):
         super().__init__(parent)
         self.message = message
         self.dbc_file_path = dbc_file_path
+        self.selected_signal = selected_signal
         self.setup_ui()
         
     def setup_ui(self):
@@ -108,7 +109,13 @@ class MessageDetailView(QDialog):
         
         # Populate signals table
         signals_table.setRowCount(len(self.message.signals))
+        highlight_row = -1
+        
         for row, signal in enumerate(self.message.signals):
+            # Check if this is the selected signal
+            if self.selected_signal and signal.name == self.selected_signal.name:
+                highlight_row = row
+                
             # Name
             signals_table.setItem(row, 0, QTableWidgetItem(signal.name))
             
@@ -145,9 +152,22 @@ class MessageDetailView(QDialog):
             # Unit
             unit = getattr(signal, 'unit', "")
             signals_table.setItem(row, 9, QTableWidgetItem(unit if unit else ""))
+            
+            # Highlight selected signal row
+            if row == highlight_row:
+                for col in range(signals_table.columnCount()):
+                    item = signals_table.item(row, col)
+                    if item:
+                        item.setBackground(QColor("#FFFFE0"))  # Light yellow highlight
         
         # Make signals table support sorting
         signals_table.setSortingEnabled(True)
+        
+        # If a signal is selected, switch to the signals tab and scroll to it
+        if highlight_row >= 0:
+            tab_widget.setCurrentIndex(1)  # Switch to signals tab
+            signals_table.scrollToItem(signals_table.item(highlight_row, 0))
+            signals_table.selectRow(highlight_row)
             
         # Add close button
         close_btn = QPushButton("Close")
