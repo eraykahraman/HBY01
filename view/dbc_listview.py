@@ -25,7 +25,7 @@ class DBCListView(QWidget):
         # Create list widget
         self.list_widget = QListWidget()
         self.list_widget.setSelectionMode(QListWidget.SingleSelection)
-        self.list_widget.itemSelectionChanged.connect(self.on_selection_changed)
+        self.list_widget.itemClicked.connect(self.on_item_clicked)
         layout.addWidget(self.list_widget)
         
     def add_dbc_file(self, file_path):
@@ -73,12 +73,10 @@ class DBCListView(QWidget):
         """Handle remove button click by emitting the remove signal"""
         self.dbc_removed.emit(file_path)
                 
-    def on_selection_changed(self):
-        """Handle selection changes in the list"""
-        selected_items = self.list_widget.selectedItems()
-        if selected_items:
-            file_path = selected_items[0].data(Qt.UserRole)
-            self.dbc_selected.emit(file_path)
+    def on_item_clicked(self, item):
+        """Handle click on an item in the list"""
+        file_path = item.data(Qt.UserRole)
+        self.dbc_selected.emit(file_path)
             
     def get_selected_dbc(self):
         """Get the currently selected DBC file path"""
