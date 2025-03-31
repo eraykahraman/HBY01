@@ -135,25 +135,26 @@ class DBCDisplayView(QWidget):
         self.messages_table.setHorizontalHeaderLabels(columns)
         header = self.messages_table.horizontalHeader()
         
-        # Enable manual column resizing
-        self.messages_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        # Enable manual column resizing for all columns
+        for i in range(len(columns)):
+            header.setSectionResizeMode(i, QHeaderView.Interactive)
         
         # Set stretch for the last column (Comment) to use remaining space
         header.setStretchLastSection(True)
         
-        # Set specific widths for fixed-size columns
+        # Set initial widths for columns
         column_widths = {
+            "Name": 150,     # Wider for message names
             "ID": 100,      # Wider to fit hex values
-            "Length": 80,
-            "Signals Count": 100  # Increased to fit content
+            "Length": 80,    # Fixed size for byte length
+            "Signals Count": 100,  # Increased to fit content
+            "Senders": 150,  # Wider for multiple sender names
+            "Comment": 300   # Wide for comments
         }
         
+        # Apply initial column widths
         for i, col in enumerate(columns):
-            if col in column_widths:
-                self.messages_table.setColumnWidth(i, column_widths[col])
-            else:
-                # Let other columns size to content
-                header.setSectionResizeMode(i, QHeaderView.ResizeToContents)
+            self.messages_table.setColumnWidth(i, column_widths.get(col, 150))
         
         self.messages_table.setVisible(False)  # Hide table initially
         
