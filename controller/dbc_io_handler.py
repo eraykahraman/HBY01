@@ -1,9 +1,13 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from cantools.database import Database
 import os
 from model.dbc_model import DBCModel
+from PyQt5.QtCore import QObject, pyqtSignal
 
-class DBC_IO_Handler:
+class DBC_IO_Handler(QObject):
+    # Signal emitted when nodes list changes
+    nodes_changed = pyqtSignal(list)
+    
     def __init__(self, file_path: str, model: DBCModel):
         """
         Initialize a DBC IO Handler for a specific DBC file
@@ -12,10 +16,12 @@ class DBC_IO_Handler:
             file_path (str): Path to the DBC file
             model (DBCModel): Reference to the main DBC model
         """
+        super().__init__()
         self.file_path = file_path
         self.model = model
         self.database: Optional[Database] = None
         self.is_loaded: bool = False
+        self.nodes: List[Dict[str, Any]] = []  # Store the list of nodes
         # Connect to model signals to capture error messages
         self.model.dbc_error.connect(self._on_model_error)
         self.last_error: Optional[str] = None
@@ -39,6 +45,9 @@ class DBC_IO_Handler:
             if self.model.load_dbc(self.file_path):
                 self.database = self.model.get_dbc(self.file_path)
                 self.is_loaded = True
+                # Parse nodes after successful load
+                self.nodes = self.parse_nodes()
+                self.nodes_changed.emit(self.nodes)
                 return True, None
             else:
                 return False, self.last_error or "Failed to load DBC file"
@@ -68,6 +77,38 @@ class DBC_IO_Handler:
             "nodes_count": len(db.nodes) if db else 0
         }
         
+    def parse_nodes(self) -> List[Dict[str, Any]]:
+        """
+        Parse all nodes from the DBC database
+        
+        Returns:
+            List[Dict[str, Any]]: List of dictionaries containing node information
+                Each dictionary contains:
+                - name (str): The name of the node
+                - comment (Optional[str]): The comment associated with the node
+        """
+        if not self.is_valid():
+            return []
+            
+        nodes = []
+        for node in self.database.nodes:
+            node_info = {
+                "name": node.name,
+                "comment": node.comment
+            }
+            nodes.append(node_info)
+            
+        return nodes
+        
+    def get_nodes(self) -> List[Dict[str, Any]]:
+        """
+        Returns the current list of nodes
+        
+        Returns:
+            List[Dict[str, Any]]: List of node information dictionaries
+        """
+        return self.nodes
+        
     def unload(self) -> bool:
         """
         Unload the DBC file from memory using the model
@@ -78,6 +119,8 @@ class DBC_IO_Handler:
         if self.model.remove_dbc(self.file_path):
             self.database = None
             self.is_loaded = False
+            self.nodes = []  # Clear nodes list
+            self.nodes_changed.emit(self.nodes)  # Emit empty list
             return True
         return False
         
@@ -96,6 +139,7 @@ class DBC_IO_Handler:
         self.model = None
         self.is_loaded = False
         self.last_error = None
+        self.nodes = []
         
     def is_valid(self) -> bool:
         """

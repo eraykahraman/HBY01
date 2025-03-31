@@ -1,9 +1,11 @@
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QPushButton, QLabel, QStatusBar,
-                            QMessageBox, QSpacerItem, QSizePolicy)
+                            QMessageBox, QSpacerItem, QSizePolicy, QFrame,
+                            QSplitter)
 from PyQt5.QtCore import Qt
 from controller.DBC_IO_Controller import DBC_IO_Controller
 from view.dbc_listview import DBCListView
+from view.dbc_display_view import DBCDisplayView
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -18,31 +20,49 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(10, 10, 10, 10)  # Add some padding
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
         
-        # Create horizontal layout for the button and content
-        h_layout = QHBoxLayout()
-        h_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins from horizontal layout
+        # Create splitter
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setHandleWidth(1)  # Set the width of the splitter handle
+        splitter.setStyleSheet("""
+            QSplitter::handle {
+                background-color: #d0d0d0;
+            }
+            QSplitter::handle:hover {
+                background-color: #a0a0a0;
+            }
+        """)
+        
+        # Create left panel for DBC list
+        left_panel = QWidget()
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(5, 5, 5, 5)
+        left_layout.setSpacing(1)
         
         # Create and add the import button
         self.import_button = QPushButton("Import DBC")
-        self.import_button.setFixedWidth(120)  # Set a fixed width for the button
+        self.import_button.setFixedWidth(120)
         self.import_button.clicked.connect(self.import_dbc)
-        h_layout.addWidget(self.import_button)
-        
-        # Add horizontal stretch to push everything to the left
-        h_layout.addStretch()
-        
-        # Add the horizontal layout to the main layout
-        main_layout.addLayout(h_layout)
+        left_layout.addWidget(self.import_button)
         
         # Create and add the DBC list view
         self.dbc_list = DBCListView()
-        self.dbc_list.setFixedWidth(200)  # Set a fixed width for the list
-        main_layout.addWidget(self.dbc_list)
+        left_layout.addWidget(self.dbc_list)
         
-        # Add vertical stretch to push everything to the top
-        main_layout.addStretch()
+        # Add left panel to splitter
+        splitter.addWidget(left_panel)
+        
+        # Create and add the DBC display view to splitter
+        self.dbc_display = DBCDisplayView()
+        splitter.addWidget(self.dbc_display)
+        
+        # Set initial sizes for the splitter
+        splitter.setSizes([200, 1000])  # Left panel 200px, rest to right panel
+        
+        # Add splitter to main layout
+        main_layout.addWidget(splitter)
         
         # Create status bar
         self.statusBar = QStatusBar()
@@ -76,9 +96,10 @@ class MainWindow(QMainWindow):
     def on_handler_removed(self, file_path):
         """Handle handler removal"""
         self.statusBar.showMessage(f"Removed DBC file: {file_path}")
+        self.dbc_display.clear_display()  # Clear display when handler is removed
         
     def on_handler_selected(self, handler):
         """Handle handler selection"""
         file_info = handler.get_file_info()
         self.statusBar.showMessage(f"Selected DBC file: {file_info['file_name']} ({file_info['messages_count']} messages, {file_info['nodes_count']} nodes)")
-        # TODO: Update the main view with the selected handler's contents 
+        self.dbc_display.update_display(handler)  # Update display with selected handler 
