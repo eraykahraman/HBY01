@@ -8,6 +8,7 @@ class DBC_IO_Handler(QObject):
     # Signals emitted when nodes or messages list changes
     nodes_changed = pyqtSignal(list)
     messages_changed = pyqtSignal(list)
+    signals_changed = pyqtSignal(list)  # New signal for signals list changes
     
     def __init__(self, file_path: str, model: DBCModel):
         """
@@ -24,6 +25,7 @@ class DBC_IO_Handler(QObject):
         self.is_loaded: bool = False
         self.nodes: List[Dict[str, Any]] = []  # Store the list of nodes
         self.messages: List[Dict[str, Any]] = []  # Store the list of messages
+        self.signals: List[Dict[str, Any]] = []  # Store the list of all signals
         # Connect to model signals to capture error messages
         self.model.dbc_error.connect(self._on_model_error)
         self.last_error: Optional[str] = None
@@ -50,8 +52,10 @@ class DBC_IO_Handler(QObject):
                 # Parse nodes and messages after successful load
                 self.nodes = self.parse_nodes()
                 self.messages = self.parse_messages()
+                self.signals = self.parse_all_signals()  # Parse all signals
                 self.nodes_changed.emit(self.nodes)
                 self.messages_changed.emit(self.messages)
+                self.signals_changed.emit(self.signals)  # Emit signals list
                 return True, None
             else:
                 return False, self.last_error or "Failed to load DBC file"
@@ -195,7 +199,56 @@ class DBC_IO_Handler(QObject):
             return []
             
         return messages
+
+    def parse_all_signals(self) -> List[Dict[str, Any]]:
+        """
+        Parse all signals from all messages in the DBC database
         
+        Returns:
+            List[Dict[str, Any]]: List of dictionaries containing signal information
+                Each dictionary contains all signal information plus:
+                - message_name (str): Name of the parent message
+                - message_id (int): Frame ID of the parent message
+        """
+        if not self.is_valid():
+            return []
+            
+        all_signals = []
+        try:
+            for msg in self.database.messages:
+                if not hasattr(msg, 'name'):
+                    continue
+                    
+                for signal in getattr(msg, 'signals', []):
+                    if not hasattr(signal, 'name'):
+                        continue
+                        
+                    signal_info = {
+                        "name": signal.name,
+                        "message_name": msg.name,
+                        "message_id": getattr(msg, 'frame_id', 0),
+                        "start": getattr(signal, 'start', 0),
+                        "length": getattr(signal, 'length', 1),
+                        "byte_order": "little_endian" if getattr(signal, 'byte_order', 'little_endian') == 'little_endian' else "big_endian",
+                        "is_signed": getattr(signal, 'is_signed', False),
+                        "scale": float(getattr(signal, 'scale', 1.0)),
+                        "offset": float(getattr(signal, 'offset', 0.0)),
+                        "minimum": float(getattr(signal, 'minimum', 0)) if hasattr(signal, 'minimum') else None,
+                        "maximum": float(getattr(signal, 'maximum', 0)) if hasattr(signal, 'maximum') else None,
+                        "unit": getattr(signal, 'unit', None),
+                        "comment": getattr(signal, 'comment', None),
+                        "receivers": [
+                            node.name if hasattr(node, 'name') else str(node)
+                            for node in getattr(signal, 'receivers', [])
+                        ]
+                    }
+                    all_signals.append(signal_info)
+        except Exception as e:
+            print(f"Error parsing signals: {str(e)}")
+            return []
+            
+        return all_signals
+
     def get_nodes(self) -> List[Dict[str, Any]]:
         """
         Returns the current list of nodes
@@ -213,6 +266,15 @@ class DBC_IO_Handler(QObject):
             List[Dict[str, Any]]: List of message information dictionaries
         """
         return self.messages
+
+    def get_signals(self) -> List[Dict[str, Any]]:
+        """
+        Returns the current list of all signals
+        
+        Returns:
+            List[Dict[str, Any]]: List of signal information dictionaries
+        """
+        return self.signals
         
     def unload(self) -> bool:
         """
@@ -226,8 +288,10 @@ class DBC_IO_Handler(QObject):
             self.is_loaded = False
             self.nodes = []  # Clear nodes list
             self.messages = []  # Clear messages list
-            self.nodes_changed.emit(self.nodes)  # Emit empty list
-            self.messages_changed.emit(self.messages)  # Emit empty list
+            self.signals = []  # Clear signals list
+            self.nodes_changed.emit(self.nodes)
+            self.messages_changed.emit(self.messages)
+            self.signals_changed.emit(self.signals)
             return True
         return False
         
@@ -248,6 +312,7 @@ class DBC_IO_Handler(QObject):
         self.last_error = None
         self.nodes = []
         self.messages = []
+        self.signals = []
         
     def is_valid(self) -> bool:
         """
