@@ -48,51 +48,37 @@ class MainWindow(QMainWindow):
         self.statusBar = QStatusBar()
         self.setStatusBar(self.statusBar)
         
-        # Connect to model signals
-        self.dbc_controller.model.dbc_loaded.connect(self.on_dbc_loaded)
-        self.dbc_controller.model.dbc_error.connect(self.on_dbc_error)
+        # Connect to controller signals
+        self.dbc_controller.handlers_changed.connect(self.on_handlers_changed)
+        self.dbc_controller.handler_removed.connect(self.on_handler_removed)
         
         # Connect to list view signals
-        self.dbc_list.dbc_selected.connect(self.on_dbc_selected)
-        self.dbc_list.dbc_removed.connect(self.on_dbc_removed)
+        self.dbc_list.handler_selected.connect(self.on_handler_selected)
+        self.dbc_list.handler_removed.connect(self.dbc_controller.remove_dbc)
         
     def import_dbc(self):
-        db, file_name, error = self.dbc_controller.import_dbc(self)
-        
-    def on_dbc_loaded(self, file_path):
-        self.statusBar.showMessage(f"Loaded DBC file: {file_path}")
-        self.dbc_list.add_dbc_file(file_path)
-        
-    def on_dbc_error(self, error_message):
-        # Show error in popup message
-        QMessageBox.critical(
-            self,
-            "DBC Load Error",
-            f"Failed to load DBC file:\n{error_message}",
-            QMessageBox.Ok
-        )
-        # Also show in status bar for reference
-        self.statusBar.showMessage(f"Error: {error_message}")
-        
-    def on_dbc_selected(self, file_path):
-        """Handle DBC file selection from the list"""
-        self.statusBar.showMessage(f"Selected DBC file: {file_path}")
-        # TODO: Update the main view with the selected DBC's contents
-        
-    def on_dbc_removed(self, file_path):
-        """Handle DBC file removal from the list"""
-        if self.dbc_controller.remove_dbc(file_path):
-            self.statusBar.showMessage(f"Removed DBC file: {file_path}")
-            # Remove from list view
-            for i in range(self.dbc_list.list_widget.count()):
-                item = self.dbc_list.list_widget.item(i)
-                if item.data(Qt.UserRole) == file_path:
-                    self.dbc_list.list_widget.takeItem(i)
-                    break
-        else:
-            QMessageBox.warning(
+        handler, file_name, error = self.dbc_controller.import_dbc(self)
+        if error:
+            # Show detailed error message in dialog
+            QMessageBox.critical(
                 self,
-                "Remove Error",
-                f"Failed to remove DBC file: {file_path}",
+                "DBC Load Error",
+                error,  # Use the full error message
                 QMessageBox.Ok
-            ) 
+            )
+            # Show shorter version in status bar
+            self.statusBar.showMessage("Failed to load DBC file - See error dialog for details")
+        
+    def on_handlers_changed(self, handlers):
+        """Handle updates to the handlers list"""
+        self.dbc_list.update_handlers(handlers)
+        
+    def on_handler_removed(self, file_path):
+        """Handle handler removal"""
+        self.statusBar.showMessage(f"Removed DBC file: {file_path}")
+        
+    def on_handler_selected(self, handler):
+        """Handle handler selection"""
+        file_info = handler.get_file_info()
+        self.statusBar.showMessage(f"Selected DBC file: {file_info['file_name']} ({file_info['messages_count']} messages, {file_info['nodes_count']} nodes)")
+        # TODO: Update the main view with the selected handler's contents 

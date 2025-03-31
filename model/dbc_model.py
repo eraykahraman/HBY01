@@ -20,8 +20,18 @@ class DBCModel(QObject):
             self.dbc_files[file_path] = db
             self.dbc_loaded.emit(file_path)
             return True
+        except cantools.database.errors.Error as e:
+            # Handle specific cantools errors
+            self.dbc_error.emit(f"DBC format error: {str(e)}")
+            return False
+        except FileNotFoundError:
+            self.dbc_error.emit(f"File not found: {file_path}")
+            return False
+        except PermissionError:
+            self.dbc_error.emit(f"Permission denied accessing file: {file_path}")
+            return False
         except Exception as e:
-            self.dbc_error.emit(str(e))
+            self.dbc_error.emit(f"Error loading DBC file: {str(e)}")
             return False
             
     def get_dbc(self, file_path):

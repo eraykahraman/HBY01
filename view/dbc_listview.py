@@ -3,11 +3,12 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QListWidget,
                             QPushButton)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QIcon
+from controller.dbc_io_handler import DBC_IO_Handler
 
 class DBCListView(QWidget):
     # Signals emitted when a DBC file is selected or removed
-    dbc_selected = pyqtSignal(str)  # Emits the file path of the selected DBC
-    dbc_removed = pyqtSignal(str)   # Emits the file path of the removed DBC
+    handler_selected = pyqtSignal(DBC_IO_Handler)  # Emits the selected handler
+    handler_removed = pyqtSignal(str)   # Emits the file path of the removed handler
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -28,8 +29,17 @@ class DBCListView(QWidget):
         self.list_widget.itemSelectionChanged.connect(self.on_selection_changed)
         layout.addWidget(self.list_widget)
         
-    def add_dbc_file(self, file_path):
-        """Add a new DBC file to the list"""
+    def update_handlers(self, handlers):
+        """Update the list with the current set of handlers"""
+        # Clear the current list
+        self.list_widget.clear()
+        
+        # Add all handlers
+        for handler in handlers:
+            self.add_handler(handler)
+            
+    def add_handler(self, handler: DBC_IO_Handler):
+        """Add a new DBC handler to the list"""
         # Create a widget to hold the filename and remove button
         item_widget = QWidget()
         item_layout = QHBoxLayout(item_widget)
@@ -37,8 +47,8 @@ class DBCListView(QWidget):
         item_layout.setSpacing(5)
         
         # Add filename label
-        file_name = file_path.split('/')[-1]
-        name_label = QLabel(file_name)
+        file_info = handler.get_file_info()
+        name_label = QLabel(file_info["file_name"])
         name_label.setStyleSheet("padding: 2px;")
         item_layout.addWidget(name_label)
         
@@ -56,7 +66,7 @@ class DBCListView(QWidget):
                 background-color: #ff6666;
             }
         """)
-        remove_button.clicked.connect(lambda: self.on_remove_clicked(file_path))
+        remove_button.clicked.connect(lambda: self.on_remove_clicked(handler.get_file_path()))
         item_layout.addWidget(remove_button)
         
         # Add stretch to push the remove button to the right
@@ -64,25 +74,34 @@ class DBCListView(QWidget):
         
         # Create list item and set the widget
         item = QListWidgetItem()
-        item.setData(Qt.UserRole, file_path)  # Store full path as item data
+        item.setData(Qt.UserRole, handler)  # Store handler as item data
         item.setSizeHint(item_widget.sizeHint())
         self.list_widget.addItem(item)
         self.list_widget.setItemWidget(item, item_widget)
         
     def on_remove_clicked(self, file_path):
         """Handle remove button click by emitting the remove signal"""
-        self.dbc_removed.emit(file_path)
+        self.handler_removed.emit(file_path)
                 
     def on_selection_changed(self):
         """Handle selection changes in the list"""
         selected_items = self.list_widget.selectedItems()
         if selected_items:
-            file_path = selected_items[0].data(Qt.UserRole)
-            self.dbc_selected.emit(file_path)
+            handler = selected_items[0].data(Qt.UserRole)
+            self.handler_selected.emit(handler)
             
-    def get_selected_dbc(self):
-        """Get the currently selected DBC file path"""
+    def get_selected_handler(self):
+        """Get the currently selected handler"""
         selected_items = self.list_widget.selectedItems()
         if selected_items:
             return selected_items[0].data(Qt.UserRole)
-        return None 
+        return None
+        
+    def remove_item_by_file_path(self, file_path):
+        """Remove an item from the list widget by its file path"""
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            handler = item.data(Qt.UserRole)
+            if handler.get_file_path() == file_path:
+                self.list_widget.takeItem(i)
+                break 
