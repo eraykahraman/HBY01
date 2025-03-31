@@ -20,7 +20,7 @@ class DBCDisplayView(QWidget):
         layout.setSpacing(5)
         
         # File info section
-        self.file_name_label = QLabel("File: No file selected")
+        self.file_name_label = QLabel()
         self.file_name_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.file_name_label.setStyleSheet("""
             QLabel {
@@ -31,11 +31,12 @@ class DBCDisplayView(QWidget):
                 border-bottom: 1px solid #d0d0d0;
             }
         """)
+        self.file_name_label.hide()  # Hide label initially
         layout.addWidget(self.file_name_label)
         
         # Create splitter for main content
-        splitter = QSplitter(Qt.Horizontal)
-        splitter.setStyleSheet("""
+        self.main_splitter = QSplitter(Qt.Horizontal)
+        self.main_splitter.setStyleSheet("""
             QSplitter::handle {
                 background-color: #d0d0d0;
                 width: 2px;
@@ -66,7 +67,7 @@ class DBCDisplayView(QWidget):
             }
         """)
         self.tree_widget.itemClicked.connect(self.on_tree_item_clicked)
-        splitter.addWidget(self.tree_widget)
+        self.main_splitter.addWidget(self.tree_widget)
         
         # Create stacked widget for tables
         self.tables_stack = QStackedWidget()
@@ -95,13 +96,16 @@ class DBCDisplayView(QWidget):
         self.tables_stack.addWidget(self.messages_table)
         
         # Add tables stack to splitter
-        splitter.addWidget(self.tables_stack)
+        self.main_splitter.addWidget(self.tables_stack)
         
         # Set initial sizes (30:70 ratio)
-        splitter.setSizes([300, 700])
+        self.main_splitter.setSizes([300, 700])
         
-        layout.addWidget(splitter)
+        layout.addWidget(self.main_splitter)
         
+        # Initially hide both tree and tables
+        self.main_splitter.hide()
+
     def setup_signals_table(self):
         """Setup the signals table structure"""
         columns = [
@@ -254,9 +258,13 @@ class DBCDisplayView(QWidget):
             
         self.current_handler = handler
             
-        # Update file name
+        # Update file name and show the label
         file_info = handler.get_file_info()
         self.file_name_label.setText(f"File: {file_info['file_name']}")
+        self.file_name_label.show()
+        
+        # Show the main splitter when file is loaded
+        self.main_splitter.show()
         
         # Update tree
         self.tree_widget.clear()
@@ -402,8 +410,9 @@ class DBCDisplayView(QWidget):
             
     def clear_display(self):
         """Clear all displayed information"""
-        self.file_name_label.setText("File: No file selected")
+        self.file_name_label.hide()  # Hide the label instead of setting text
         self.tree_widget.clear()
         self.signals_table.setVisible(False)
         self.messages_table.setVisible(False)
+        self.main_splitter.hide()
         self.current_handler = None 
