@@ -33,11 +33,17 @@ class DBCDisplayView(QWidget):
         """)
         layout.addWidget(self.file_name_label)
         
-        # Create main content widget
-        content_widget = QWidget()
-        content_layout = QHBoxLayout(content_widget)
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(5)
+        # Create splitter for main content
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setStyleSheet("""
+            QSplitter::handle {
+                background-color: #d0d0d0;
+                width: 2px;
+            }
+            QSplitter::handle:hover {
+                background-color: #a0a0a0;
+            }
+        """)
         
         # Tree view
         self.tree_widget = QTreeWidget()
@@ -60,7 +66,7 @@ class DBCDisplayView(QWidget):
             }
         """)
         self.tree_widget.itemClicked.connect(self.on_tree_item_clicked)
-        content_layout.addWidget(self.tree_widget)
+        splitter.addWidget(self.tree_widget)
         
         # Create stacked widget for tables
         self.tables_stack = QStackedWidget()
@@ -88,13 +94,13 @@ class DBCDisplayView(QWidget):
         self.setup_messages_table()
         self.tables_stack.addWidget(self.messages_table)
         
-        content_layout.addWidget(self.tables_stack)
+        # Add tables stack to splitter
+        splitter.addWidget(self.tables_stack)
         
-        # Set size ratio between tree and tables (30:70)
-        content_layout.setStretch(0, 30)
-        content_layout.setStretch(1, 70)
+        # Set initial sizes (30:70 ratio)
+        splitter.setSizes([300, 700])
         
-        layout.addWidget(content_widget)
+        layout.addWidget(splitter)
         
     def setup_signals_table(self):
         """Setup the signals table structure"""
@@ -105,13 +111,18 @@ class DBCDisplayView(QWidget):
         self.signals_table.setColumnCount(len(columns))
         self.signals_table.setHorizontalHeaderLabels(columns)
         header = self.signals_table.horizontalHeader()
-        # Only make certain columns auto-resize
+        
+        # Enable manual column resizing
+        self.signals_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        
+        # Set stretch for the last column (Receivers) to use remaining space
+        header.setStretchLastSection(True)
+        
+        # Set minimum width for numeric columns
+        numeric_columns = ["Start Bit", "Length", "Scale", "Offset", "Minimum", "Maximum"]
         for i, col in enumerate(columns):
-            if col in ["Name", "Message", "Message ID", "Unit", "Comment", "Receivers"]:
-                header.setSectionResizeMode(i, QHeaderView.ResizeToContents)
-            else:
-                header.setSectionResizeMode(i, QHeaderView.Fixed)
-                self.signals_table.setColumnWidth(i, 80)  # Fixed width for numeric columns
+            if col in numeric_columns:
+                self.signals_table.setColumnWidth(i, 80)
         
         self.signals_table.setVisible(False)  # Hide table initially
 
@@ -123,12 +134,25 @@ class DBCDisplayView(QWidget):
         self.messages_table.setColumnCount(len(columns))
         self.messages_table.setHorizontalHeaderLabels(columns)
         header = self.messages_table.horizontalHeader()
-        # Make all columns auto-resize except Length and Signals Count
+        
+        # Enable manual column resizing
+        self.messages_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        
+        # Set stretch for the last column (Comment) to use remaining space
+        header.setStretchLastSection(True)
+        
+        # Set specific widths for fixed-size columns
+        column_widths = {
+            "ID": 100,      # Wider to fit hex values
+            "Length": 80,
+            "Signals Count": 100  # Increased to fit content
+        }
+        
         for i, col in enumerate(columns):
-            if col in ["Length", "Signals Count"]:
-                header.setSectionResizeMode(i, QHeaderView.Fixed)
-                self.messages_table.setColumnWidth(i, 80)
+            if col in column_widths:
+                self.messages_table.setColumnWidth(i, column_widths[col])
             else:
+                # Let other columns size to content
                 header.setSectionResizeMode(i, QHeaderView.ResizeToContents)
         
         self.messages_table.setVisible(False)  # Hide table initially
