@@ -31,9 +31,9 @@ class DBCDisplayView(QWidget):
         """)
         layout.addWidget(self.file_name_label)
         
-        # Node tree view
+        # Tree view
         self.tree_widget = QTreeWidget()
-        self.tree_widget.setHeaderHidden(True)  # Hide the header since we'll use root item
+        self.tree_widget.setHeaderHidden(True)  # Hide the header since we'll use root items
         self.tree_widget.setStyleSheet("""
             QTreeWidget {
                 border: 1px solid #d0d0d0;
@@ -62,23 +62,98 @@ class DBCDisplayView(QWidget):
         file_info = handler.get_file_info()
         self.file_name_label.setText(f"File: {file_info['file_name']}")
         
-        # Update nodes tree
+        # Update tree
         self.tree_widget.clear()
+        
+        # Create root items
+        nodes_root = QTreeWidgetItem(self.tree_widget)
+        nodes_root.setText(0, "Network Nodes")
+        nodes_root.setExpanded(True)
+        
+        messages_root = QTreeWidgetItem(self.tree_widget)
+        messages_root.setText(0, "Messages")
+        messages_root.setExpanded(True)
+        
+        # Add nodes
         nodes = handler.get_nodes()
-        
-        # Create root item for Network nodes
-        root_item = QTreeWidgetItem(self.tree_widget)
-        root_item.setText(0, "Network nodes")
-        root_item.setExpanded(True)  # Expand by default
-        
-        # Add nodes as children of the root item
         for node in nodes:
-            node_item = QTreeWidgetItem(root_item)
+            node_item = QTreeWidgetItem(nodes_root)
             node_item.setText(0, node['name'])
-            node_item.setIcon(0, self.get_node_icon())  # Add icon to node
+            if node['comment']:
+                node_item.setToolTip(0, node['comment'])
+            node_item.setIcon(0, self.get_node_icon())
+            
+        # Add messages
+        messages = handler.get_messages()
+        for msg in messages:
+            msg_item = QTreeWidgetItem(messages_root)
+            msg_item.setText(0, f"{msg['name']} (ID: 0x{msg['frame_id']:X})")
+            
+            # Add message details as child items
+            details_item = QTreeWidgetItem(msg_item)
+            details_item.setText(0, f"Length: {msg['length']} bytes")
+            
+            if msg['comment']:
+                comment_item = QTreeWidgetItem(msg_item)
+                comment_item.setText(0, f"Comment: {msg['comment']}")
+                
+            if msg['senders']:
+                senders_item = QTreeWidgetItem(msg_item)
+                senders_item.setText(0, f"Senders: {', '.join(msg['senders'])}")
+            
+            # Add signals group
+            if msg['signals']:
+                signals_item = QTreeWidgetItem(msg_item)
+                signals_item.setText(0, "Signals")
+                
+                # Add each signal with its details
+                for signal in msg['signals']:
+                    signal_item = QTreeWidgetItem(signals_item)
+                    signal_item.setText(0, signal['name'])
+                    
+                    # Add signal details
+                    signal_details = [
+                        f"Start bit: {signal['start']}",
+                        f"Length: {signal['length']} bits",
+                        f"Byte order: {signal['byte_order']}",
+                        f"Signed: {'Yes' if signal['is_signed'] else 'No'}",
+                        f"Scale: {signal['scale']}",
+                        f"Offset: {signal['offset']}"
+                    ]
+                    
+                    # Add optional signal details if they exist
+                    if signal['minimum'] is not None:
+                        signal_details.append(f"Minimum: {signal['minimum']}")
+                    if signal['maximum'] is not None:
+                        signal_details.append(f"Maximum: {signal['maximum']}")
+                    if signal['unit']:
+                        signal_details.append(f"Unit: {signal['unit']}")
+                    if signal['comment']:
+                        signal_details.append(f"Comment: {signal['comment']}")
+                    if signal['receivers']:
+                        signal_details.append(f"Receivers: {', '.join(signal['receivers'])}")
+                        
+                    # Add all details as child items
+                    for detail in signal_details:
+                        detail_item = QTreeWidgetItem(signal_item)
+                        detail_item.setText(0, detail)
+                    
+                    signal_item.setIcon(0, self.get_signal_icon())
+                
+            msg_item.setIcon(0, self.get_message_icon())
             
     def get_node_icon(self):
         """Returns a default icon for nodes"""
+        # You can replace this with actual icon loading
+        return QIcon()
+        
+    def get_message_icon(self):
+        """Returns a default icon for messages"""
+        # You can replace this with actual icon loading
+        return QIcon()
+        
+    def get_signal_icon(self):
+        """Returns a default icon for signals"""
         # You can replace this with actual icon loading
         return QIcon()
             

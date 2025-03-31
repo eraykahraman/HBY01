@@ -5,8 +5,9 @@ from model.dbc_model import DBCModel
 from PyQt5.QtCore import QObject, pyqtSignal
 
 class DBC_IO_Handler(QObject):
-    # Signal emitted when nodes list changes
+    # Signals emitted when nodes or messages list changes
     nodes_changed = pyqtSignal(list)
+    messages_changed = pyqtSignal(list)
     
     def __init__(self, file_path: str, model: DBCModel):
         """
@@ -22,6 +23,7 @@ class DBC_IO_Handler(QObject):
         self.database: Optional[Database] = None
         self.is_loaded: bool = False
         self.nodes: List[Dict[str, Any]] = []  # Store the list of nodes
+        self.messages: List[Dict[str, Any]] = []  # Store the list of messages
         # Connect to model signals to capture error messages
         self.model.dbc_error.connect(self._on_model_error)
         self.last_error: Optional[str] = None
@@ -45,9 +47,11 @@ class DBC_IO_Handler(QObject):
             if self.model.load_dbc(self.file_path):
                 self.database = self.model.get_dbc(self.file_path)
                 self.is_loaded = True
-                # Parse nodes after successful load
+                # Parse nodes and messages after successful load
                 self.nodes = self.parse_nodes()
+                self.messages = self.parse_messages()
                 self.nodes_changed.emit(self.nodes)
+                self.messages_changed.emit(self.messages)
                 return True, None
             else:
                 return False, self.last_error or "Failed to load DBC file"
@@ -91,14 +95,106 @@ class DBC_IO_Handler(QObject):
             return []
             
         nodes = []
-        for node in self.database.nodes:
-            node_info = {
-                "name": node.name,
-                "comment": node.comment
-            }
-            nodes.append(node_info)
+        try:
+            for node in self.database.nodes:
+                # Check if node is a string (node name) or a Node object
+                if isinstance(node, str):
+                    node_info = {
+                        "name": node,
+                        "comment": None
+                    }
+                else:
+                    node_info = {
+                        "name": node.name,
+                        "comment": node.comment if hasattr(node, 'comment') else None
+                    }
+                nodes.append(node_info)
+        except Exception as e:
+            print(f"Error parsing node: {str(e)}")
+            # Return empty list on error
+            return []
             
         return nodes
+
+    def parse_messages(self) -> List[Dict[str, Any]]:
+        """
+        Parse all messages from the DBC database
+        
+        Returns:
+            List[Dict[str, Any]]: List of dictionaries containing message information
+                Each dictionary contains:
+                - name (str): The name of the message
+                - frame_id (int): The CAN frame ID
+                - length (int): The message length in bytes
+                - comment (Optional[str]): The comment associated with the message
+                - senders (List[str]): List of node names that can send this message
+                - signals (List[Dict]): List of signals in the message, each containing:
+                    - name (str): Signal name
+                    - start (int): Start bit
+                    - length (int): Signal length in bits
+                    - byte_order (str): Byte order ('little_endian' or 'big_endian')
+                    - is_signed (bool): Whether the signal is signed
+                    - scale (float): Signal scaling factor
+                    - offset (float): Signal offset
+                    - minimum (Optional[float]): Minimum value
+                    - maximum (Optional[float]): Maximum value
+                    - unit (Optional[str]): Signal unit
+                    - comment (Optional[str]): Signal comment
+                    - receivers (List[str]): List of receiving nodes
+        """
+        if not self.is_valid():
+            return []
+            
+        messages = []
+        try:
+            for msg in self.database.messages:
+                # Check if message has all required attributes
+                if not hasattr(msg, 'name'):
+                    continue
+                    
+                # Parse signals
+                signals = []
+                for signal in getattr(msg, 'signals', []):
+                    if not hasattr(signal, 'name'):
+                        continue
+                        
+                    signal_info = {
+                        "name": signal.name,
+                        "start": getattr(signal, 'start', 0),
+                        "length": getattr(signal, 'length', 1),
+                        "byte_order": "little_endian" if getattr(signal, 'byte_order', 'little_endian') == 'little_endian' else "big_endian",
+                        "is_signed": getattr(signal, 'is_signed', False),
+                        "scale": float(getattr(signal, 'scale', 1.0)),
+                        "offset": float(getattr(signal, 'offset', 0.0)),
+                        "minimum": float(getattr(signal, 'minimum', 0)) if hasattr(signal, 'minimum') else None,
+                        "maximum": float(getattr(signal, 'maximum', 0)) if hasattr(signal, 'maximum') else None,
+                        "unit": getattr(signal, 'unit', None),
+                        "comment": getattr(signal, 'comment', None),
+                        "receivers": [
+                            node.name if hasattr(node, 'name') else str(node)
+                            for node in getattr(signal, 'receivers', [])
+                        ]
+                    }
+                    signals.append(signal_info)
+                    
+                message_info = {
+                    "name": msg.name,
+                    "frame_id": getattr(msg, 'frame_id', 0),
+                    "length": getattr(msg, 'length', 0),
+                    "comment": getattr(msg, 'comment', None),
+                    "senders": [
+                        node.name if hasattr(node, 'name') else str(node)
+                        for node in getattr(msg, 'senders', [])
+                    ],
+                    "signals": signals
+                }
+                messages.append(message_info)
+        except Exception as e:
+            print(f"Error parsing message: {str(e)}")
+            # Return empty list on error
+            return []
+            
+        return messages
         
     def get_nodes(self) -> List[Dict[str, Any]]:
         """
@@ -108,6 +204,15 @@ class DBC_IO_Handler(QObject):
             List[Dict[str, Any]]: List of node information dictionaries
         """
         return self.nodes
+
+    def get_messages(self) -> List[Dict[str, Any]]:
+        """
+        Returns the current list of messages
+        
+        Returns:
+            List[Dict[str, Any]]: List of message information dictionaries
+        """
+        return self.messages
         
     def unload(self) -> bool:
         """
@@ -120,7 +225,9 @@ class DBC_IO_Handler(QObject):
             self.database = None
             self.is_loaded = False
             self.nodes = []  # Clear nodes list
+            self.messages = []  # Clear messages list
             self.nodes_changed.emit(self.nodes)  # Emit empty list
+            self.messages_changed.emit(self.messages)  # Emit empty list
             return True
         return False
         
@@ -140,6 +247,7 @@ class DBC_IO_Handler(QObject):
         self.is_loaded = False
         self.last_error = None
         self.nodes = []
+        self.messages = []
         
     def is_valid(self) -> bool:
         """
