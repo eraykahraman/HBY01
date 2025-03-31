@@ -328,3 +328,38 @@ class DBC_IO_Handler(QObject):
         Returns the file path of this handler
         """
         return self.file_path 
+
+    def get_node_messages(self, node_name: str) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Get Tx and Rx messages for a specific node
+        
+        Args:
+            node_name (str): Name of the node to get messages for
+            
+        Returns:
+            Dict[str, List[Dict[str, Any]]]: Dictionary containing:
+                - tx_messages: List of messages where node is sender
+                - rx_messages: List of messages where node receives signals
+        """
+        tx_messages = []
+        rx_messages = []
+        
+        for msg in self.messages:
+            # Check if node is a sender
+            if node_name in msg['senders']:
+                tx_messages.append(msg)
+            
+            # Check if node is a receiver of any signal
+            is_receiver = False
+            for signal in msg['signals']:
+                if node_name in signal['receivers']:
+                    is_receiver = True
+                    break
+            
+            if is_receiver:
+                rx_messages.append(msg)
+                
+        return {
+            "tx_messages": tx_messages,
+            "rx_messages": rx_messages
+        } 

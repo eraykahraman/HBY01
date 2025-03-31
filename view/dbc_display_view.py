@@ -250,6 +250,64 @@ class DBCDisplayView(QWidget):
             self.signals_table.setVisible(False)
             self.messages_table.setVisible(False)
         
+    def organize_node_messages(self, node_name: str, messages: list) -> tuple[list, list]:
+        """
+        Organize messages into Tx and Rx lists for a given node
+        
+        Args:
+            node_name: Name of the node
+            messages: List of all messages
+            
+        Returns:
+            tuple[list, list]: (tx_messages, rx_messages)
+        """
+        tx_messages = []
+        rx_messages = []
+        
+        for msg in messages:
+            # Check if node is a sender
+            if node_name in msg['senders']:
+                tx_messages.append(msg)
+            
+            # Check if node is a receiver of any signal
+            is_receiver = False
+            for signal in msg['signals']:
+                if node_name in signal['receivers']:
+                    is_receiver = True
+                    break
+            
+            if is_receiver:
+                rx_messages.append(msg)
+                
+        return tx_messages, rx_messages
+
+    def add_message_to_tree(self, parent_item: QTreeWidgetItem, message: dict, is_tx: bool = True):
+        """
+        Add a message and its signals to the tree under the specified parent
+        
+        Args:
+            parent_item: Parent tree item
+            message: Message dictionary
+            is_tx: Whether this is a transmit message (affects naming)
+        """
+        msg_item = QTreeWidgetItem()
+        msg_item.setText(0, f"{message['name']} (ID: 0x{message['frame_id']:X})")
+        msg_item.setIcon(0, self.get_message_icon())
+        parent_item.addChild(msg_item)
+        
+        # Add signals group under message
+        if message['signals']:
+            signals_item = QTreeWidgetItem()
+            signals_item.setText(0, "Mapped " + ("Tx" if is_tx else "Rx") + " Signals")
+            msg_item.addChild(signals_item)
+            
+            # Add each signal
+            for signal in message['signals']:
+                signal_item = QTreeWidgetItem()
+                signal_item.setText(0, signal['name'])
+                signal_item.setIcon(0, self.get_signal_icon())
+                signals_item.addChild(signal_item)
+
     def update_display(self, handler: DBC_IO_Handler):
         """Update the display with information from the handler"""
         if not handler or not handler.is_valid():
@@ -282,8 +340,10 @@ class DBCDisplayView(QWidget):
         signals_root.setText(0, "Signals")
         signals_root.setExpanded(False)
         
-        # Add nodes
+        # Get all nodes
         nodes = handler.get_nodes()
+        
+        # Add nodes with their messages and signals
         for node in nodes:
             node_item = QTreeWidgetItem()
             node_item.setText(0, node['name'])
@@ -292,7 +352,24 @@ class DBCDisplayView(QWidget):
             node_item.setIcon(0, self.get_node_icon())
             nodes_root.addChild(node_item)
             
-        # Add messages with their signals
+            # Get messages for this node from handler
+            node_messages = handler.get_node_messages(node['name'])
+            
+            # Always add Tx Messages group
+            tx_group = QTreeWidgetItem()
+            tx_group.setText(0, "Tx Messages")
+            node_item.addChild(tx_group)
+            for msg in node_messages['tx_messages']:
+                self.add_message_to_tree(tx_group, msg, True)
+            
+            # Always add Rx Messages group
+            rx_group = QTreeWidgetItem()
+            rx_group.setText(0, "Rx Messages")
+            node_item.addChild(rx_group)
+            for msg in node_messages['rx_messages']:
+                self.add_message_to_tree(rx_group, msg, False)
+            
+        # Add messages to Messages root
         messages = handler.get_messages()
         for msg in messages:
             msg_item = QTreeWidgetItem()
@@ -356,7 +433,7 @@ class DBCDisplayView(QWidget):
                         detail_item.setText(0, detail)
                         signal_item.addChild(detail_item)
         
-        # Add all signals in a flat list under Signals root with their details
+        # Add signals to Signals root
         signals = handler.get_signals()
         for signal in signals:
             signal_item = QTreeWidgetItem()
@@ -391,10 +468,6 @@ class DBCDisplayView(QWidget):
                 detail_item = QTreeWidgetItem()
                 detail_item.setText(0, detail)
                 signal_item.addChild(detail_item)
-            
-        # Hide the table initially
-        self.signals_table.setVisible(False)
-        self.messages_table.setVisible(False)
             
     def get_node_icon(self):
         """Returns a default icon for nodes"""
