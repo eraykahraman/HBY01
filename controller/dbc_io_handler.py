@@ -363,3 +363,43 @@ class DBC_IO_Handler(QObject):
             "tx_messages": tx_messages,
             "rx_messages": rx_messages
         } 
+
+    def get_node_signals(self, node_name: str) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Get Tx and Rx signals for a specific node
+        
+        Args:
+            node_name (str): Name of the node to get signals for
+            
+        Returns:
+            Dict[str, List[Dict[str, Any]]]: Dictionary containing:
+                - tx_signals: List of signals from messages where node is sender
+                - rx_signals: List of signals where node is a receiver
+        """
+        tx_signals = []
+        rx_signals = []
+        
+        # Get node's messages first
+        node_messages = self.get_node_messages(node_name)
+        
+        # Get Tx signals from Tx messages
+        for msg in node_messages['tx_messages']:
+            for signal in msg['signals']:
+                signal_info = signal.copy()  # Create a copy to avoid modifying original
+                signal_info['message_name'] = msg['name']
+                signal_info['message_id'] = msg['frame_id']
+                tx_signals.append(signal_info)
+        
+        # Get Rx signals from Rx messages
+        for msg in node_messages['rx_messages']:
+            for signal in msg['signals']:
+                if node_name in signal['receivers']:
+                    signal_info = signal.copy()  # Create a copy to avoid modifying original
+                    signal_info['message_name'] = msg['name']
+                    signal_info['message_id'] = msg['frame_id']
+                    rx_signals.append(signal_info)
+        
+        return {
+            "tx_signals": tx_signals,
+            "rx_signals": rx_signals
+        } 

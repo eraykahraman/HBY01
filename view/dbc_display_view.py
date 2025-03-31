@@ -281,32 +281,31 @@ class DBCDisplayView(QWidget):
                 
         return tx_messages, rx_messages
 
-    def add_message_to_tree(self, parent_item: QTreeWidgetItem, message: dict, is_tx: bool = True):
+    def add_message_to_tree(self, parent_item: QTreeWidgetItem, message: dict):
         """
-        Add a message and its signals to the tree under the specified parent
+        Add a message to the tree under the specified parent
         
         Args:
             parent_item: Parent tree item
             message: Message dictionary
-            is_tx: Whether this is a transmit message (affects naming)
         """
         msg_item = QTreeWidgetItem()
         msg_item.setText(0, f"{message['name']} (ID: 0x{message['frame_id']:X})")
         msg_item.setIcon(0, self.get_message_icon())
         parent_item.addChild(msg_item)
+
+    def add_signal_to_tree(self, parent_item: QTreeWidgetItem, signal: dict):
+        """
+        Add a signal to the tree under the specified parent
         
-        # Add signals group under message
-        if message['signals']:
-            signals_item = QTreeWidgetItem()
-            signals_item.setText(0, "Mapped " + ("Tx" if is_tx else "Rx") + " Signals")
-            msg_item.addChild(signals_item)
-            
-            # Add each signal
-            for signal in message['signals']:
-                signal_item = QTreeWidgetItem()
-                signal_item.setText(0, signal['name'])
-                signal_item.setIcon(0, self.get_signal_icon())
-                signals_item.addChild(signal_item)
+        Args:
+            parent_item: Parent tree item
+            signal: Signal dictionary
+        """
+        signal_item = QTreeWidgetItem()
+        signal_item.setText(0, signal['name'])
+        signal_item.setIcon(0, self.get_signal_icon())
+        parent_item.addChild(signal_item)
 
     def update_display(self, handler: DBC_IO_Handler):
         """Update the display with information from the handler"""
@@ -352,23 +351,38 @@ class DBCDisplayView(QWidget):
             node_item.setIcon(0, self.get_node_icon())
             nodes_root.addChild(node_item)
             
-            # Get messages for this node from handler
+            # Get messages and signals for this node from handler
             node_messages = handler.get_node_messages(node['name'])
+            node_signals = handler.get_node_signals(node['name'])
             
-            # Always add Tx Messages group
-            tx_group = QTreeWidgetItem()
-            tx_group.setText(0, "Tx Messages")
-            node_item.addChild(tx_group)
+            # Add Tx Messages group
+            tx_messages_group = QTreeWidgetItem()
+            tx_messages_group.setText(0, "Tx Messages")
+            node_item.addChild(tx_messages_group)
             for msg in node_messages['tx_messages']:
-                self.add_message_to_tree(tx_group, msg, True)
+                self.add_message_to_tree(tx_messages_group, msg)
             
-            # Always add Rx Messages group
-            rx_group = QTreeWidgetItem()
-            rx_group.setText(0, "Rx Messages")
-            node_item.addChild(rx_group)
+            # Add Rx Messages group
+            rx_messages_group = QTreeWidgetItem()
+            rx_messages_group.setText(0, "Rx Messages")
+            node_item.addChild(rx_messages_group)
             for msg in node_messages['rx_messages']:
-                self.add_message_to_tree(rx_group, msg, False)
+                self.add_message_to_tree(rx_messages_group, msg)
             
+            # Add Tx Signals group
+            tx_signals_group = QTreeWidgetItem()
+            tx_signals_group.setText(0, "Tx Signals")
+            node_item.addChild(tx_signals_group)
+            for signal in node_signals['tx_signals']:
+                self.add_signal_to_tree(tx_signals_group, signal)
+            
+            # Add Rx Signals group
+            rx_signals_group = QTreeWidgetItem()
+            rx_signals_group.setText(0, "Rx Signals")
+            node_item.addChild(rx_signals_group)
+            for signal in node_signals['rx_signals']:
+                self.add_signal_to_tree(rx_signals_group, signal)
+
         # Add messages to Messages root
         messages = handler.get_messages()
         for msg in messages:
