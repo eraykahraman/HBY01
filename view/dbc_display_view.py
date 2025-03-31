@@ -95,6 +95,12 @@ class DBCDisplayView(QWidget):
         self.setup_messages_table()
         self.tables_stack.addWidget(self.messages_table)
         
+        # Nodes table
+        self.nodes_table = QTableWidget()
+        self.nodes_table.setStyleSheet(self.signals_table.styleSheet())
+        self.setup_nodes_table()
+        self.tables_stack.addWidget(self.nodes_table)
+        
         # Add tables stack to splitter
         self.main_splitter.addWidget(self.tables_stack)
         
@@ -162,6 +168,38 @@ class DBCDisplayView(QWidget):
         
         self.messages_table.setVisible(False)  # Hide table initially
         
+    def setup_nodes_table(self):
+        """Setup the nodes table structure"""
+        columns = [
+            "Name", "Tx Messages Count", "Rx Messages Count", "Tx Signals Count", "Rx Signals Count", "Comment"
+        ]
+        self.nodes_table.setColumnCount(len(columns))
+        self.nodes_table.setHorizontalHeaderLabels(columns)
+        header = self.nodes_table.horizontalHeader()
+        
+        # Enable manual column resizing for all columns
+        for i in range(len(columns)):
+            header.setSectionResizeMode(i, QHeaderView.Interactive)
+        
+        # Set stretch for the last column (Comment) to use remaining space
+        header.setStretchLastSection(True)
+        
+        # Set initial widths for columns
+        column_widths = {
+            "Name": 150,
+            "Tx Messages Count": 120,
+            "Rx Messages Count": 120,
+            "Tx Signals Count": 120,
+            "Rx Signals Count": 120,
+            "Comment": 300
+        }
+        
+        # Apply initial column widths
+        for i, col in enumerate(columns):
+            self.nodes_table.setColumnWidth(i, column_widths.get(col, 150))
+        
+        self.nodes_table.setVisible(False)  # Hide table initially
+
     def update_signals_table(self, signals):
         """Update the signals table with data"""
         # Temporarily disable sorting while updating
@@ -233,22 +271,62 @@ class DBCDisplayView(QWidget):
         self.messages_table.setSortingEnabled(True)
         self.messages_table.setVisible(True)
         self.tables_stack.setCurrentWidget(self.messages_table)
+
+    def update_nodes_table(self, nodes):
+        """Update the nodes table with data"""
+        # Temporarily disable sorting while updating
+        self.nodes_table.setSortingEnabled(False)
+        
+        # Clear existing items
+        self.nodes_table.setRowCount(0)
+        self.nodes_table.setRowCount(len(nodes))
+        
+        # Prepare all items first
+        table_items = []
+        for node in nodes:
+            # Get node messages and signals
+            node_messages = self.current_handler.get_node_messages(node['name'])
+            node_signals = self.current_handler.get_node_signals(node['name'])
             
+            row_items = [
+                QTableWidgetItem(node['name']),
+                QTableWidgetItem(str(len(node_messages['tx_messages']))),
+                QTableWidgetItem(str(len(node_messages['rx_messages']))),
+                QTableWidgetItem(str(len(node_signals['tx_signals']))),
+                QTableWidgetItem(str(len(node_signals['rx_signals']))),
+                QTableWidgetItem(node['comment'] if node['comment'] else '')
+            ]
+            table_items.append(row_items)
+        
+        # Set all items at once
+        for row, row_items in enumerate(table_items):
+            for col, item in enumerate(row_items):
+                self.nodes_table.setItem(row, col, item)
+        
+        # Re-enable sorting
+        self.nodes_table.setSortingEnabled(True)
+        self.nodes_table.setVisible(True)
+        self.tables_stack.setCurrentWidget(self.nodes_table)
+
     def on_tree_item_clicked(self, item):
         """Handle tree item clicks"""
         if not self.current_handler:
             return
             
-        # Check if the clicked item is the Signals or Messages root
+        # Check if the clicked item is the Signals, Messages, or Network Nodes root
         if item.text(0) == "Signals":
             signals = self.current_handler.get_signals()
             self.update_signals_table(signals)
         elif item.text(0) == "Messages":
             messages = self.current_handler.get_messages()
             self.update_messages_table(messages)
+        elif item.text(0) == "Network Nodes":
+            nodes = self.current_handler.get_nodes()
+            self.update_nodes_table(nodes)
         else:
             self.signals_table.setVisible(False)
             self.messages_table.setVisible(False)
+            self.nodes_table.setVisible(False)
         
     def organize_node_messages(self, node_name: str, messages: list) -> tuple[list, list]:
         """
@@ -501,5 +579,6 @@ class DBCDisplayView(QWidget):
         self.tree_widget.clear()
         self.signals_table.setVisible(False)
         self.messages_table.setVisible(False)
+        self.nodes_table.setVisible(False)
         self.main_splitter.hide()
         self.current_handler = None 
