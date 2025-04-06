@@ -1,18 +1,20 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, 
                             QLabel, QTreeWidget, QTreeWidgetItem,
                             QFrame, QSizePolicy, QTableWidget, QTableWidgetItem,
-                            QHeaderView, QSplitter, QStackedWidget)
+                            QHeaderView, QSplitter, QStackedWidget, QPushButton)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 from controller.dbc_io_handler import DBC_IO_Handler
 from view.signal_detail_view import SignalDetailView
 from view.message_detail_view import MessageDetailView
+from view.bus_load_dialog import BusLoadDialog
 
 class DBCDisplayView(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.current_handler = None
+        self.bus_load_button = None  # Initialize as None
         self.setup_ui()
         
     def setup_ui(self):
@@ -34,7 +36,17 @@ class DBCDisplayView(QWidget):
             }
         """)
         self.file_name_label.hide()  # Hide label initially
-        layout.addWidget(self.file_name_label)
+        
+        # Add buttons row
+        self.buttons_layout = QHBoxLayout()  # Make it instance variable
+        self.buttons_layout.setContentsMargins(0, 0, 0, 0)
+        self.buttons_layout.addStretch()
+        
+        # Add file name label and buttons to layout
+        top_layout = QHBoxLayout()
+        top_layout.addWidget(self.file_name_label)
+        top_layout.addLayout(self.buttons_layout)
+        layout.addLayout(top_layout)
         
         # Create splitter for main content
         self.main_splitter = QSplitter(Qt.Horizontal)
@@ -513,6 +525,14 @@ class DBCDisplayView(QWidget):
         self.file_name_label.setText(f"File: {file_info['file_name']}")
         self.file_name_label.show()
         
+        # Add bus load calculator button
+        if not self.bus_load_button:
+            self.bus_load_button = QPushButton("Bus Load Calculator")
+            self.bus_load_button.setToolTip("Calculate CAN bus load based on message properties")
+            self.bus_load_button.clicked.connect(self.show_bus_load_calculator)
+            # Insert before the stretch
+            self.buttons_layout.insertWidget(self.buttons_layout.count() - 1, self.bus_load_button)
+        
         # Show the main splitter when file is loaded
         self.main_splitter.show()
         
@@ -697,6 +717,11 @@ class DBCDisplayView(QWidget):
         self.nodes_table.setVisible(False)
         self.main_splitter.hide()
         self.current_handler = None
+        
+        # Remove bus load calculator button if it exists
+        if self.bus_load_button:
+            self.bus_load_button.setParent(None)  # Remove from layout
+            self.bus_load_button = None
 
     def is_message_item(self, item):
         """Check if the tree item represents a message"""
@@ -735,4 +760,16 @@ class DBCDisplayView(QWidget):
             if msg['name'] == message_name:
                 return msg
                 
-        return None 
+        return None
+
+    def show_bus_load_calculator(self):
+        """Show the bus load calculator dialog."""
+        if not self.current_handler or not self.current_handler.is_valid():
+            return
+            
+        # Get messages from the handler
+        messages = self.current_handler.get_messages()
+        
+        # Create and show the dialog
+        dialog = BusLoadDialog(messages, self)
+        dialog.exec_() 
