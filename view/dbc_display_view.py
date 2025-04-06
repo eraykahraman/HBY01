@@ -338,9 +338,58 @@ class DBCDisplayView(QWidget):
             nodes = self.current_handler.get_nodes()
             self.update_nodes_table(nodes)
         else:
-            self.signals_table.setVisible(False)
-            self.messages_table.setVisible(False)
-            self.nodes_table.setVisible(False)
+            # Check if this is a signal item by looking at its parent
+            parent = item.parent()
+            if parent and parent.text(0) in ["Signals", "Tx Signals", "Rx Signals"]:
+                # Find the signal data
+                signal_name = item.text(0)
+                signal_data = None
+                
+                # If it's under a node's Tx/Rx signals
+                if parent.text(0) in ["Tx Signals", "Rx Signals"]:
+                    node_item = parent.parent()
+                    if node_item:
+                        node_name = node_item.text(0)
+                        node_signals = self.current_handler.get_node_signals(node_name)
+                        # Search in tx_signals or rx_signals based on parent text
+                        signals_list = node_signals['tx_signals'] if parent.text(0) == "Tx Signals" else node_signals['rx_signals']
+                        for signal in signals_list:
+                            if signal['name'] == signal_name:
+                                signal_data = signal
+                                break
+                # If it's under the main Signals root
+                elif parent.text(0) == "Signals":
+                    # Extract signal name from the text (format: "name (message_name - ID: 0xXX)")
+                    signal_name = signal_name.split(" (")[0]
+                    signals = self.current_handler.get_signals()
+                    for signal in signals:
+                        if signal['name'] == signal_name:
+                            signal_data = signal
+                            break
+                # If it's under a message's signals
+                elif parent.text(0) == "Signals" and parent.parent():
+                    message_item = parent.parent()
+                    message_name = message_item.text(0).split(" (ID:")[0]
+                    messages = self.current_handler.get_messages()
+                    for msg in messages:
+                        if msg['name'] == message_name:
+                            for signal in msg['signals']:
+                                if signal['name'] == signal_name:
+                                    # Add message info to signal data
+                                    signal_data = signal.copy()
+                                    signal_data['message_name'] = msg['name']
+                                    signal_data['message_id'] = msg['frame_id']
+                                    break
+                            break
+                
+                # Show signal detail view if signal data was found
+                if signal_data:
+                    signal_detail = SignalDetailView(signal_data, self)
+                    signal_detail.show()
+            else:
+                self.signals_table.setVisible(False)
+                self.messages_table.setVisible(False)
+                self.nodes_table.setVisible(False)
         
     def on_signal_double_clicked(self, item):
         """Handle double-click on a signal in the signals table"""
