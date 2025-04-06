@@ -386,6 +386,13 @@ class DBCDisplayView(QWidget):
                 if signal_data:
                     signal_detail = SignalDetailView(signal_data, self)
                     signal_detail.show()
+            
+            # Check if this is a message item
+            elif self.is_message_item(item):
+                message_data = self.get_message_data_from_item(item)
+                if message_data:
+                    message_detail = MessageDetailView(message_data, self)
+                    message_detail.show()
             else:
                 self.signals_table.setVisible(False)
                 self.messages_table.setVisible(False)
@@ -674,4 +681,43 @@ class DBCDisplayView(QWidget):
         self.messages_table.setVisible(False)
         self.nodes_table.setVisible(False)
         self.main_splitter.hide()
-        self.current_handler = None 
+        self.current_handler = None
+
+    def is_message_item(self, item):
+        """Check if the tree item represents a message"""
+        # Check if item text contains "(ID:" which is our message format
+        if "(ID:" in item.text(0):
+            # Make sure it's not under a Signals parent (which also shows message ID)
+            parent = item.parent()
+            if parent and parent.text(0) == "Messages":
+                return True
+            # Check if it's under Tx/Rx Messages in a node
+            if parent and parent.text(0) in ["Tx Messages", "Rx Messages"]:
+                return True
+        return False
+        
+    def get_message_data_from_item(self, item):
+        """Get message data from a tree item"""
+        # Extract message name from the item text (format: "name (ID: 0xXX)")
+        message_name = item.text(0).split(" (ID:")[0]
+        
+        # If it's under a node's Tx/Rx messages
+        parent = item.parent()
+        if parent and parent.text(0) in ["Tx Messages", "Rx Messages"]:
+            node_item = parent.parent()
+            if node_item:
+                node_name = node_item.text(0)
+                node_messages = self.current_handler.get_node_messages(node_name)
+                # Search in tx_messages or rx_messages based on parent text
+                messages_list = node_messages['tx_messages'] if parent.text(0) == "Tx Messages" else node_messages['rx_messages']
+                for msg in messages_list:
+                    if msg['name'] == message_name:
+                        return msg
+        
+        # If it's under the main Messages root or anywhere else
+        messages = self.current_handler.get_messages()
+        for msg in messages:
+            if msg['name'] == message_name:
+                return msg
+                
+        return None 
