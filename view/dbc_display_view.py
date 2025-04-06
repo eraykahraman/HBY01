@@ -6,6 +6,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 from controller.dbc_io_handler import DBC_IO_Handler
 from view.signal_detail_view import SignalDetailView
+from view.message_detail_view import MessageDetailView
 
 class DBCDisplayView(QWidget):
     def __init__(self, parent=None):
@@ -170,8 +171,11 @@ class DBCDisplayView(QWidget):
         for i, col in enumerate(columns):
             self.messages_table.setColumnWidth(i, column_widths.get(col, 150))
         
-        self.messages_table.setVisible(False)  # Hide table initially
+        # Connect double-click signal to show message details
+        self.messages_table.itemDoubleClicked.connect(self.on_message_double_clicked)
         
+        self.messages_table.setVisible(False)  # Hide table initially
+
     def setup_nodes_table(self):
         """Setup the nodes table structure"""
         columns = [
@@ -255,6 +259,9 @@ class DBCDisplayView(QWidget):
         # Clear existing items
         self.messages_table.setRowCount(0)
         self.messages_table.setRowCount(len(messages))
+        
+        # Store messages data for later use
+        self.messages_data = messages
         
         # Prepare all items first
         table_items = []
@@ -350,6 +357,21 @@ class DBCDisplayView(QWidget):
         signal_detail = SignalDetailView(signal_data, self)
         signal_detail.show()  # Use show() instead of exec_() to allow multiple windows
         
+    def on_message_double_clicked(self, item):
+        """Handle double-click on a message in the messages table"""
+        if not self.current_handler or not hasattr(self, 'messages_data'):
+            return
+            
+        # Get the row of the clicked item
+        row = item.row()
+        
+        # Get the message data for this row
+        message_data = self.messages_data[row]
+        
+        # Show the message detail view
+        message_detail = MessageDetailView(message_data, self)
+        message_detail.show()  # Use show() to allow multiple windows
+
     def organize_node_messages(self, node_name: str, messages: list) -> tuple[list, list]:
         """
         Organize messages into Tx and Rx lists for a given node
