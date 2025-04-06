@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 from controller.dbc_io_handler import DBC_IO_Handler
+from view.signal_detail_view import SignalDetailView
 
 class DBCDisplayView(QWidget):
     def __init__(self, parent=None):
@@ -134,6 +135,9 @@ class DBCDisplayView(QWidget):
             if col in numeric_columns:
                 self.signals_table.setColumnWidth(i, 80)
         
+        # Connect double-click signal to show signal details
+        self.signals_table.itemDoubleClicked.connect(self.on_signal_double_clicked)
+        
         self.signals_table.setVisible(False)  # Hide table initially
 
     def setup_messages_table(self):
@@ -208,6 +212,9 @@ class DBCDisplayView(QWidget):
         # Clear existing items
         self.signals_table.setRowCount(0)
         self.signals_table.setRowCount(len(signals))
+        
+        # Store signals data for later use
+        self.signals_data = signals
         
         # Prepare all items first
         table_items = []
@@ -327,6 +334,21 @@ class DBCDisplayView(QWidget):
             self.signals_table.setVisible(False)
             self.messages_table.setVisible(False)
             self.nodes_table.setVisible(False)
+        
+    def on_signal_double_clicked(self, item):
+        """Handle double-click on a signal in the signals table"""
+        if not self.current_handler or not hasattr(self, 'signals_data'):
+            return
+            
+        # Get the row of the clicked item
+        row = item.row()
+        
+        # Get the signal data for this row
+        signal_data = self.signals_data[row]
+        
+        # Show the signal detail view
+        signal_detail = SignalDetailView(signal_data, self)
+        signal_detail.show()  # Use show() instead of exec_() to allow multiple windows
         
     def organize_node_messages(self, node_name: str, messages: list) -> tuple[list, list]:
         """
