@@ -144,7 +144,8 @@ class DBCDisplayView(QWidget):
     def setup_messages_table(self):
         """Setup the messages table structure"""
         columns = [
-            "Name", "ID", "Length", "Signals Count", "Senders", "Comment"
+            "Name", "ID", "Length", "Signals Count", "Senders", "Extended", "CAN FD", 
+            "Bus", "Cycle Time", "Send Type", "Comment"
         ]
         self.messages_table.setColumnCount(len(columns))
         self.messages_table.setHorizontalHeaderLabels(columns)
@@ -164,6 +165,11 @@ class DBCDisplayView(QWidget):
             "Length": 80,    # Fixed size for byte length
             "Signals Count": 100,  # Increased to fit content
             "Senders": 150,  # Wider for multiple sender names
+            "Extended": 80,  # Yes/No field
+            "CAN FD": 80,   # Yes/No field
+            "Bus": 100,     # Bus name
+            "Cycle Time": 100,  # Cycle time in ms
+            "Send Type": 100,  # Send type
             "Comment": 300   # Wide for comments
         }
         
@@ -266,12 +272,21 @@ class DBCDisplayView(QWidget):
         # Prepare all items first
         table_items = []
         for msg in messages:
+            # Format cycle time if available
+            cycle_time = msg.get('cycle_time')
+            cycle_time_str = f"{cycle_time} ms" if cycle_time is not None else ""
+            
             row_items = [
                 QTableWidgetItem(msg['name']),
                 QTableWidgetItem(f"0x{msg['frame_id']:X}"),
                 QTableWidgetItem(str(msg['length'])),
                 QTableWidgetItem(str(len(msg['signals']))),
                 QTableWidgetItem(', '.join(msg['senders']) if msg['senders'] else ''),
+                QTableWidgetItem('Yes' if msg.get('is_extended_frame', False) else 'No'),
+                QTableWidgetItem('Yes' if msg.get('is_fd', False) else 'No'),
+                QTableWidgetItem(msg.get('bus_name', '')),
+                QTableWidgetItem(cycle_time_str),
+                QTableWidgetItem(msg.get('send_type', '')),
                 QTableWidgetItem(msg['comment'] if msg['comment'] else '')
             ]
             table_items.append(row_items)

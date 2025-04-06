@@ -103,23 +103,52 @@ class MessageDetailView(QDialog):
             }
         """)
         
-        # Define basic properties and senders
-        basic_properties = [
+        # Define all properties with their values
+        properties = [
+            # Basic Properties
             ("Basic Properties", None),  # Header
             ("Name", self.message_data['name']),
             ("Frame ID", f"0x{self.message_data['frame_id']:X}"),
             ("Length", f"{self.message_data['length']} bytes"),
+            ("Comment", self.message_data['comment'] if self.message_data['comment'] else "No comment"),
+            
+            # Senders
             ("Senders", None),  # Header
             ("Senders List", ", ".join(self.message_data['senders']) if self.message_data['senders'] else "None"),
-            ("Comment", None),  # Header
-            ("Message Comment", self.message_data['comment'] if self.message_data['comment'] else "No comment")
+            
+            # Frame Format
+            ("Frame Format", None),  # Header
+            ("Extended Frame", "Yes" if self.message_data.get('is_extended_frame', False) else "No"),
+            ("CAN FD", "Yes" if self.message_data.get('is_fd', False) else "No"),
+            ("Bus Name", self.message_data.get('bus_name', "Not specified")),
+            
+            # Header Information
+            ("Header Information", None),  # Header
+            ("Header ID", f"0x{self.message_data.get('header_id', 0):X}" if self.message_data.get('header_id') is not None else "Not specified"),
+            ("Header Byte Order", self.message_data.get('header_byte_order', "Not specified")),
+            ("Unused Bit Pattern", f"0x{self.message_data.get('unused_bit_pattern', 0):X}"),
+            
+            # Timing Information
+            ("Timing Information", None),  # Header
+            ("Send Type", self.message_data.get('send_type', "Not specified")),
+            ("Cycle Time", f"{self.message_data.get('cycle_time', 'Not specified')} ms" if self.message_data.get('cycle_time') is not None else "Not specified"),
+            
+            # Contained Messages
+            ("Contained Messages", None),  # Header
         ]
         
+        # Add contained messages if they exist
+        if self.message_data.get('contained_messages') and len(self.message_data['contained_messages']) > 0:
+            for i, contained_msg in enumerate(self.message_data['contained_messages']):
+                properties.append((f"Contained Message {i+1}", f"{contained_msg['name']} (ID: 0x{contained_msg['frame_id']:X}, Length: {contained_msg['length']} bytes)"))
+        else:
+            properties.append(("Contained Messages", "None"))
+        
         # Set table rows
-        table.setRowCount(len(basic_properties))
+        table.setRowCount(len(properties))
         
         # Add all rows to table
-        for row, (prop_name, prop_value) in enumerate(basic_properties):
+        for row, (prop_name, prop_value) in enumerate(properties):
             # Check if this is a header row
             if prop_value is None:
                 header_item = QTableWidgetItem(prop_name)

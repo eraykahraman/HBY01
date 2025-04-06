@@ -75,15 +75,77 @@ class DBC_IO_Handler(QObject):
         
         Returns:
             Dict[str, Any]: Dictionary containing file information
+                - file_path (str): Full path to the DBC file
+                - file_name (str): Name of the DBC file
+                - is_loaded (bool): Whether the file is currently loaded
+                - messages_count (int): Number of messages in the file
+                - nodes_count (int): Number of nodes in the file
+                - signals_count (int): Number of signals in the file
+                - version (Optional[str]): Version of the DBC file
+                - bit_timing (Optional[Dict[str, int]]): Bit timing information
+                - nodes_timing (Optional[Dict[str, int]]): Node timing information
+                - environment_variables (Optional[List[str]]): List of environment variables
+                - environment_variable_data (Optional[List[Dict]]): Environment variable data
+                - value_tables (Optional[List[Dict]]): Value tables
+                - attributes (Optional[Dict[str, Any]]): File attributes
+                - dbc_specifics (Optional[Dict[str, Any]]): DBC-specific information
+                - autosar_specifics (Optional[Dict[str, Any]]): AUTOSAR-specific information
+                - j1939_specifics (Optional[Dict[str, Any]]): J1939-specific information
         """
         db = self.get_database()
-        return {
+        if not db:
+            return {
+                "file_path": self.file_path,
+                "file_name": os.path.basename(self.file_path),
+                "is_loaded": self.is_loaded,
+                "messages_count": 0,
+                "nodes_count": 0,
+                "signals_count": 0
+            }
+            
+        # Count signals
+        signals_count = sum(len(msg.signals) for msg in db.messages)
+        
+        # Get additional database information
+        file_info = {
             "file_path": self.file_path,
             "file_name": os.path.basename(self.file_path),
             "is_loaded": self.is_loaded,
-            "messages_count": len(db.messages) if db else 0,
-            "nodes_count": len(db.nodes) if db else 0
+            "messages_count": len(db.messages),
+            "nodes_count": len(db.nodes),
+            "signals_count": signals_count,
+            "version": getattr(db, 'version', None),
+            "bit_timing": getattr(db, 'bit_timing', None),
+            "nodes_timing": getattr(db, 'nodes_timing', None),
+            "environment_variables": [var.name for var in getattr(db, 'environment_variables', [])],
+            "environment_variable_data": [
+                {
+                    "name": var.name,
+                    "var_type": getattr(var, 'var_type', None),
+                    "minimum": getattr(var, 'minimum', None),
+                    "maximum": getattr(var, 'maximum', None),
+                    "unit": getattr(var, 'unit', None),
+                    "initial_value": getattr(var, 'initial_value', None),
+                    "ev_id": getattr(var, 'ev_id', None),
+                    "access_type": getattr(var, 'access_type', None),
+                    "access_nodes": getattr(var, 'access_nodes', None)
+                }
+                for var in getattr(db, 'environment_variables', [])
+            ],
+            "value_tables": [
+                {
+                    "name": table.name,
+                    "values": getattr(table, 'values', {})
+                }
+                for table in getattr(db, 'value_tables', [])
+            ],
+            "attributes": getattr(db, 'attributes', None),
+            "dbc_specifics": getattr(db, 'dbc_specifics', None),
+            "autosar_specifics": getattr(db, 'autosar_specifics', None),
+            "j1939_specifics": getattr(db, 'j1939_specifics', None)
         }
+        
+        return file_info
         
     def parse_nodes(self) -> List[Dict[str, Any]]:
         """
@@ -94,6 +156,24 @@ class DBC_IO_Handler(QObject):
                 Each dictionary contains:
                 - name (str): The name of the node
                 - comment (Optional[str]): The comment associated with the node
+                - attributes (Optional[Dict[str, Any]]): Node attributes
+                - ecu_ext_ref (Optional[str]): ECU external reference
+                - dbc_specifics (Optional[Dict[str, Any]]): DBC-specific node information
+                - autosar_specifics (Optional[Dict[str, Any]]): AUTOSAR-specific node information
+                - j1939_specifics (Optional[Dict[str, Any]]): J1939-specific node information
+                - address (Optional[int]): Node address (J1939)
+                - function_name (Optional[str]): Function name (J1939)
+                - manufacturer_code (Optional[int]): Manufacturer code (J1939)
+                - manufacturer_specific_ecu_code (Optional[int]): Manufacturer-specific ECU code (J1939)
+                - identity_number (Optional[int]): Identity number (J1939)
+                - industry_group (Optional[int]): Industry group (J1939)
+                - vehicle_system_instance (Optional[int]): Vehicle system instance (J1939)
+                - vehicle_system (Optional[int]): Vehicle system (J1939)
+                - function (Optional[int]): Function (J1939)
+                - function_instance (Optional[int]): Function instance (J1939)
+                - ecu_instance (Optional[int]): ECU instance (J1939)
+                - manufacturer_ext (Optional[int]): Manufacturer extension (J1939)
+                - is_j1939 (bool): Whether the node is a J1939 node
         """
         if not self.is_valid():
             return []
@@ -110,7 +190,25 @@ class DBC_IO_Handler(QObject):
                 else:
                     node_info = {
                         "name": node.name,
-                        "comment": node.comment if hasattr(node, 'comment') else None
+                        "comment": node.comment if hasattr(node, 'comment') else None,
+                        "attributes": getattr(node, 'attributes', None),
+                        "ecu_ext_ref": getattr(node, 'ecu_ext_ref', None),
+                        "dbc_specifics": getattr(node, 'dbc_specifics', None),
+                        "autosar_specifics": getattr(node, 'autosar_specifics', None),
+                        "j1939_specifics": getattr(node, 'j1939_specifics', None),
+                        "address": getattr(node, 'address', None),
+                        "function_name": getattr(node, 'function_name', None),
+                        "manufacturer_code": getattr(node, 'manufacturer_code', None),
+                        "manufacturer_specific_ecu_code": getattr(node, 'manufacturer_specific_ecu_code', None),
+                        "identity_number": getattr(node, 'identity_number', None),
+                        "industry_group": getattr(node, 'industry_group', None),
+                        "vehicle_system_instance": getattr(node, 'vehicle_system_instance', None),
+                        "vehicle_system": getattr(node, 'vehicle_system', None),
+                        "function": getattr(node, 'function', None),
+                        "function_instance": getattr(node, 'function_instance', None),
+                        "ecu_instance": getattr(node, 'ecu_instance', None),
+                        "manufacturer_ext": getattr(node, 'manufacturer_ext', None),
+                        "is_j1939": getattr(node, 'is_j1939', False)
                     }
                 nodes.append(node_info)
         except Exception as e:
@@ -145,6 +243,15 @@ class DBC_IO_Handler(QObject):
                     - unit (Optional[str]): Signal unit
                     - comment (Optional[str]): Signal comment
                     - receivers (List[str]): List of receiving nodes
+                - contained_messages (Optional[List[Dict]]): List of contained messages
+                - header_id (Optional[int]): Header ID for the message
+                - header_byte_order (str): Byte order for the header ('little_endian' or 'big_endian')
+                - unused_bit_pattern (int): Pattern for unused bits
+                - send_type (Optional[str]): Type of sending mechanism
+                - cycle_time (Optional[int]): Cycle time in milliseconds
+                - is_extended_frame (bool): Whether the message uses extended frame format
+                - is_fd (bool): Whether the message uses CAN FD format
+                - bus_name (Optional[str]): Name of the bus the message belongs to
         """
         if not self.is_valid():
             return []
@@ -180,6 +287,17 @@ class DBC_IO_Handler(QObject):
                         ]
                     }
                     signals.append(signal_info)
+                
+                # Parse contained messages if they exist
+                contained_messages = []
+                if hasattr(msg, 'contained_messages') and msg.contained_messages:
+                    for contained_msg in msg.contained_messages:
+                        contained_msg_info = {
+                            "name": contained_msg.name,
+                            "frame_id": getattr(contained_msg, 'frame_id', 0),
+                            "length": getattr(contained_msg, 'length', 0)
+                        }
+                        contained_messages.append(contained_msg_info)
                     
                 message_info = {
                     "name": msg.name,
@@ -190,7 +308,16 @@ class DBC_IO_Handler(QObject):
                         node.name if hasattr(node, 'name') else str(node)
                         for node in getattr(msg, 'senders', [])
                     ],
-                    "signals": signals
+                    "signals": signals,
+                    "contained_messages": contained_messages,
+                    "header_id": getattr(msg, 'header_id', None),
+                    "header_byte_order": getattr(msg, 'header_byte_order', 'big_endian'),
+                    "unused_bit_pattern": getattr(msg, 'unused_bit_pattern', 0),
+                    "send_type": getattr(msg, 'send_type', None),
+                    "cycle_time": getattr(msg, 'cycle_time', None),
+                    "is_extended_frame": getattr(msg, 'is_extended_frame', False),
+                    "is_fd": getattr(msg, 'is_fd', False),
+                    "bus_name": getattr(msg, 'bus_name', None)
                 }
                 messages.append(message_info)
         except Exception as e:
@@ -209,6 +336,20 @@ class DBC_IO_Handler(QObject):
                 Each dictionary contains all signal information plus:
                 - message_name (str): Name of the parent message
                 - message_id (int): Frame ID of the parent message
+                - multiplexer_id (Optional[int]): Multiplexer ID if signal is multiplexed
+                - multiplexer_signal (Optional[str]): Name of the multiplexer signal
+                - multiplexer_values (Optional[Dict[int, str]]): Mapping of multiplexer values to signal names
+                - is_multiplexer (bool): Whether the signal is a multiplexer
+                - choices (Optional[Dict[int, str]]): Mapping of raw values to choice names
+                - is_float (bool): Whether the signal represents a floating-point value
+                - decimal (Optional[int]): Number of decimal places for display
+                - spn (Optional[int]): Suspect Parameter Number (J1939)
+                - pgn (Optional[int]): Parameter Group Number (J1939)
+                - sa (Optional[int]): Source Address (J1939)
+                - da (Optional[int]): Destination Address (J1939)
+                - priority (Optional[int]): Priority of the signal (J1939)
+                - address (Optional[int]): Address of the signal (J1939)
+                - is_j1939 (bool): Whether the signal is a J1939 signal
         """
         if not self.is_valid():
             return []
@@ -240,7 +381,22 @@ class DBC_IO_Handler(QObject):
                         "receivers": [
                             node.name if hasattr(node, 'name') else str(node)
                             for node in getattr(signal, 'receivers', [])
-                        ]
+                        ],
+                        # Additional signal fields
+                        "multiplexer_id": getattr(signal, 'multiplexer_id', None),
+                        "multiplexer_signal": getattr(signal, 'multiplexer_signal', None),
+                        "multiplexer_values": getattr(signal, 'multiplexer_values', None),
+                        "is_multiplexer": getattr(signal, 'is_multiplexer', False),
+                        "choices": getattr(signal, 'choices', None),
+                        "is_float": getattr(signal, 'is_float', False),
+                        "decimal": getattr(signal, 'decimal', None),
+                        "spn": getattr(signal, 'spn', None),
+                        "pgn": getattr(signal, 'pgn', None),
+                        "sa": getattr(signal, 'sa', None),
+                        "da": getattr(signal, 'da', None),
+                        "priority": getattr(signal, 'priority', None),
+                        "address": getattr(signal, 'address', None),
+                        "is_j1939": getattr(signal, 'is_j1939', False)
                     }
                     all_signals.append(signal_info)
         except Exception as e:
@@ -340,6 +496,7 @@ class DBC_IO_Handler(QObject):
             Dict[str, List[Dict[str, Any]]]: Dictionary containing:
                 - tx_messages: List of messages where node is sender
                 - rx_messages: List of messages where node receives signals
+                Each message contains all fields from parse_messages method
         """
         tx_messages = []
         rx_messages = []
@@ -375,6 +532,7 @@ class DBC_IO_Handler(QObject):
             Dict[str, List[Dict[str, Any]]]: Dictionary containing:
                 - tx_signals: List of signals from messages where node is sender
                 - rx_signals: List of signals where node is a receiver
+                Each signal contains all fields from parse_all_signals method
         """
         tx_signals = []
         rx_signals = []
