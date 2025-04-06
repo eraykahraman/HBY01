@@ -6,6 +6,7 @@ from PyQt5.QtCore import Qt
 from controller.DBC_IO_Controller import DBC_IO_Controller
 from view.dbc_listview import DBCListView
 from view.dbc_display_view import DBCDisplayView
+from view.dbc_window import DBCWindow
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -75,6 +76,7 @@ class MainWindow(QMainWindow):
         # Connect to list view signals
         self.dbc_list.handler_selected.connect(self.on_handler_selected)
         self.dbc_list.handler_removed.connect(self.dbc_controller.remove_dbc)
+        self.dbc_list.handler_open_in_new_window.connect(self.open_dbc_in_new_window)
         
     def import_dbc(self):
         handler, file_name, error = self.dbc_controller.import_dbc(self)
@@ -102,4 +104,9 @@ class MainWindow(QMainWindow):
         """Handle handler selection"""
         file_info = handler.get_file_info()
         self.statusBar.showMessage(f"Selected DBC file: {file_info['file_name']} ({file_info['messages_count']} messages, {file_info['nodes_count']} nodes)")
-        self.dbc_display.update_display(handler)  # Update display with selected handler 
+        self.dbc_display.update_display(handler)  # Update display with selected handler
+        
+    def open_dbc_in_new_window(self, handler):
+        """Open a DBC file in a new window"""
+        window = DBCWindow(handler, self)
+        window.show() 

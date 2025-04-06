@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QListWidget, 
                             QListWidgetItem, QLabel, QHBoxLayout,
-                            QPushButton)
+                            QPushButton, QMenu)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QIcon
 from controller.dbc_io_handler import DBC_IO_Handler
@@ -9,6 +9,7 @@ class DBCListView(QWidget):
     # Signals emitted when a DBC file is selected or removed
     handler_selected = pyqtSignal(DBC_IO_Handler)  # Emits the selected handler
     handler_removed = pyqtSignal(str)   # Emits the file path of the removed handler
+    handler_open_in_new_window = pyqtSignal(DBC_IO_Handler)  # New signal for opening in new window
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -27,7 +28,22 @@ class DBCListView(QWidget):
         self.list_widget = QListWidget()
         self.list_widget.setSelectionMode(QListWidget.SingleSelection)
         self.list_widget.itemSelectionChanged.connect(self.on_selection_changed)
+        self.list_widget.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.list_widget.customContextMenuRequested.connect(self.show_context_menu)
         layout.addWidget(self.list_widget)
+        
+    def show_context_menu(self, position):
+        """Show context menu for the list widget"""
+        item = self.list_widget.itemAt(position)
+        if item:
+            handler = item.data(Qt.UserRole)
+            if handler:
+                menu = QMenu()
+                open_in_new_window_action = menu.addAction("Open in New Window")
+                action = menu.exec_(self.list_widget.mapToGlobal(position))
+                
+                if action == open_in_new_window_action:
+                    self.handler_open_in_new_window.emit(handler)
         
     def update_handlers(self, handlers):
         """Update the list with the current set of handlers"""
