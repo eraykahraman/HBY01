@@ -1,8 +1,10 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, Column, Integer, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.pool import QueuePool
+from sqlalchemy.sql import text
 import logging
+from sqlalchemy.exc import SQLAlchemyError
 
 # Base class for all database models
 Base = declarative_base()
@@ -73,21 +75,42 @@ class DatabaseManager:
     
     def create_tables(self):
         """
-        Create all tables defined using the Base class.
+        Create all defined tables in the database.
         
         Returns:
-            bool: True if tables created successfully, False otherwise
+            bool: True if tables were created successfully, False otherwise
         """
         if not self.engine:
-            self.logger.error("Engine not initialized. Call initialize() first.")
+            self.logger.error("Database engine not initialized")
             return False
             
         try:
+            # Check if vehicle_id column exists in dbc_files table
+            inspector = inspect(self.engine)
+            
+            # Create tables
             Base.metadata.create_all(self.engine)
-            self.logger.info("Database tables created successfully")
+            
+            # Check if we need to add the vehicle_id column
+            if 'dbc_files' in inspector.get_table_names():
+                columns = inspector.get_columns('dbc_files')
+                column_names = [col['name'] for col in columns]
+                
+                if 'vehicle_id' not in column_names:
+                    self.logger.info("Adding vehicle_id column to dbc_files table")
+                    
+                    # Add vehicle_id column using raw SQL
+                    with self.engine.begin() as connection:
+                        connection.execute(
+                            text("ALTER TABLE dbc_files ADD COLUMN vehicle_id INTEGER")
+                        )
+                        connection.execute(
+                            text("ALTER TABLE dbc_files ADD CONSTRAINT fk_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles (id)")
+                        )
+            
             return True
-        except Exception as e:
-            self.logger.error(f"Failed to create database tables: {str(e)}")
+        except SQLAlchemyError as e:
+            self.logger.error(f"Error creating tables: {str(e)}")
             return False
     
     def get_session(self):

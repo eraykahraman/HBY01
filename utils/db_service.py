@@ -63,13 +63,14 @@ class DBCDatabaseService:
         """
         return config.get("database", "enabled") and self.db_manager.engine is not None
     
-    def store_dbc_file(self, file_path: str, store_content: bool = False) -> Optional[int]:
+    def store_dbc_file(self, file_path: str, store_content: bool = False, vehicle_id: int = None) -> Optional[int]:
         """
         Store DBC file information in the database.
         
         Args:
             file_path (str): Path to the DBC file
             store_content (bool, optional): Whether to store file content in the database
+            vehicle_id (int, optional): ID of the vehicle to associate this file with
         
         Returns:
             Optional[int]: ID of the stored DBC file or None if failed
@@ -119,7 +120,8 @@ class DBCDatabaseService:
                     file_hash=file_hash,
                     file_size=file_size,
                     content=content,
-                    last_accessed=datetime.utcnow()
+                    last_accessed=datetime.utcnow(),
+                    vehicle_id=vehicle_id
                 )
                 
                 session.add(dbc_file)
