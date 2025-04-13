@@ -40,3 +40,5 @@ Thumbs.db
 postgres_data/
 
 *.dbc
+
+.cursor/
