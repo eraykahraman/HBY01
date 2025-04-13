@@ -241,21 +241,60 @@ class DBCDisplayView(QWidget):
         # Prepare all items first
         table_items = []
         for signal in signals:
+            # Create basic text items
+            name_item = QTableWidgetItem(signal['name'])
+            message_name_item = QTableWidgetItem(signal['message_name'])
+            
+            # Create message ID item - hex display with numeric sorting
+            message_id_item = QTableWidgetItem()
+            message_id_item.setData(Qt.DisplayRole, f"0x{signal['message_id']:X}")
+            message_id_item.setData(Qt.UserRole, signal['message_id'])
+            
+            # Create numeric items with proper sorting
+            start_bit_item = QTableWidgetItem()
+            start_bit_item.setData(Qt.DisplayRole, signal['start'])
+            
+            length_item = QTableWidgetItem()
+            length_item.setData(Qt.DisplayRole, signal['length'])
+            
+            byte_order_item = QTableWidgetItem(signal['byte_order'])
+            signed_item = QTableWidgetItem('Yes' if signal['is_signed'] else 'No')
+            
+            scale_item = QTableWidgetItem()
+            scale_item.setData(Qt.DisplayRole, signal['scale'])
+            
+            offset_item = QTableWidgetItem()
+            offset_item.setData(Qt.DisplayRole, signal['offset'])
+            
+            # Minimum value (may be null)
+            min_item = QTableWidgetItem()
+            if signal['minimum'] is not None:
+                min_item.setData(Qt.DisplayRole, signal['minimum'])
+            
+            # Maximum value (may be null)
+            max_item = QTableWidgetItem()
+            if signal['maximum'] is not None:
+                max_item.setData(Qt.DisplayRole, signal['maximum'])
+            
+            unit_item = QTableWidgetItem(signal['unit'] if signal['unit'] else '')
+            comment_item = QTableWidgetItem(signal['comment'] if signal['comment'] else '')
+            receivers_item = QTableWidgetItem(', '.join(signal['receivers']) if signal['receivers'] else '')
+            
             row_items = [
-                QTableWidgetItem(signal['name']),
-                QTableWidgetItem(signal['message_name']),
-                QTableWidgetItem(f"0x{signal['message_id']:X}"),
-                QTableWidgetItem(str(signal['start'])),
-                QTableWidgetItem(str(signal['length'])),
-                QTableWidgetItem(signal['byte_order']),
-                QTableWidgetItem('Yes' if signal['is_signed'] else 'No'),
-                QTableWidgetItem(str(signal['scale'])),
-                QTableWidgetItem(str(signal['offset'])),
-                QTableWidgetItem(str(signal['minimum']) if signal['minimum'] is not None else ''),
-                QTableWidgetItem(str(signal['maximum']) if signal['maximum'] is not None else ''),
-                QTableWidgetItem(signal['unit'] if signal['unit'] else ''),
-                QTableWidgetItem(signal['comment'] if signal['comment'] else ''),
-                QTableWidgetItem(', '.join(signal['receivers']) if signal['receivers'] else '')
+                name_item,
+                message_name_item,
+                message_id_item,
+                start_bit_item,
+                length_item,
+                byte_order_item,
+                signed_item,
+                scale_item,
+                offset_item,
+                min_item,
+                max_item,
+                unit_item,
+                comment_item,
+                receivers_item
             ]
             table_items.append(row_items)
         
@@ -286,20 +325,52 @@ class DBCDisplayView(QWidget):
         for msg in messages:
             # Format cycle time if available
             cycle_time = msg.get('cycle_time')
-            cycle_time_str = f"{cycle_time} ms" if cycle_time is not None else ""
+            
+            # Create name item
+            name_item = QTableWidgetItem(msg['name'])
+            
+            # Create frame ID item - hex value but store numeric value for sorting
+            frame_id_item = QTableWidgetItem()
+            frame_id_item.setData(Qt.DisplayRole, f"0x{msg['frame_id']:X}")
+            frame_id_item.setData(Qt.UserRole, msg['frame_id'])  # Store numeric value for sorting
+            
+            # Numeric items with proper sorting
+            length_item = QTableWidgetItem()
+            length_item.setData(Qt.DisplayRole, msg['length'])
+            
+            signals_count_item = QTableWidgetItem()
+            signals_count_item.setData(Qt.DisplayRole, len(msg['signals']))
+            
+            # Create other items
+            senders_item = QTableWidgetItem(', '.join(msg['senders']) if msg['senders'] else '')
+            extended_item = QTableWidgetItem('Yes' if msg.get('is_extended_frame', False) else 'No')
+            fd_item = QTableWidgetItem('Yes' if msg.get('is_fd', False) else 'No')
+            bus_item = QTableWidgetItem(msg.get('bus_name', ''))
+            
+            # Handle cycle time with proper numeric sorting
+            cycle_time_item = QTableWidgetItem()
+            if cycle_time is not None:
+                cycle_time_item.setData(Qt.DisplayRole, f"{cycle_time} ms")
+                cycle_time_item.setData(Qt.UserRole, cycle_time)  # Store numeric value for sorting
+            else:
+                cycle_time_item.setData(Qt.DisplayRole, "")
+                cycle_time_item.setData(Qt.UserRole, 0)  # Default sort value
+            
+            send_type_item = QTableWidgetItem(msg.get('send_type', ''))
+            comment_item = QTableWidgetItem(msg['comment'] if msg['comment'] else '')
             
             row_items = [
-                QTableWidgetItem(msg['name']),
-                QTableWidgetItem(f"0x{msg['frame_id']:X}"),
-                QTableWidgetItem(str(msg['length'])),
-                QTableWidgetItem(str(len(msg['signals']))),
-                QTableWidgetItem(', '.join(msg['senders']) if msg['senders'] else ''),
-                QTableWidgetItem('Yes' if msg.get('is_extended_frame', False) else 'No'),
-                QTableWidgetItem('Yes' if msg.get('is_fd', False) else 'No'),
-                QTableWidgetItem(msg.get('bus_name', '')),
-                QTableWidgetItem(cycle_time_str),
-                QTableWidgetItem(msg.get('send_type', '')),
-                QTableWidgetItem(msg['comment'] if msg['comment'] else '')
+                name_item,
+                frame_id_item,
+                length_item,
+                signals_count_item,
+                senders_item,
+                extended_item,
+                fd_item,
+                bus_item,
+                cycle_time_item,
+                send_type_item,
+                comment_item
             ]
             table_items.append(row_items)
         
@@ -329,13 +400,37 @@ class DBCDisplayView(QWidget):
             node_messages = self.current_handler.get_node_messages(node['name'])
             node_signals = self.current_handler.get_node_signals(node['name'])
             
+            # Count values
+            tx_messages_count = len(node_messages['tx_messages'])
+            rx_messages_count = len(node_messages['rx_messages'])
+            tx_signals_count = len(node_signals['tx_signals'])
+            rx_signals_count = len(node_signals['rx_signals'])
+            
+            # Create items
+            name_item = QTableWidgetItem(node['name'])
+            
+            # Create numeric items with proper sorting
+            tx_messages_item = QTableWidgetItem()
+            tx_messages_item.setData(Qt.DisplayRole, tx_messages_count)  # Store as integer for sorting
+            
+            rx_messages_item = QTableWidgetItem()
+            rx_messages_item.setData(Qt.DisplayRole, rx_messages_count)
+            
+            tx_signals_item = QTableWidgetItem()
+            tx_signals_item.setData(Qt.DisplayRole, tx_signals_count)
+            
+            rx_signals_item = QTableWidgetItem()
+            rx_signals_item.setData(Qt.DisplayRole, rx_signals_count)
+            
+            comment_item = QTableWidgetItem(node['comment'] if node['comment'] else '')
+            
             row_items = [
-                QTableWidgetItem(node['name']),
-                QTableWidgetItem(str(len(node_messages['tx_messages']))),
-                QTableWidgetItem(str(len(node_messages['rx_messages']))),
-                QTableWidgetItem(str(len(node_signals['tx_signals']))),
-                QTableWidgetItem(str(len(node_signals['rx_signals']))),
-                QTableWidgetItem(node['comment'] if node['comment'] else '')
+                name_item,
+                tx_messages_item,
+                rx_messages_item,
+                tx_signals_item,
+                rx_signals_item,
+                comment_item
             ]
             table_items.append(row_items)
         
