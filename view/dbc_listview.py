@@ -121,3 +121,13 @@ class DBCListView(QWidget):
             if handler.get_file_path() == file_path:
                 self.list_widget.takeItem(i)
                 break 
+
+    def select_handler(self, handler):
+        """Programmatically select a handler in the list"""
+        # Find the item with the matching handler
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            if item.data(Qt.UserRole) == handler:
+                # Select the item, which will trigger on_selection_changed
+                self.list_widget.setCurrentItem(item)
+                break 

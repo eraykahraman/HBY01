@@ -90,6 +90,11 @@ class MainWindow(QMainWindow):
             )
             # Show shorter version in status bar
             self.statusBar.showMessage("Failed to load DBC file - See error dialog for details")
+        elif handler:
+            # Successfully imported, select the handler to display it
+            # This will go through on_handler_selected which will handle
+            # displaying in main view or new window appropriately
+            self.dbc_list.select_handler(handler)
         
     def on_handlers_changed(self, handlers):
         """Handle updates to the handlers list"""
@@ -99,12 +104,21 @@ class MainWindow(QMainWindow):
         """Handle handler removal"""
         self.statusBar.showMessage(f"Removed DBC file: {file_path}")
         self.dbc_display.clear_display()  # Clear display when handler is removed
+        # After clearing the display, current_handler will be set to None in the clear_display method
         
     def on_handler_selected(self, handler):
         """Handle handler selection"""
         file_info = handler.get_file_info()
-        self.statusBar.showMessage(f"Selected DBC file: {file_info['file_name']} ({file_info['messages_count']} messages, {file_info['nodes_count']} nodes)")
-        self.dbc_display.update_display(handler)  # Update display with selected handler
+        
+        # Check if a DBC file is already displayed in the main window
+        if self.dbc_display.current_handler is not None:
+            # If a file is already open, open the new file in a new window
+            self.open_dbc_in_new_window(handler)
+            self.statusBar.showMessage(f"Opened DBC file in new window: {file_info['file_name']} ({file_info['messages_count']} messages, {file_info['nodes_count']} nodes)")
+        else:
+            # If no file is open, display the new file in the main window
+            self.statusBar.showMessage(f"Selected DBC file: {file_info['file_name']} ({file_info['messages_count']} messages, {file_info['nodes_count']} nodes)")
+            self.dbc_display.update_display(handler)  # Update display with selected handler
         
     def open_dbc_in_new_window(self, handler):
         """Open a DBC file in a new window"""

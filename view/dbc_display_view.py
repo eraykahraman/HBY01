@@ -9,6 +9,26 @@ from view.signal_detail_view import SignalDetailView
 from view.message_detail_view import MessageDetailView
 from view.bus_load_dialog import BusLoadDialog
 
+class NumericTableWidgetItem(QTableWidgetItem):
+    """Custom QTableWidgetItem subclass that sorts numerically"""
+    def __init__(self, value=None, display_text=None):
+        """Initialize with numeric value for sorting and optional display text"""
+        super().__init__()
+        if display_text is not None:
+            self.setData(Qt.DisplayRole, display_text)
+        if value is not None:
+            self.setData(Qt.UserRole, value)
+            
+    def __lt__(self, other):
+        """Override less than operator to use UserRole for sorting"""
+        if self.data(Qt.UserRole) is None:
+            return True  # None values sort first
+        if other.data(Qt.UserRole) is None:
+            return False
+            
+        # Use the UserRole data for sorting
+        return self.data(Qt.UserRole) < other.data(Qt.UserRole)
+
 class DBCDisplayView(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -243,42 +263,50 @@ class DBCDisplayView(QWidget):
         for signal in signals:
             # Create basic text items
             name_item = QTableWidgetItem(signal['name'])
+            name_item.setData(Qt.UserRole, signal['name'])
+            
             message_name_item = QTableWidgetItem(signal['message_name'])
+            message_name_item.setData(Qt.UserRole, signal['message_name'])
             
             # Create message ID item - hex display with numeric sorting
-            message_id_item = QTableWidgetItem()
+            message_id_item = NumericTableWidgetItem(int(signal['message_id']))
             message_id_item.setData(Qt.DisplayRole, f"0x{signal['message_id']:X}")
-            message_id_item.setData(Qt.UserRole, signal['message_id'])
             
             # Create numeric items with proper sorting
-            start_bit_item = QTableWidgetItem()
+            start_bit_item = NumericTableWidgetItem(int(signal['start']))
             start_bit_item.setData(Qt.DisplayRole, signal['start'])
             
-            length_item = QTableWidgetItem()
+            length_item = NumericTableWidgetItem(int(signal['length']))
             length_item.setData(Qt.DisplayRole, signal['length'])
             
             byte_order_item = QTableWidgetItem(signal['byte_order'])
-            signed_item = QTableWidgetItem('Yes' if signal['is_signed'] else 'No')
+            byte_order_item.setData(Qt.UserRole, signal['byte_order'])
             
-            scale_item = QTableWidgetItem()
+            signed_item = QTableWidgetItem('Yes' if signal['is_signed'] else 'No')
+            signed_item.setData(Qt.UserRole, 1 if signal['is_signed'] else 0)  # 1 for Yes, 0 for No
+            
+            scale_item = NumericTableWidgetItem(float(signal['scale']))
             scale_item.setData(Qt.DisplayRole, signal['scale'])
             
-            offset_item = QTableWidgetItem()
+            offset_item = NumericTableWidgetItem(float(signal['offset']))
             offset_item.setData(Qt.DisplayRole, signal['offset'])
             
             # Minimum value (may be null)
-            min_item = QTableWidgetItem()
-            if signal['minimum'] is not None:
-                min_item.setData(Qt.DisplayRole, signal['minimum'])
+            min_item = NumericTableWidgetItem(float('-inf') if signal['minimum'] is None else float(signal['minimum']))
+            min_item.setData(Qt.DisplayRole, signal['minimum'] if signal['minimum'] is not None else "")
             
             # Maximum value (may be null)
-            max_item = QTableWidgetItem()
-            if signal['maximum'] is not None:
-                max_item.setData(Qt.DisplayRole, signal['maximum'])
+            max_item = NumericTableWidgetItem(float('inf') if signal['maximum'] is None else float(signal['maximum']))
+            max_item.setData(Qt.DisplayRole, signal['maximum'] if signal['maximum'] is not None else "")
             
             unit_item = QTableWidgetItem(signal['unit'] if signal['unit'] else '')
+            unit_item.setData(Qt.UserRole, signal['unit'] if signal['unit'] else '')
+            
             comment_item = QTableWidgetItem(signal['comment'] if signal['comment'] else '')
+            comment_item.setData(Qt.UserRole, signal['comment'] if signal['comment'] else '')
+            
             receivers_item = QTableWidgetItem(', '.join(signal['receivers']) if signal['receivers'] else '')
+            receivers_item.setData(Qt.UserRole, ', '.join(signal['receivers']) if signal['receivers'] else '')
             
             row_items = [
                 name_item,
@@ -328,36 +356,42 @@ class DBCDisplayView(QWidget):
             
             # Create name item
             name_item = QTableWidgetItem(msg['name'])
+            name_item.setData(Qt.UserRole, msg['name'])  # Set same value for consistent sorting
             
             # Create frame ID item - hex value but store numeric value for sorting
-            frame_id_item = QTableWidgetItem()
+            frame_id_item = NumericTableWidgetItem(int(msg['frame_id']))
             frame_id_item.setData(Qt.DisplayRole, f"0x{msg['frame_id']:X}")
-            frame_id_item.setData(Qt.UserRole, msg['frame_id'])  # Store numeric value for sorting
             
             # Numeric items with proper sorting
-            length_item = QTableWidgetItem()
+            length_item = NumericTableWidgetItem(int(msg['length']))
             length_item.setData(Qt.DisplayRole, msg['length'])
             
-            signals_count_item = QTableWidgetItem()
+            signals_count_item = NumericTableWidgetItem(len(msg['signals']))
             signals_count_item.setData(Qt.DisplayRole, len(msg['signals']))
             
             # Create other items
             senders_item = QTableWidgetItem(', '.join(msg['senders']) if msg['senders'] else '')
+            senders_item.setData(Qt.UserRole, ', '.join(msg['senders']) if msg['senders'] else '')
+            
+            # Use numeric values for Yes/No fields to enable proper sorting
             extended_item = QTableWidgetItem('Yes' if msg.get('is_extended_frame', False) else 'No')
+            extended_item.setData(Qt.UserRole, 1 if msg.get('is_extended_frame', False) else 0)
+            
             fd_item = QTableWidgetItem('Yes' if msg.get('is_fd', False) else 'No')
+            fd_item.setData(Qt.UserRole, 1 if msg.get('is_fd', False) else 0)
+            
             bus_item = QTableWidgetItem(msg.get('bus_name', ''))
+            bus_item.setData(Qt.UserRole, msg.get('bus_name', ''))
             
             # Handle cycle time with proper numeric sorting
-            cycle_time_item = QTableWidgetItem()
-            if cycle_time is not None:
-                cycle_time_item.setData(Qt.DisplayRole, f"{cycle_time} ms")
-                cycle_time_item.setData(Qt.UserRole, cycle_time)  # Store numeric value for sorting
-            else:
-                cycle_time_item.setData(Qt.DisplayRole, "")
-                cycle_time_item.setData(Qt.UserRole, 0)  # Default sort value
+            cycle_time_item = NumericTableWidgetItem(int(cycle_time) if cycle_time is not None else 0)
+            cycle_time_item.setData(Qt.DisplayRole, f"{cycle_time} ms" if cycle_time is not None else "")
             
             send_type_item = QTableWidgetItem(msg.get('send_type', ''))
+            send_type_item.setData(Qt.UserRole, msg.get('send_type', ''))
+            
             comment_item = QTableWidgetItem(msg['comment'] if msg['comment'] else '')
+            comment_item.setData(Qt.UserRole, msg['comment'] if msg['comment'] else '')
             
             row_items = [
                 name_item,
@@ -408,21 +442,23 @@ class DBCDisplayView(QWidget):
             
             # Create items
             name_item = QTableWidgetItem(node['name'])
+            name_item.setData(Qt.UserRole, node['name'])
             
             # Create numeric items with proper sorting
-            tx_messages_item = QTableWidgetItem()
-            tx_messages_item.setData(Qt.DisplayRole, tx_messages_count)  # Store as integer for sorting
+            tx_messages_item = NumericTableWidgetItem(int(tx_messages_count))
+            tx_messages_item.setData(Qt.DisplayRole, tx_messages_count)
             
-            rx_messages_item = QTableWidgetItem()
+            rx_messages_item = NumericTableWidgetItem(int(rx_messages_count))
             rx_messages_item.setData(Qt.DisplayRole, rx_messages_count)
             
-            tx_signals_item = QTableWidgetItem()
+            tx_signals_item = NumericTableWidgetItem(int(tx_signals_count))
             tx_signals_item.setData(Qt.DisplayRole, tx_signals_count)
             
-            rx_signals_item = QTableWidgetItem()
+            rx_signals_item = NumericTableWidgetItem(int(rx_signals_count))
             rx_signals_item.setData(Qt.DisplayRole, rx_signals_count)
             
             comment_item = QTableWidgetItem(node['comment'] if node['comment'] else '')
+            comment_item.setData(Qt.UserRole, node['comment'] if node['comment'] else '')
             
             row_items = [
                 name_item,
