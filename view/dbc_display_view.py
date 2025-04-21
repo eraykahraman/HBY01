@@ -8,6 +8,7 @@ from PyQt5.QtGui import QIcon
 from controller.dbc_io_handler import DBC_IO_Handler
 from view.signal_detail_view import SignalDetailView
 from view.message_detail_view import MessageDetailView
+from view.node_detail_view import NodeDetailView
 from view.bus_load_dialog import BusLoadDialog
 
 class NumericTableWidgetItem(QTableWidgetItem):
@@ -424,6 +425,9 @@ class DBCDisplayView(QWidget):
         for i, col in enumerate(columns):
             self.nodes_table.setColumnWidth(i, column_widths.get(col, 150))
         
+        # Connect double-click signal to show node details
+        self.nodes_table.itemDoubleClicked.connect(self.on_node_double_clicked)
+        
         # Setup header context menu for column visibility
         self.setup_table_header_context_menu(self.nodes_table)
         
@@ -816,9 +820,13 @@ class DBCDisplayView(QWidget):
             nodes = self.current_handler.get_nodes()
             self.update_nodes_table(nodes)
         else:
-            # Check if this is a signal item by looking at its parent
+            # Check if this is a node item directly under Network Nodes
             parent = item.parent()
-            if parent and parent.text(0) in ["Signals", "Tx Signals", "Rx Signals"]:
+            if parent and parent.text(0) == "Network Nodes":
+                node_name = item.text(0)
+                self.show_node_details(node_name)
+            # Check if this is a signal item by looking at its parent
+            elif parent and parent.text(0) in ["Signals", "Tx Signals", "Rx Signals"]:
                 # Find the signal data
                 signal_name = item.text(0)
                 signal_data = None
@@ -905,6 +913,44 @@ class DBCDisplayView(QWidget):
         # Show the message detail view
         message_detail = MessageDetailView(message_data, self)
         message_detail.show()  # Use show() to allow multiple windows
+
+    def show_node_details(self, node_name):
+        """Show details for a node"""
+        if not self.current_handler:
+            return
+            
+        # Find the node data
+        nodes = self.current_handler.get_nodes()
+        node_data = None
+        for node in nodes:
+            if node['name'] == node_name:
+                node_data = node
+                break
+            
+        if not node_data:
+            return
+        
+        # Get node messages and signals
+        node_messages = self.current_handler.get_node_messages(node_name)
+        node_signals = self.current_handler.get_node_signals(node_name)
+        
+        # Show node detail view
+        node_detail = NodeDetailView(node_data, node_messages, node_signals, self)
+        node_detail.show()
+        
+    def on_node_double_clicked(self, item):
+        """Handle double-click on a node in the nodes table"""
+        if not self.current_handler:
+            return
+        
+        # Get the row of the clicked item
+        row = item.row()
+        
+        # Get the node name from the first column
+        node_name = self.nodes_table.item(row, 0).text()
+        
+        # Show node details
+        self.show_node_details(node_name)
 
     def organize_node_messages(self, node_name: str, messages: list) -> tuple[list, list]:
         """

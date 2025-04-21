@@ -1,10 +1,11 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                             QPushButton, QScrollArea, QWidget, QTableWidget,
                             QTableWidgetItem, QHeaderView, QFrame, QSizePolicy,
-                            QStackedWidget)
+                            QTabWidget)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 from .signal_layout_view import SignalLayoutView
+from .signal_detail_view import SignalDetailView
 
 class MessageDetailView(QDialog):
     def __init__(self, message_data, parent=None):
@@ -39,34 +40,32 @@ class MessageDetailView(QDialog):
         message_id_label.setFont(QFont("Arial", 10))
         header_layout.addWidget(message_id_label)
         
+        # Add signal count label
+        signals_count = len(self.message_data['signals'])
+        signals_label = QLabel(f"Signals: {signals_count}")
+        signals_label.setFont(QFont("Arial", 10))
+        header_layout.addWidget(signals_label)
+        
         header_layout.addStretch()
-        
-        # Add Show Signals button to header
-        self.show_signals_button = QPushButton("Show Signals")
-        self.show_signals_button.setFixedWidth(100)
-        self.show_signals_button.clicked.connect(self.toggle_signals_view)
-        header_layout.addWidget(self.show_signals_button)
-        
-        # Add Signal Layout button to header
-        self.show_layout_button = QPushButton("Signal Layout")
-        self.show_layout_button.setFixedWidth(100)
-        self.show_layout_button.clicked.connect(self.show_signal_layout)
-        header_layout.addWidget(self.show_layout_button)
         
         main_layout.addWidget(header_frame)
         
-        # Create stacked widget for switching between details and signals
-        self.stacked_widget = QStackedWidget()
+        # Create tab widget
+        tab_widget = QTabWidget()
         
-        # Create and add details table
-        self.details_table = self.create_details_table()
-        self.stacked_widget.addWidget(self.details_table)
+        # Add Details tab
+        details_tab = self.create_details_table()
+        tab_widget.addTab(details_tab, "Details")
         
-        # Create and add signals table
-        self.signals_table = self.create_signals_table()
-        self.stacked_widget.addWidget(self.signals_table)
+        # Add Signals tab
+        signals_tab = self.create_signals_table()
+        tab_widget.addTab(signals_tab, "Signals")
         
-        main_layout.addWidget(self.stacked_widget)
+        # Add Signal Layout tab
+        signal_layout_tab = self.create_signal_layout_tab()
+        tab_widget.addTab(signal_layout_tab, "Signal Layout")
+        
+        main_layout.addWidget(tab_widget)
         
         # Add close button
         button_layout = QHBoxLayout()
@@ -239,7 +238,60 @@ class MessageDetailView(QDialog):
         return scroll_area
         
     def create_signals_table(self):
-        """Create the signals table widget"""
+        """Create the signals table with tabs for receivers"""
+        # Container widget
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Create tab widget for organizing signals by receivers
+        signals_tab_widget = QTabWidget()
+        
+        # Add "All Signals" tab first
+        all_signals_tab = self.create_signal_list_tab(self.message_data['signals'], "All Signals")
+        signals_tab_widget.addTab(all_signals_tab, f"All Signals ({len(self.message_data['signals'])})")
+        
+        # Organize signals by receivers
+        receiver_signals = {}
+        
+        # Group signals by receiver
+        for signal in self.message_data['signals']:
+            receivers = signal['receivers']
+            if not receivers:
+                # Skip signals with no receivers
+                continue
+            
+            for receiver in receivers:
+                if receiver not in receiver_signals:
+                    receiver_signals[receiver] = []
+                receiver_signals[receiver].append(signal)
+        
+        # Create a tab for each receiver with their signals
+        for receiver, signals in receiver_signals.items():
+            receiver_tab = self.create_signal_list_tab(signals, f"Received by {receiver}")
+            signals_tab_widget.addTab(receiver_tab, f"{receiver} ({len(signals)})")
+        
+        layout.addWidget(signals_tab_widget)
+        return container
+
+    def create_signal_layout_tab(self):
+        """Create a tab with the signal layout visualization"""
+        # Use a container widget to hold the layout view
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Import signal layout here to avoid circular imports
+        from .signal_layout_view import SignalLayoutViewWidget
+        
+        # Create signal layout widget (a version without dialog popup)
+        signal_layout_widget = SignalLayoutViewWidget(self.message_data)
+        layout.addWidget(signal_layout_widget)
+        
+        return container
+
+    def create_signal_list_tab(self, signals, title):
+        """Create a tab with a list of signals"""
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QFrame.NoFrame)
@@ -249,7 +301,7 @@ class MessageDetailView(QDialog):
             "Name", "Start Bit", "Length", "Byte Order", "Signed",
             "Scale", "Offset", "Minimum", "Maximum", "Unit", 
             "Is Multiplexer", "Multiplexer ID", "Is Float", "Choices",
-            "SPN", "Receivers"
+            "Receivers"
         ]
         table.setColumnCount(len(columns))
         table.setHorizontalHeaderLabels(columns)
@@ -277,7 +329,6 @@ class MessageDetailView(QDialog):
             "Multiplexer ID": 100,
             "Is Float": 80,
             "Choices": 150,
-            "SPN": 80,
             "Receivers": 200
         }
         
@@ -311,7 +362,6 @@ class MessageDetailView(QDialog):
             return str(value)
         
         # Add signals data
-        signals = self.message_data['signals']
         table.setRowCount(len(signals))
         
         for row, signal in enumerate(signals):
@@ -338,24 +388,28 @@ class MessageDetailView(QDialog):
                 QTableWidgetItem(format_value(signal.get('multiplexer_id'))),
                 QTableWidgetItem(format_value(signal.get('is_float', False))),
                 QTableWidgetItem(choices_str),
-                QTableWidgetItem(format_value(signal.get('spn'))),
                 QTableWidgetItem(', '.join(signal['receivers']) if signal['receivers'] else '')
             ]
             
             for col, item in enumerate(items):
                 table.setItem(row, col, item)
         
+        # Connect double-click handler to open signal details
+        table.itemDoubleClicked.connect(lambda item: self.show_signal_details(signals[item.row()]))
+        
         scroll_area.setWidget(table)
         return scroll_area
-
-    def toggle_signals_view(self):
-        """Toggle between details and signals view"""
-        current_index = self.stacked_widget.currentIndex()
-        new_index = 1 if current_index == 0 else 0
-        self.stacked_widget.setCurrentIndex(new_index)
-        self.show_signals_button.setText("Show Details" if new_index == 1 else "Show Signals")
+    
+    def show_signal_details(self, signal):
+        """Show details for a signal"""
+        # Make a copy of the signal data to avoid modifying the original
+        signal_copy = signal.copy()
         
-    def show_signal_layout(self):
-        """Show the signal layout view"""
-        layout_view = SignalLayoutView(self.message_data, self)
-        layout_view.show()  # Use show() to allow multiple windows
+        # Add message information if it's missing
+        if 'message_name' not in signal_copy:
+            signal_copy['message_name'] = self.message_data['name']
+        if 'message_id' not in signal_copy:
+            signal_copy['message_id'] = self.message_data['frame_id']
+        
+        signal_detail = SignalDetailView(signal_copy, self)
+        signal_detail.show()

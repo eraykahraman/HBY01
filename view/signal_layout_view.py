@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                             QPushButton, QTableWidget, QTableWidgetItem,
-                            QHeaderView, QFrame, QSizePolicy)
+                            QHeaderView, QFrame, QSizePolicy, QWidget, QScrollArea)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor, QBrush
 
@@ -88,6 +88,110 @@ class SignalLayoutView(QDialog):
         
         main_layout.addLayout(button_layout)
         
+    def populate_signal_layout(self):
+        """Populate the matrix with signal data"""
+        # Define some colors for different signals
+        colors = [
+            "#FFB6C1", "#98FB98", "#87CEFA", "#DDA0DD",
+            "#F0E68C", "#E6E6FA", "#FFE4B5", "#B8860B"
+        ]
+        
+        for signal_index, signal in enumerate(self.message_data['signals']):
+            start_bit = signal['start']
+            length = signal['length']
+            color = colors[signal_index % len(colors)]
+            
+            # Calculate the cells this signal occupies
+            for bit in range(length):
+                if signal['byte_order'] == 'little_endian':
+                    current_bit = start_bit + bit
+                else:
+                    # For big endian, bits are arranged differently
+                    current_bit = start_bit - bit
+                
+                byte_index = current_bit // 8
+                bit_index = 7 - (current_bit % 8)  # Reverse bit order in byte
+                
+                if 0 <= byte_index < 8 and 0 <= bit_index < 8:
+                    item = self.matrix_table.item(byte_index, bit_index)
+                    if item:
+                        item.setText(signal['name'])
+                        item.setBackground(QBrush(QColor(color)))
+                        # Set tooltip with signal details
+                        tooltip = f"Signal: {signal['name']}\n"
+                        tooltip += f"Start Bit: {signal['start']}\n"
+                        tooltip += f"Length: {signal['length']} bits\n"
+                        tooltip += f"Byte Order: {signal['byte_order']}\n"
+                        tooltip += f"Signed: {'Yes' if signal['is_signed'] else 'No'}"
+                        item.setToolTip(tooltip)
+
+class SignalLayoutViewWidget(QWidget):
+    """Signal layout visualization as a widget (non-dialog version)"""
+    def __init__(self, message_data):
+        super().__init__()
+        self.message_data = message_data
+        self.setup_ui()
+        
+    def setup_ui(self):
+        """Setup the UI components"""
+        # Create main layout
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(10)
+        
+        # Create header with instructions
+        instructions_label = QLabel("Visual representation of signals in the message frame:")
+        instructions_label.setFont(QFont("Arial", 10))
+        main_layout.addWidget(instructions_label)
+        
+        # Create bit matrix table
+        self.matrix_table = QTableWidget()
+        self.matrix_table.setRowCount(8)  # 8 bits per byte
+        self.matrix_table.setColumnCount(8)  # 8 bytes max for CAN message
+        
+        # Set headers
+        bit_headers = ["7", "6", "5", "4", "3", "2", "1", "0"]
+        self.matrix_table.setHorizontalHeaderLabels(bit_headers)
+        byte_headers = [str(i) for i in range(8)]
+        self.matrix_table.setVerticalHeaderLabels(byte_headers)
+        
+        # Set cell sizes
+        for i in range(8):
+            self.matrix_table.setColumnWidth(i, 60)
+            self.matrix_table.setRowHeight(i, 40)
+        
+        # Style the table
+        self.matrix_table.setStyleSheet("""
+            QTableWidget {
+                border: 1px solid #d0d0d0;
+                background-color: white;
+                gridline-color: #a0a0a0;
+            }
+            QHeaderView::section {
+                background-color: #f0f0f0;
+                padding: 4px;
+                border: 1px solid #d0d0d0;
+                font-weight: bold;
+            }
+        """)
+        
+        # Initialize empty cells
+        for row in range(8):
+            for col in range(8):
+                item = QTableWidgetItem("")
+                item.setTextAlignment(Qt.AlignCenter)
+                self.matrix_table.setItem(row, col, item)
+        
+        # Fill in signal data
+        self.populate_signal_layout()
+        
+        # Add table to a scroll area
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setWidget(self.matrix_table)
+        
+        main_layout.addWidget(scroll_area)
+    
     def populate_signal_layout(self):
         """Populate the matrix with signal data"""
         # Define some colors for different signals
