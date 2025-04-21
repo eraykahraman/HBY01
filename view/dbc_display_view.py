@@ -1,7 +1,8 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, 
                             QLabel, QTreeWidget, QTreeWidgetItem,
                             QFrame, QSizePolicy, QTableWidget, QTableWidgetItem,
-                            QHeaderView, QSplitter, QStackedWidget, QPushButton)
+                            QHeaderView, QSplitter, QStackedWidget, QPushButton,
+                            QMenu, QAction)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 from controller.dbc_io_handler import DBC_IO_Handler
@@ -146,6 +147,44 @@ class DBCDisplayView(QWidget):
         # Initially hide both tree and tables
         self.main_splitter.hide()
 
+    def setup_table_header_context_menu(self, table):
+        """Setup a context menu for the table header to allow showing/hiding columns"""
+        header = table.horizontalHeader()
+        header.setContextMenuPolicy(Qt.CustomContextMenu)
+        header.customContextMenuRequested.connect(lambda pos, t=table: self.show_header_context_menu(pos, t))
+        
+    def show_header_context_menu(self, pos, table):
+        """Show the context menu for the table header"""
+        menu = QMenu(self)
+        header = table.horizontalHeader()
+        
+        # Add an action for each column
+        for i in range(table.columnCount()):
+            column_name = table.horizontalHeaderItem(i).text()
+            action = QAction(column_name, self)
+            action.setCheckable(True)
+            action.setChecked(not header.isSectionHidden(i))
+            action.triggered.connect(lambda checked, idx=i, tbl=table: self.toggle_column_visibility(idx, checked, tbl))
+            menu.addAction(action)
+        
+        # Add an option to show all columns
+        menu.addSeparator()
+        show_all_action = QAction("Show All Columns", self)
+        show_all_action.triggered.connect(lambda: self.show_all_columns(table))
+        menu.addAction(show_all_action)
+        
+        # Show the menu at the correct position
+        menu.exec_(header.mapToGlobal(pos))
+        
+    def toggle_column_visibility(self, column_index, is_visible, table):
+        """Toggle the visibility of a column"""
+        table.setColumnHidden(column_index, not is_visible)
+        
+    def show_all_columns(self, table):
+        """Show all columns in the table"""
+        for i in range(table.columnCount()):
+            table.setColumnHidden(i, False)
+
     def setup_signals_table(self):
         """Setup the signals table structure"""
         columns = [
@@ -170,6 +209,9 @@ class DBCDisplayView(QWidget):
         
         # Connect double-click signal to show signal details
         self.signals_table.itemDoubleClicked.connect(self.on_signal_double_clicked)
+        
+        # Setup header context menu for column visibility
+        self.setup_table_header_context_menu(self.signals_table)
         
         self.signals_table.setVisible(False)  # Hide table initially
 
@@ -212,6 +254,9 @@ class DBCDisplayView(QWidget):
         # Connect double-click signal to show message details
         self.messages_table.itemDoubleClicked.connect(self.on_message_double_clicked)
         
+        # Setup header context menu for column visibility
+        self.setup_table_header_context_menu(self.messages_table)
+        
         self.messages_table.setVisible(False)  # Hide table initially
 
     def setup_nodes_table(self):
@@ -243,6 +288,9 @@ class DBCDisplayView(QWidget):
         # Apply initial column widths
         for i, col in enumerate(columns):
             self.nodes_table.setColumnWidth(i, column_widths.get(col, 150))
+        
+        # Setup header context menu for column visibility
+        self.setup_table_header_context_menu(self.nodes_table)
         
         self.nodes_table.setVisible(False)  # Hide table initially
 
