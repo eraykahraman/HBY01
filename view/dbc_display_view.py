@@ -2,7 +2,8 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                             QLabel, QTreeWidget, QTreeWidgetItem,
                             QFrame, QSizePolicy, QTableWidget, QTableWidgetItem,
                             QHeaderView, QSplitter, QStackedWidget, QPushButton,
-                            QMenu, QAction, QDialog, QCheckBox, QScrollArea, QDialogButtonBox)
+                            QMenu, QAction, QDialog, QCheckBox, QScrollArea, QDialogButtonBox,
+                            QAbstractItemView)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 from controller.dbc_io_handler import DBC_IO_Handler
@@ -274,6 +275,9 @@ class DBCDisplayView(QWidget):
         self.signals_table.setHorizontalHeaderLabels(columns)
         header = self.signals_table.horizontalHeader()
         
+        # Make table read-only
+        self.signals_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        
         # Enable manual column resizing
         self.signals_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         
@@ -334,6 +338,9 @@ class DBCDisplayView(QWidget):
         self.messages_table.setHorizontalHeaderLabels(columns)
         header = self.messages_table.horizontalHeader()
         
+        # Make table read-only
+        self.messages_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        
         # Enable manual column resizing for all columns
         for i in range(len(columns)):
             header.setSectionResizeMode(i, QHeaderView.Interactive)
@@ -390,6 +397,9 @@ class DBCDisplayView(QWidget):
         self.nodes_table.setColumnCount(len(columns))
         self.nodes_table.setHorizontalHeaderLabels(columns)
         header = self.nodes_table.horizontalHeader()
+        
+        # Make table read-only
+        self.nodes_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         
         # Enable manual column resizing for all columns
         for i in range(len(columns)):
