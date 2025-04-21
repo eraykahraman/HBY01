@@ -819,6 +819,18 @@ class DBCDisplayView(QWidget):
         elif item.text(0) == "Network Nodes":
             nodes = self.current_handler.get_nodes()
             self.update_nodes_table(nodes)
+        # Check if the clicked item is "Tx Messages" or "Rx Messages" under a node
+        elif item.text(0) in ["Tx Messages", "Rx Messages"]:
+            parent_node = item.parent()
+            if parent_node and parent_node.parent() and parent_node.parent().text(0) == "Network Nodes":
+                node_name = parent_node.text(0)
+                node_messages = self.current_handler.get_node_messages(node_name)
+                
+                # Display only Tx or Rx messages based on selection
+                if item.text(0) == "Tx Messages":
+                    self.update_messages_table(node_messages['tx_messages'])
+                else:  # Rx Messages
+                    self.update_messages_table(node_messages['rx_messages'])
         else:
             # Check if this is a node item directly under Network Nodes
             parent = item.parent()
