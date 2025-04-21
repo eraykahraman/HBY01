@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                             QLabel, QTreeWidget, QTreeWidgetItem,
                             QFrame, QSizePolicy, QTableWidget, QTableWidgetItem,
                             QHeaderView, QSplitter, QStackedWidget, QPushButton,
-                            QMenu, QAction)
+                            QMenu, QAction, QDialog, QCheckBox, QScrollArea, QDialogButtonBox)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 from controller.dbc_io_handler import DBC_IO_Handler
@@ -29,6 +29,80 @@ class NumericTableWidgetItem(QTableWidgetItem):
             
         # Use the UserRole data for sorting
         return self.data(Qt.UserRole) < other.data(Qt.UserRole)
+
+class ColumnSelectorDialog(QDialog):
+    """Dialog that allows selection of multiple columns to show/hide"""
+    def __init__(self, parent, table):
+        super().__init__(parent)
+        self.table = table
+        self.selected_columns = []
+        self.checkboxes = []
+        self.setup_ui()
+        
+    def setup_ui(self):
+        """Set up the dialog UI"""
+        self.setWindowTitle("Column Visibility")
+        self.setMinimumWidth(300)
+        
+        main_layout = QVBoxLayout(self)
+        
+        # Add a label with instructions
+        label = QLabel("Select columns to display:")
+        main_layout.addWidget(label)
+        
+        # Create scroll area for checkboxes
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setSpacing(5)
+        
+        # Add select all / deselect all buttons
+        select_buttons_layout = QHBoxLayout()
+        select_all_btn = QPushButton("Select All")
+        select_all_btn.clicked.connect(self.select_all)
+        deselect_all_btn = QPushButton("Deselect All")
+        deselect_all_btn.clicked.connect(self.deselect_all)
+        select_buttons_layout.addWidget(select_all_btn)
+        select_buttons_layout.addWidget(deselect_all_btn)
+        main_layout.addLayout(select_buttons_layout)
+        
+        # Add checkbox for each column
+        header = self.table.horizontalHeader()
+        for i in range(self.table.columnCount()):
+            column_name = self.table.horizontalHeaderItem(i).text()
+            checkbox = QCheckBox(column_name)
+            checkbox.setChecked(not header.isSectionHidden(i))
+            checkbox.setProperty("column_index", i)
+            self.checkboxes.append(checkbox)
+            scroll_layout.addWidget(checkbox)
+        
+        scroll_area.setWidget(scroll_content)
+        main_layout.addWidget(scroll_area)
+        
+        # Add buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        main_layout.addWidget(button_box)
+    
+    def select_all(self):
+        """Select all checkboxes"""
+        for checkbox in self.checkboxes:
+            checkbox.setChecked(True)
+    
+    def deselect_all(self):
+        """Deselect all checkboxes"""
+        for checkbox in self.checkboxes:
+            checkbox.setChecked(False)
+    
+    def get_selected_columns(self):
+        """Get a dictionary of column indices and their visibility state"""
+        visibility = {}
+        for checkbox in self.checkboxes:
+            col_index = checkbox.property("column_index")
+            visibility[col_index] = checkbox.isChecked()
+        return visibility
 
 class DBCDisplayView(QWidget):
     def __init__(self, parent=None):
@@ -156,30 +230,32 @@ class DBCDisplayView(QWidget):
     def show_header_context_menu(self, pos, table):
         """Show the context menu for the table header"""
         menu = QMenu(self)
-        header = table.horizontalHeader()
         
-        # Add an action for each column
-        for i in range(table.columnCount()):
-            column_name = table.horizontalHeaderItem(i).text()
-            action = QAction(column_name, self)
-            action.setCheckable(True)
-            action.setChecked(not header.isSectionHidden(i))
-            action.triggered.connect(lambda checked, idx=i, tbl=table: self.toggle_column_visibility(idx, checked, tbl))
-            menu.addAction(action)
+        # Add an option to use the multi-column selector
+        select_columns_action = QAction("Select Columns...", self)
+        select_columns_action.triggered.connect(lambda: self.show_column_selector_dialog(table))
+        menu.addAction(select_columns_action)
+        
+        menu.addSeparator()
         
         # Add an option to show all columns
-        menu.addSeparator()
         show_all_action = QAction("Show All Columns", self)
         show_all_action.triggered.connect(lambda: self.show_all_columns(table))
         menu.addAction(show_all_action)
         
         # Show the menu at the correct position
+        header = table.horizontalHeader()
         menu.exec_(header.mapToGlobal(pos))
-        
-    def toggle_column_visibility(self, column_index, is_visible, table):
-        """Toggle the visibility of a column"""
-        table.setColumnHidden(column_index, not is_visible)
-        
+
+    def show_column_selector_dialog(self, table):
+        """Show dialog for selecting multiple columns"""
+        dialog = ColumnSelectorDialog(self, table)
+        if dialog.exec_() == QDialog.Accepted:
+            # Apply the visibility settings
+            visibility = dialog.get_selected_columns()
+            for col_index, is_visible in visibility.items():
+                table.setColumnHidden(col_index, not is_visible)
+
     def show_all_columns(self, table):
         """Show all columns in the table"""
         for i in range(table.columnCount()):
@@ -189,7 +265,9 @@ class DBCDisplayView(QWidget):
         """Setup the signals table structure"""
         columns = [
             "Name", "Message", "Message ID", "Start Bit", "Length", "Byte Order",
-            "Signed", "Scale", "Offset", "Minimum", "Maximum", "Unit", "Comment", "Receivers"
+            "Signed", "Scale", "Offset", "Minimum", "Maximum", "Unit", "Comment", "Receivers",
+            "Is Multiplexer", "Multiplexer ID", "Is Float", "Decimal Places", "Choices Count",
+            "SPN", "PGN", "SA", "DA", "Priority", "Address", "Is J1939"
         ]
         self.signals_table.setColumnCount(len(columns))
         self.signals_table.setHorizontalHeaderLabels(columns)
@@ -198,14 +276,42 @@ class DBCDisplayView(QWidget):
         # Enable manual column resizing
         self.signals_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         
-        # Set stretch for the last column (Receivers) to use remaining space
+        # Set stretch for the last column to use remaining space
         header.setStretchLastSection(True)
         
-        # Set minimum width for numeric columns
-        numeric_columns = ["Start Bit", "Length", "Scale", "Offset", "Minimum", "Maximum"]
+        # Set column widths
+        column_widths = {
+            "Name": 150,
+            "Message": 150,
+            "Message ID": 100,
+            "Start Bit": 80,
+            "Length": 80,
+            "Byte Order": 100,
+            "Signed": 80,
+            "Scale": 80,
+            "Offset": 80,
+            "Minimum": 80,
+            "Maximum": 80,
+            "Unit": 80,
+            "Comment": 200,
+            "Receivers": 150,
+            "Is Multiplexer": 100,
+            "Multiplexer ID": 100,
+            "Is Float": 80,
+            "Decimal Places": 120,
+            "Choices Count": 100,
+            "SPN": 80,
+            "PGN": 80,
+            "SA": 60,
+            "DA": 60,
+            "Priority": 80,
+            "Address": 80,
+            "Is J1939": 80
+        }
+        
+        # Apply initial column widths
         for i, col in enumerate(columns):
-            if col in numeric_columns:
-                self.signals_table.setColumnWidth(i, 80)
+            self.signals_table.setColumnWidth(i, column_widths.get(col, 100))
         
         # Connect double-click signal to show signal details
         self.signals_table.itemDoubleClicked.connect(self.on_signal_double_clicked)
@@ -219,7 +325,9 @@ class DBCDisplayView(QWidget):
         """Setup the messages table structure"""
         columns = [
             "Name", "ID", "Length", "Signals Count", "Senders", "Extended", "CAN FD", 
-            "Bus", "Cycle Time", "Send Type", "Comment"
+            "Bus", "Cycle Time", "Send Type", "Comment", "Header ID", "Header Byte Order",
+            "Unused Bit Pattern", "Is Multiplexed", "Contained Messages Count",
+            "PGN", "Priority", "Source Address", "Destination Address", "Protocol"
         ]
         self.messages_table.setColumnCount(len(columns))
         self.messages_table.setHorizontalHeaderLabels(columns)
@@ -229,7 +337,7 @@ class DBCDisplayView(QWidget):
         for i in range(len(columns)):
             header.setSectionResizeMode(i, QHeaderView.Interactive)
         
-        # Set stretch for the last column (Comment) to use remaining space
+        # Set stretch for the last column to use remaining space
         header.setStretchLastSection(True)
         
         # Set initial widths for columns
@@ -244,7 +352,17 @@ class DBCDisplayView(QWidget):
             "Bus": 100,     # Bus name
             "Cycle Time": 100,  # Cycle time in ms
             "Send Type": 100,  # Send type
-            "Comment": 300   # Wide for comments
+            "Comment": 200,   # For comments
+            "Header ID": 100,  # Header ID
+            "Header Byte Order": 120,  # Byte order for the header
+            "Unused Bit Pattern": 140,  # Pattern for unused bits
+            "Is Multiplexed": 100,  # Whether message is multiplexed
+            "Contained Messages Count": 180,  # Count of contained messages
+            "PGN": 80,  # Parameter Group Number (J1939)
+            "Priority": 80,  # Priority (J1939)
+            "Source Address": 120,  # Source Address (J1939)
+            "Destination Address": 140,  # Destination Address (J1939)
+            "Protocol": 100  # Protocol type
         }
         
         # Apply initial column widths
@@ -262,7 +380,11 @@ class DBCDisplayView(QWidget):
     def setup_nodes_table(self):
         """Setup the nodes table structure"""
         columns = [
-            "Name", "Tx Messages Count", "Rx Messages Count", "Tx Signals Count", "Rx Signals Count", "Comment"
+            "Name", "Tx Messages Count", "Rx Messages Count", "Tx Signals Count", "Rx Signals Count", 
+            "Comment", "Address", "Function Name", "Manufacturer Code", "Identity Number",
+            "Industry Group", "Vehicle System", "Vehicle System Instance", 
+            "Function", "Function Instance", "ECU Instance", "Manufacturer Ext",
+            "ECU Ext Reference", "Is J1939"
         ]
         self.nodes_table.setColumnCount(len(columns))
         self.nodes_table.setHorizontalHeaderLabels(columns)
@@ -272,7 +394,7 @@ class DBCDisplayView(QWidget):
         for i in range(len(columns)):
             header.setSectionResizeMode(i, QHeaderView.Interactive)
         
-        # Set stretch for the last column (Comment) to use remaining space
+        # Set stretch for the last column to use remaining space
         header.setStretchLastSection(True)
         
         # Set initial widths for columns
@@ -282,7 +404,20 @@ class DBCDisplayView(QWidget):
             "Rx Messages Count": 120,
             "Tx Signals Count": 120,
             "Rx Signals Count": 120,
-            "Comment": 300
+            "Comment": 200,
+            "Address": 100,
+            "Function Name": 150,
+            "Manufacturer Code": 120,
+            "Identity Number": 120,
+            "Industry Group": 120,
+            "Vehicle System": 120,
+            "Vehicle System Instance": 150,
+            "Function": 100,
+            "Function Instance": 120,
+            "ECU Instance": 120,
+            "Manufacturer Ext": 120,
+            "ECU Ext Reference": 150,
+            "Is J1939": 80
         }
         
         # Apply initial column widths
@@ -306,55 +441,79 @@ class DBCDisplayView(QWidget):
         # Store signals data for later use
         self.signals_data = signals
         
+        # Helper function to create numeric items
+        def create_numeric_item(value, display_text=None):
+            if value is None:
+                return QTableWidgetItem("")
+            if display_text is None:
+                display_text = str(value)
+            item = NumericTableWidgetItem(value)
+            item.setData(Qt.DisplayRole, display_text)
+            return item
+        
+        # Helper function to create text items
+        def create_text_item(text):
+            if text is None:
+                return QTableWidgetItem("")
+            item = QTableWidgetItem(str(text))
+            item.setData(Qt.UserRole, str(text))
+            return item
+        
+        # Helper function for boolean items
+        def create_bool_item(value):
+            text = 'Yes' if value else 'No'
+            item = QTableWidgetItem(text)
+            item.setData(Qt.UserRole, 1 if value else 0)
+            return item
+        
         # Prepare all items first
         table_items = []
         for signal in signals:
             # Create basic text items
-            name_item = QTableWidgetItem(signal['name'])
-            name_item.setData(Qt.UserRole, signal['name'])
-            
-            message_name_item = QTableWidgetItem(signal['message_name'])
-            message_name_item.setData(Qt.UserRole, signal['message_name'])
+            name_item = create_text_item(signal['name'])
+            message_name_item = create_text_item(signal['message_name'])
             
             # Create message ID item - hex display with numeric sorting
-            message_id_item = NumericTableWidgetItem(int(signal['message_id']))
-            message_id_item.setData(Qt.DisplayRole, f"0x{signal['message_id']:X}")
+            message_id_item = create_numeric_item(int(signal['message_id']), f"0x{signal['message_id']:X}")
             
             # Create numeric items with proper sorting
-            start_bit_item = NumericTableWidgetItem(int(signal['start']))
-            start_bit_item.setData(Qt.DisplayRole, signal['start'])
-            
-            length_item = NumericTableWidgetItem(int(signal['length']))
-            length_item.setData(Qt.DisplayRole, signal['length'])
-            
-            byte_order_item = QTableWidgetItem(signal['byte_order'])
-            byte_order_item.setData(Qt.UserRole, signal['byte_order'])
-            
-            signed_item = QTableWidgetItem('Yes' if signal['is_signed'] else 'No')
-            signed_item.setData(Qt.UserRole, 1 if signal['is_signed'] else 0)  # 1 for Yes, 0 for No
-            
-            scale_item = NumericTableWidgetItem(float(signal['scale']))
-            scale_item.setData(Qt.DisplayRole, signal['scale'])
-            
-            offset_item = NumericTableWidgetItem(float(signal['offset']))
-            offset_item.setData(Qt.DisplayRole, signal['offset'])
+            start_bit_item = create_numeric_item(int(signal['start']))
+            length_item = create_numeric_item(int(signal['length']))
+            byte_order_item = create_text_item(signal['byte_order'])
+            signed_item = create_bool_item(signal['is_signed'])
+            scale_item = create_numeric_item(float(signal['scale']))
+            offset_item = create_numeric_item(float(signal['offset']))
             
             # Minimum value (may be null)
-            min_item = NumericTableWidgetItem(float('-inf') if signal['minimum'] is None else float(signal['minimum']))
-            min_item.setData(Qt.DisplayRole, signal['minimum'] if signal['minimum'] is not None else "")
+            min_item = create_numeric_item(signal['minimum'])
             
             # Maximum value (may be null)
-            max_item = NumericTableWidgetItem(float('inf') if signal['maximum'] is None else float(signal['maximum']))
-            max_item.setData(Qt.DisplayRole, signal['maximum'] if signal['maximum'] is not None else "")
+            max_item = create_numeric_item(signal['maximum'])
             
-            unit_item = QTableWidgetItem(signal['unit'] if signal['unit'] else '')
-            unit_item.setData(Qt.UserRole, signal['unit'] if signal['unit'] else '')
+            unit_item = create_text_item(signal.get('unit', ''))
+            comment_item = create_text_item(signal.get('comment', ''))
+            receivers_item = create_text_item(', '.join(signal['receivers']) if signal['receivers'] else '')
             
-            comment_item = QTableWidgetItem(signal['comment'] if signal['comment'] else '')
-            comment_item.setData(Qt.UserRole, signal['comment'] if signal['comment'] else '')
+            # Additional signal properties
+            is_multiplexer_item = create_bool_item(signal.get('is_multiplexer', False))
+            multiplexer_id_item = create_numeric_item(signal.get('multiplexer_id'))
+            is_float_item = create_bool_item(signal.get('is_float', False))
+            decimal_item = create_numeric_item(signal.get('decimal'))
             
-            receivers_item = QTableWidgetItem(', '.join(signal['receivers']) if signal['receivers'] else '')
-            receivers_item.setData(Qt.UserRole, ', '.join(signal['receivers']) if signal['receivers'] else '')
+            # Count choices if available
+            choices_count = 0
+            if signal.get('choices') and isinstance(signal.get('choices'), dict):
+                choices_count = len(signal.get('choices'))
+            choices_count_item = create_numeric_item(choices_count)
+            
+            # J1939 specific fields
+            spn_item = create_numeric_item(signal.get('spn'))
+            pgn_item = create_numeric_item(signal.get('pgn'))
+            sa_item = create_numeric_item(signal.get('sa'))
+            da_item = create_numeric_item(signal.get('da'))
+            priority_item = create_numeric_item(signal.get('priority'))
+            address_item = create_numeric_item(signal.get('address'))
+            is_j1939_item = create_bool_item(signal.get('is_j1939', False))
             
             row_items = [
                 name_item,
@@ -370,7 +529,19 @@ class DBCDisplayView(QWidget):
                 max_item,
                 unit_item,
                 comment_item,
-                receivers_item
+                receivers_item,
+                is_multiplexer_item,
+                multiplexer_id_item,
+                is_float_item,
+                decimal_item,
+                choices_count_item,
+                spn_item,
+                pgn_item,
+                sa_item,
+                da_item,
+                priority_item,
+                address_item,
+                is_j1939_item
             ]
             table_items.append(row_items)
         
@@ -396,50 +567,95 @@ class DBCDisplayView(QWidget):
         # Store messages data for later use
         self.messages_data = messages
         
+        # Helper function to create numeric items
+        def create_numeric_item(value, display_text=None):
+            if value is None:
+                return QTableWidgetItem("")
+            if display_text is None:
+                display_text = str(value)
+            item = NumericTableWidgetItem(value)
+            item.setData(Qt.DisplayRole, display_text)
+            return item
+        
+        # Helper function to create text items
+        def create_text_item(text):
+            if text is None:
+                return QTableWidgetItem("")
+            item = QTableWidgetItem(str(text))
+            item.setData(Qt.UserRole, str(text))
+            return item
+        
+        # Helper function for boolean items
+        def create_bool_item(value):
+            text = 'Yes' if value else 'No'
+            item = QTableWidgetItem(text)
+            item.setData(Qt.UserRole, 1 if value else 0)
+            return item
+        
         # Prepare all items first
         table_items = []
         for msg in messages:
-            # Format cycle time if available
-            cycle_time = msg.get('cycle_time')
+            # Extract J1939 specifics if available
+            j1939_specifics = msg.get('j1939_specifics', {}) or {}
+            if not isinstance(j1939_specifics, dict):
+                j1939_specifics = {}
             
             # Create name item
-            name_item = QTableWidgetItem(msg['name'])
-            name_item.setData(Qt.UserRole, msg['name'])  # Set same value for consistent sorting
+            name_item = create_text_item(msg['name'])
             
             # Create frame ID item - hex value but store numeric value for sorting
-            frame_id_item = NumericTableWidgetItem(int(msg['frame_id']))
-            frame_id_item.setData(Qt.DisplayRole, f"0x{msg['frame_id']:X}")
+            frame_id_item = create_numeric_item(int(msg['frame_id']), f"0x{msg['frame_id']:X}")
             
             # Numeric items with proper sorting
-            length_item = NumericTableWidgetItem(int(msg['length']))
-            length_item.setData(Qt.DisplayRole, msg['length'])
-            
-            signals_count_item = NumericTableWidgetItem(len(msg['signals']))
-            signals_count_item.setData(Qt.DisplayRole, len(msg['signals']))
+            length_item = create_numeric_item(int(msg['length']))
+            signals_count_item = create_numeric_item(len(msg['signals']))
             
             # Create other items
-            senders_item = QTableWidgetItem(', '.join(msg['senders']) if msg['senders'] else '')
-            senders_item.setData(Qt.UserRole, ', '.join(msg['senders']) if msg['senders'] else '')
+            senders_item = create_text_item(', '.join(msg['senders']) if msg['senders'] else '')
             
-            # Use numeric values for Yes/No fields to enable proper sorting
-            extended_item = QTableWidgetItem('Yes' if msg.get('is_extended_frame', False) else 'No')
-            extended_item.setData(Qt.UserRole, 1 if msg.get('is_extended_frame', False) else 0)
+            # Boolean items
+            extended_item = create_bool_item(msg.get('is_extended_frame', False))
+            fd_item = create_bool_item(msg.get('is_fd', False))
             
-            fd_item = QTableWidgetItem('Yes' if msg.get('is_fd', False) else 'No')
-            fd_item.setData(Qt.UserRole, 1 if msg.get('is_fd', False) else 0)
+            # Text and numeric items
+            bus_item = create_text_item(msg.get('bus_name', ''))
+            cycle_time = msg.get('cycle_time')
+            cycle_time_item = create_numeric_item(int(cycle_time) if cycle_time is not None else None, 
+                                                  f"{cycle_time} ms" if cycle_time is not None else "")
+            send_type_item = create_text_item(msg.get('send_type', ''))
+            comment_item = create_text_item(msg.get('comment', ''))
             
-            bus_item = QTableWidgetItem(msg.get('bus_name', ''))
-            bus_item.setData(Qt.UserRole, msg.get('bus_name', ''))
+            # Additional message properties
+            header_id = msg.get('header_id')
+            header_id_item = create_numeric_item(header_id, f"0x{header_id:X}" if header_id is not None else "")
+            header_byte_order_item = create_text_item(msg.get('header_byte_order', ''))
+            unused_bit_pattern_item = create_numeric_item(msg.get('unused_bit_pattern', 0))
             
-            # Handle cycle time with proper numeric sorting
-            cycle_time_item = NumericTableWidgetItem(int(cycle_time) if cycle_time is not None else 0)
-            cycle_time_item.setData(Qt.DisplayRole, f"{cycle_time} ms" if cycle_time is not None else "")
+            # Determine if message is multiplexed
+            is_multiplexed = False
+            for signal in msg['signals']:
+                if signal.get('is_multiplexer', False):
+                    is_multiplexed = True
+                    break
+            is_multiplexed_item = create_bool_item(is_multiplexed)
             
-            send_type_item = QTableWidgetItem(msg.get('send_type', ''))
-            send_type_item.setData(Qt.UserRole, msg.get('send_type', ''))
+            # Count contained messages
+            contained_count = len(msg.get('contained_messages', []))
+            contained_count_item = create_numeric_item(contained_count)
             
-            comment_item = QTableWidgetItem(msg['comment'] if msg['comment'] else '')
-            comment_item.setData(Qt.UserRole, msg['comment'] if msg['comment'] else '')
+            # J1939 specific fields
+            pgn_item = create_numeric_item(j1939_specifics.get('pgn'))
+            priority_item = create_numeric_item(j1939_specifics.get('priority'))
+            source_address_item = create_numeric_item(j1939_specifics.get('source_address'))
+            destination_address_item = create_numeric_item(j1939_specifics.get('destination_address'))
+            
+            # Determine protocol type
+            protocol = "Standard CAN"
+            if msg.get('is_fd', False):
+                protocol = "CAN FD"
+            elif j1939_specifics:
+                protocol = "J1939"
+            protocol_item = create_text_item(protocol)
             
             row_items = [
                 name_item,
@@ -452,7 +668,17 @@ class DBCDisplayView(QWidget):
                 bus_item,
                 cycle_time_item,
                 send_type_item,
-                comment_item
+                comment_item,
+                header_id_item,
+                header_byte_order_item,
+                unused_bit_pattern_item,
+                is_multiplexed_item,
+                contained_count_item,
+                pgn_item,
+                priority_item,
+                source_address_item,
+                destination_address_item,
+                protocol_item
             ]
             table_items.append(row_items)
         
@@ -488,25 +714,58 @@ class DBCDisplayView(QWidget):
             tx_signals_count = len(node_signals['tx_signals'])
             rx_signals_count = len(node_signals['rx_signals'])
             
+            # Helper function to create numeric items
+            def create_numeric_item(value, display_text=None):
+                if value is None:
+                    return QTableWidgetItem("")
+                if display_text is None:
+                    display_text = str(value)
+                item = NumericTableWidgetItem(value)
+                item.setData(Qt.DisplayRole, display_text)
+                return item
+            
+            # Helper function to create text items
+            def create_text_item(text):
+                if text is None:
+                    return QTableWidgetItem("")
+                item = QTableWidgetItem(str(text))
+                item.setData(Qt.UserRole, str(text))
+                return item
+            
+            # Helper function for boolean items
+            def create_bool_item(value):
+                text = 'Yes' if value else 'No'
+                item = QTableWidgetItem(text)
+                item.setData(Qt.UserRole, 1 if value else 0)
+                return item
+            
             # Create items
             name_item = QTableWidgetItem(node['name'])
             name_item.setData(Qt.UserRole, node['name'])
             
-            # Create numeric items with proper sorting
-            tx_messages_item = NumericTableWidgetItem(int(tx_messages_count))
-            tx_messages_item.setData(Qt.DisplayRole, tx_messages_count)
+            # Create numeric items for counts
+            tx_messages_item = create_numeric_item(tx_messages_count)
+            rx_messages_item = create_numeric_item(rx_messages_count)
+            tx_signals_item = create_numeric_item(tx_signals_count)
+            rx_signals_item = create_numeric_item(rx_signals_count)
             
-            rx_messages_item = NumericTableWidgetItem(int(rx_messages_count))
-            rx_messages_item.setData(Qt.DisplayRole, rx_messages_count)
+            # Get comment
+            comment_item = create_text_item(node.get('comment', ''))
             
-            tx_signals_item = NumericTableWidgetItem(int(tx_signals_count))
-            tx_signals_item.setData(Qt.DisplayRole, tx_signals_count)
-            
-            rx_signals_item = NumericTableWidgetItem(int(rx_signals_count))
-            rx_signals_item.setData(Qt.DisplayRole, rx_signals_count)
-            
-            comment_item = QTableWidgetItem(node['comment'] if node['comment'] else '')
-            comment_item.setData(Qt.UserRole, node['comment'] if node['comment'] else '')
+            # Get additional node properties
+            address_item = create_numeric_item(node.get('address', None))
+            function_name_item = create_text_item(node.get('function_name', ''))
+            manufacturer_code_item = create_numeric_item(node.get('manufacturer_code', None))
+            identity_number_item = create_numeric_item(node.get('identity_number', None))
+            industry_group_item = create_numeric_item(node.get('industry_group', None))
+            vehicle_system_item = create_numeric_item(node.get('vehicle_system', None))
+            vehicle_system_instance_item = create_numeric_item(node.get('vehicle_system_instance', None))
+            function_item = create_numeric_item(node.get('function', None))
+            function_instance_item = create_numeric_item(node.get('function_instance', None))
+            ecu_instance_item = create_numeric_item(node.get('ecu_instance', None))
+            manufacturer_ext_item = create_numeric_item(node.get('manufacturer_ext', None))
+            ecu_ext_ref_item = create_text_item(node.get('ecu_ext_ref', ''))
+            is_j1939_item = create_bool_item(node.get('is_j1939', False))
             
             row_items = [
                 name_item,
@@ -514,7 +773,20 @@ class DBCDisplayView(QWidget):
                 rx_messages_item,
                 tx_signals_item,
                 rx_signals_item,
-                comment_item
+                comment_item,
+                address_item,
+                function_name_item,
+                manufacturer_code_item,
+                identity_number_item,
+                industry_group_item,
+                vehicle_system_item,
+                vehicle_system_instance_item,
+                function_item,
+                function_instance_item,
+                ecu_instance_item,
+                manufacturer_ext_item,
+                ecu_ext_ref_item,
+                is_j1939_item
             ]
             table_items.append(row_items)
         

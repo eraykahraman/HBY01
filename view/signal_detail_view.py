@@ -14,7 +14,7 @@ class SignalDetailView(QDialog):
         """Setup the UI components"""
         # Set window properties
         self.setWindowTitle(f"Signal Details: {self.signal_data['name']}")
-        self.setMinimumSize(600, 500)
+        self.setMinimumSize(700, 600)
         self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint | Qt.WindowSystemMenuHint)
         
         # Create main layout
@@ -58,6 +58,20 @@ class SignalDetailView(QDialog):
             }
         """)
         
+        # Helper function to format value
+        def format_value(value):
+            if value is None:
+                return "Not specified"
+            if isinstance(value, bool):
+                return "Yes" if value else "No"
+            if isinstance(value, (dict, list)) and not value:
+                return "None"
+            if isinstance(value, dict):
+                return ", ".join([f"{k}: {v}" for k, v in value.items()])
+            if isinstance(value, list):
+                return ", ".join(str(v) for v in value)
+            return str(value)
+        
         # Define property groups and their items
         property_groups = [
             ("Basic Properties", [
@@ -73,19 +87,35 @@ class SignalDetailView(QDialog):
             ]),
             ("Scaling Properties", [
                 ("Scale", str(self.signal_data['scale'])),
-                ("Offset", str(self.signal_data['offset']))
+                ("Offset", str(self.signal_data['offset'])),
+                ("Minimum", format_value(self.signal_data['minimum'])),
+                ("Maximum", format_value(self.signal_data['maximum'])),
+                ("Unit", format_value(self.signal_data['unit']))
             ]),
-            ("Range Properties", [
-                ("Minimum", str(self.signal_data['minimum']) if self.signal_data['minimum'] is not None else "Not specified"),
-                ("Maximum", str(self.signal_data['maximum']) if self.signal_data['maximum'] is not None else "Not specified")
+            ("Multiplexing", [
+                ("Is Multiplexer", format_value(self.signal_data.get('is_multiplexer', False))),
+                ("Multiplexer ID", format_value(self.signal_data.get('multiplexer_id'))),
+                ("Multiplexer Signal", format_value(self.signal_data.get('multiplexer_signal'))),
+                ("Multiplexer Values", format_value(self.signal_data.get('multiplexer_values')))
             ]),
-            ("Additional Properties", [
-                ("Unit", self.signal_data['unit'] if self.signal_data['unit'] else "Not specified")
+            ("Value Properties", [
+                ("Is Float", format_value(self.signal_data.get('is_float', False))),
+                ("Decimal Places", format_value(self.signal_data.get('decimal'))),
+                ("Choices", format_value(self.signal_data.get('choices')))
             ]),
-            ("Receivers", [
+            ("J1939 Properties", [
+                ("SPN", format_value(self.signal_data.get('spn'))),
+                ("PGN", format_value(self.signal_data.get('pgn'))),
+                ("Source Address (SA)", format_value(self.signal_data.get('sa'))),
+                ("Destination Address (DA)", format_value(self.signal_data.get('da'))),
+                ("Priority", format_value(self.signal_data.get('priority'))),
+                ("Address", format_value(self.signal_data.get('address'))),
+                ("Is J1939", format_value(self.signal_data.get('is_j1939', False)))
+            ]),
+            ("Communication", [
                 ("Receivers", ", ".join(self.signal_data['receivers']) if self.signal_data['receivers'] else "None")
             ]),
-            ("Comment", [
+            ("Documentation", [
                 ("Comment", self.signal_data['comment'] if self.signal_data['comment'] else "No comment")
             ])
         ]

@@ -103,6 +103,39 @@ class MessageDetailView(QDialog):
             }
         """)
         
+        # Helper function to format value
+        def format_value(value):
+            if value is None:
+                return "Not specified"
+            if isinstance(value, bool):
+                return "Yes" if value else "No"
+            if isinstance(value, (dict, list)) and not value:
+                return "None"
+            if isinstance(value, dict):
+                return ", ".join([f"{k}: {v}" for k, v in value.items()])
+            if isinstance(value, list):
+                return ", ".join(str(v) for v in value)
+            return str(value)
+        
+        # Check if any signal is a multiplexer
+        is_multiplexed = False
+        for signal in self.message_data['signals']:
+            if signal.get('is_multiplexer', False):
+                is_multiplexed = True
+                break
+        
+        # Get J1939 specifics if available
+        j1939_specifics = self.message_data.get('j1939_specifics', {}) or {}
+        if not isinstance(j1939_specifics, dict):
+            j1939_specifics = {}
+        
+        # Determine protocol type
+        protocol = "Standard CAN"
+        if self.message_data.get('is_fd', False):
+            protocol = "CAN FD"
+        elif j1939_specifics:
+            protocol = "J1939"
+        
         # Define all properties with their values
         properties = [
             # Basic Properties
@@ -110,6 +143,8 @@ class MessageDetailView(QDialog):
             ("Name", self.message_data['name']),
             ("Frame ID", f"0x{self.message_data['frame_id']:X}"),
             ("Length", f"{self.message_data['length']} bytes"),
+            ("Protocol", protocol),
+            ("Signals Count", str(len(self.message_data['signals']))),
             ("Comment", self.message_data['comment'] if self.message_data['comment'] else "No comment"),
             
             # Senders
@@ -118,24 +153,59 @@ class MessageDetailView(QDialog):
             
             # Frame Format
             ("Frame Format", None),  # Header
-            ("Extended Frame", "Yes" if self.message_data.get('is_extended_frame', False) else "No"),
-            ("CAN FD", "Yes" if self.message_data.get('is_fd', False) else "No"),
-            ("Bus Name", self.message_data.get('bus_name', "Not specified")),
+            ("Extended Frame", format_value(self.message_data.get('is_extended_frame', False))),
+            ("CAN FD", format_value(self.message_data.get('is_fd', False))),
+            ("Bus Name", format_value(self.message_data.get('bus_name'))),
             
             # Header Information
             ("Header Information", None),  # Header
             ("Header ID", f"0x{self.message_data.get('header_id', 0):X}" if self.message_data.get('header_id') is not None else "Not specified"),
-            ("Header Byte Order", self.message_data.get('header_byte_order', "Not specified")),
+            ("Header Byte Order", format_value(self.message_data.get('header_byte_order'))),
             ("Unused Bit Pattern", f"0x{self.message_data.get('unused_bit_pattern', 0):X}"),
             
             # Timing Information
             ("Timing Information", None),  # Header
-            ("Send Type", self.message_data.get('send_type', "Not specified")),
-            ("Cycle Time", f"{self.message_data.get('cycle_time', 'Not specified')} ms" if self.message_data.get('cycle_time') is not None else "Not specified"),
+            ("Send Type", format_value(self.message_data.get('send_type'))),
+            ("Cycle Time", f"{self.message_data.get('cycle_time')} ms" if self.message_data.get('cycle_time') is not None else "Not specified"),
             
-            # Contained Messages
-            ("Contained Messages", None),  # Header
+            # Multiplexing
+            ("Multiplexing", None),  # Header
+            ("Is Multiplexed", format_value(is_multiplexed)),
         ]
+        
+        # J1939 Properties
+        properties.extend([
+            ("J1939 Properties", None),  # Header
+            ("PGN", format_value(j1939_specifics.get('pgn'))),
+            ("Priority", format_value(j1939_specifics.get('priority'))),
+            ("Source Address", format_value(j1939_specifics.get('source_address'))),
+            ("Destination Address", format_value(j1939_specifics.get('destination_address'))),
+            ("PDU Format", format_value(j1939_specifics.get('pdu_format'))),
+            ("PDU Specific", format_value(j1939_specifics.get('pdu_specific'))),
+            ("Name", format_value(j1939_specifics.get('name'))),
+            ("ID", format_value(j1939_specifics.get('id'))),
+        ])
+        
+        # DBC Specifics
+        dbc_specifics = self.message_data.get('dbc_specifics', {}) or {}
+        if dbc_specifics and isinstance(dbc_specifics, dict):
+            properties.extend([
+                ("DBC Specifics", None),  # Header
+            ])
+            for key, value in dbc_specifics.items():
+                properties.append((key, format_value(value)))
+        
+        # AUTOSAR Specifics
+        autosar_specifics = self.message_data.get('autosar_specifics', {}) or {}
+        if autosar_specifics and isinstance(autosar_specifics, dict):
+            properties.extend([
+                ("AUTOSAR Specifics", None),  # Header
+            ])
+            for key, value in autosar_specifics.items():
+                properties.append((key, format_value(value)))
+        
+        # Contained Messages
+        properties.append(("Contained Messages", None))  # Header
         
         # Add contained messages if they exist
         if self.message_data.get('contained_messages') and len(self.message_data['contained_messages']) > 0:
@@ -175,11 +245,13 @@ class MessageDetailView(QDialog):
         scroll_area.setFrameShape(QFrame.NoFrame)
         
         table = QTableWidget()
-        table.setColumnCount(11)
         columns = [
             "Name", "Start Bit", "Length", "Byte Order", "Signed",
-            "Scale", "Offset", "Minimum", "Maximum", "Unit", "Receivers"
+            "Scale", "Offset", "Minimum", "Maximum", "Unit", 
+            "Is Multiplexer", "Multiplexer ID", "Is Float", "Choices",
+            "SPN", "Receivers"
         ]
+        table.setColumnCount(len(columns))
         table.setHorizontalHeaderLabels(columns)
         
         # Enable manual column resizing
@@ -188,6 +260,30 @@ class MessageDetailView(QDialog):
         
         # Set stretch for the last column
         table.horizontalHeader().setStretchLastSection(True)
+        
+        # Set column widths
+        column_widths = {
+            "Name": 150,
+            "Start Bit": 80,
+            "Length": 80,
+            "Byte Order": 100,
+            "Signed": 80,
+            "Scale": 80,
+            "Offset": 80,
+            "Minimum": 80,
+            "Maximum": 80,
+            "Unit": 80,
+            "Is Multiplexer": 100,
+            "Multiplexer ID": 100,
+            "Is Float": 80,
+            "Choices": 150,
+            "SPN": 80,
+            "Receivers": 200
+        }
+        
+        # Apply initial column widths
+        for i, col in enumerate(columns):
+            table.setColumnWidth(i, column_widths.get(col, 100))
         
         table.setStyleSheet("""
             QTableWidget {
@@ -202,22 +298,47 @@ class MessageDetailView(QDialog):
             }
         """)
         
+        # Helper function to format value
+        def format_value(value):
+            if value is None:
+                return ""
+            if isinstance(value, bool):
+                return "Yes" if value else "No"
+            if isinstance(value, (dict, list)) and not value:
+                return ""
+            if isinstance(value, dict):
+                return ", ".join([f"{k}: {v}" for k, v in value.items()])
+            return str(value)
+        
         # Add signals data
         signals = self.message_data['signals']
         table.setRowCount(len(signals))
         
         for row, signal in enumerate(signals):
+            # Count choices if available
+            choices_str = ""
+            if signal.get('choices') and isinstance(signal.get('choices'), dict):
+                choices = signal.get('choices')
+                choices_str = ", ".join([f"{k}={v}" for k, v in choices.items()])
+                if len(choices_str) > 50:
+                    choices_str = f"{len(choices)} choices"
+            
             items = [
                 QTableWidgetItem(signal['name']),
                 QTableWidgetItem(str(signal['start'])),
                 QTableWidgetItem(str(signal['length'])),
                 QTableWidgetItem(signal['byte_order']),
-                QTableWidgetItem('Yes' if signal['is_signed'] else 'No'),
+                QTableWidgetItem(format_value(signal['is_signed'])),
                 QTableWidgetItem(str(signal['scale'])),
                 QTableWidgetItem(str(signal['offset'])),
                 QTableWidgetItem(str(signal['minimum']) if signal['minimum'] is not None else ''),
                 QTableWidgetItem(str(signal['maximum']) if signal['maximum'] is not None else ''),
                 QTableWidgetItem(signal['unit'] if signal['unit'] else ''),
+                QTableWidgetItem(format_value(signal.get('is_multiplexer', False))),
+                QTableWidgetItem(format_value(signal.get('multiplexer_id'))),
+                QTableWidgetItem(format_value(signal.get('is_float', False))),
+                QTableWidgetItem(choices_str),
+                QTableWidgetItem(format_value(signal.get('spn'))),
                 QTableWidgetItem(', '.join(signal['receivers']) if signal['receivers'] else '')
             ]
             
@@ -226,7 +347,7 @@ class MessageDetailView(QDialog):
         
         scroll_area.setWidget(table)
         return scroll_area
-        
+
     def toggle_signals_view(self):
         """Toggle between details and signals view"""
         current_index = self.stacked_widget.currentIndex()
@@ -234,47 +355,7 @@ class MessageDetailView(QDialog):
         self.stacked_widget.setCurrentIndex(new_index)
         self.show_signals_button.setText("Show Details" if new_index == 1 else "Show Signals")
         
-    def format_signals_list(self, signals):
-        """Format the signals list for display"""
-        if not signals:
-            return "No signals"
-            
-        signal_list = []
-        for signal in signals:
-            # Format each signal with its key properties
-            signal_info = [
-                f"Name: {signal['name']}",
-                f"  • Start Bit: {signal['start']}",
-                f"  • Length: {signal['length']} bits",
-                f"  • Byte Order: {signal['byte_order']}",
-                f"  • Signed: {'Yes' if signal['is_signed'] else 'No'}"
-            ]
-            
-            # Add optional properties if they exist
-            if signal['unit']:
-                signal_info.append(f"  • Unit: {signal['unit']}")
-            if signal['scale'] != 1.0:
-                signal_info.append(f"  • Scale: {signal['scale']}")
-            if signal['offset'] != 0.0:
-                signal_info.append(f"  • Offset: {signal['offset']}")
-            if signal['minimum'] is not None:
-                signal_info.append(f"  • Min: {signal['minimum']}")
-            if signal['maximum'] is not None:
-                signal_info.append(f"  • Max: {signal['maximum']}")
-            if signal['comment']:
-                signal_info.append(f"  • Comment: {signal['comment']}")
-            
-            # Add receivers if any
-            if signal['receivers']:
-                signal_info.append(f"  • Receivers: {', '.join(signal['receivers'])}")
-            
-            # Join the signal info with newlines and add to the list
-            signal_list.append("\n".join(signal_info))
-            
-        # Join all signals with double newlines for better readability
-        return "\n\n".join(signal_list)
-
     def show_signal_layout(self):
         """Show the signal layout view"""
         layout_view = SignalLayoutView(self.message_data, self)
-        layout_view.show()  # Use show() to allow multiple windows 
+        layout_view.show()  # Use show() to allow multiple windows
