@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                             QHeaderView, QSplitter, QStackedWidget, QPushButton,
                             QMenu, QAction, QDialog, QCheckBox, QScrollArea, QDialogButtonBox,
                             QAbstractItemView)
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QIcon
 from controller.dbc_io_handler import DBC_IO_Handler
 from view.signal_detail_view import SignalDetailView
@@ -107,11 +107,15 @@ class ColumnSelectorDialog(QDialog):
         return visibility
 
 class DBCDisplayView(QWidget):
+    # Add signal for export request
+    export_requested = pyqtSignal(DBC_IO_Handler)
+    
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.current_handler = None
         self.bus_load_button = None  # Initialize as None
+        self.export_button = None    # Initialize as None
         self.setup_ui()
         
     def setup_ui(self):
@@ -1044,6 +1048,17 @@ class DBCDisplayView(QWidget):
         self.file_name_label.setText(f"File: {file_info['file_name']}")
         self.file_name_label.show()
         
+        # Add export button
+        if not self.export_button:
+            self.export_button = QPushButton("Export DBC")
+            self.export_button.setToolTip("Export this DBC file to a new location")
+            self.export_button.clicked.connect(self.on_export_clicked)
+            # Insert before the bus load button (if it exists) or before the stretch
+            if self.bus_load_button:
+                self.buttons_layout.insertWidget(self.buttons_layout.count() - 2, self.export_button)
+            else:
+                self.buttons_layout.insertWidget(self.buttons_layout.count() - 1, self.export_button)
+        
         # Add bus load calculator button
         if not self.bus_load_button:
             self.bus_load_button = QPushButton("Bus Load Calculator")
@@ -1241,6 +1256,11 @@ class DBCDisplayView(QWidget):
         if self.bus_load_button:
             self.bus_load_button.setParent(None)  # Remove from layout
             self.bus_load_button = None
+            
+        # Remove export button if it exists
+        if self.export_button:
+            self.export_button.setParent(None)  # Remove from layout
+            self.export_button = None
 
     def is_message_item(self, item):
         """Check if the tree item represents a message"""
@@ -1291,4 +1311,9 @@ class DBCDisplayView(QWidget):
         
         # Create and show the dialog
         dialog = BusLoadDialog(messages, self)
-        dialog.exec_() 
+        dialog.exec_()
+
+    def on_export_clicked(self):
+        """Handle export button click"""
+        if self.current_handler:
+            self.export_requested.emit(self.current_handler) 

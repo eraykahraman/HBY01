@@ -10,6 +10,7 @@ class DBCListView(QWidget):
     handler_selected = pyqtSignal(DBC_IO_Handler)  # Emits the selected handler
     handler_removed = pyqtSignal(str)   # Emits the file path of the removed handler
     handler_open_in_new_window = pyqtSignal(DBC_IO_Handler)  # New signal for opening in new window
+    handler_export = pyqtSignal(DBC_IO_Handler)  # New signal for exporting a DBC file
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -40,10 +41,13 @@ class DBCListView(QWidget):
             if handler:
                 menu = QMenu()
                 open_in_new_window_action = menu.addAction("Open in New Window")
+                export_action = menu.addAction("Export DBC")
                 action = menu.exec_(self.list_widget.mapToGlobal(position))
                 
                 if action == open_in_new_window_action:
                     self.handler_open_in_new_window.emit(handler)
+                elif action == export_action:
+                    self.handler_export.emit(handler)
         
     def update_handlers(self, handlers):
         """Update the list with the current set of handlers"""

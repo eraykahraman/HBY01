@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout
+from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QMessageBox
 from PyQt5.QtCore import Qt
 from view.dbc_display_view import DBCDisplayView
 from controller.dbc_io_handler import DBC_IO_Handler
@@ -28,5 +28,44 @@ class DBCWindow(QMainWindow):
         self.display_view = DBCDisplayView()
         layout.addWidget(self.display_view)
         
+        # Connect signals
+        self.display_view.export_requested.connect(self.on_export_requested)
+        
         # Update display with handler data
-        self.display_view.update_display(self.handler) 
+        self.display_view.update_display(self.handler)
+        
+    def on_export_requested(self, handler):
+        """
+        Handle export request from the display view
+        
+        Args:
+            handler (DBC_IO_Handler): The handler to export
+        """
+        # Use the parent window's controller to export the file
+        if hasattr(self.parent(), 'dbc_controller'):
+            file_path = handler.get_file_path()
+            success, target_file, error = self.parent().dbc_controller.export_dbc(file_path, self)
+            
+            if error and error != "Export cancelled":
+                # Show error message dialog
+                QMessageBox.critical(
+                    self,
+                    "DBC Export Error",
+                    error,
+                    QMessageBox.Ok
+                )
+                # Show message in status bar if it exists
+                if hasattr(self, 'statusBar'):
+                    self.statusBar().showMessage("Failed to export DBC file - See error dialog for details")
+            elif success and target_file:
+                # Show success message in status bar if it exists
+                if hasattr(self, 'statusBar'):
+                    self.statusBar().showMessage(f"Successfully exported DBC file to: {target_file}")
+                else:
+                    # If no status bar, show a success message box
+                    QMessageBox.information(
+                        self,
+                        "DBC Export Success",
+                        f"Successfully exported DBC file to: {target_file}",
+                        QMessageBox.Ok
+                    ) 

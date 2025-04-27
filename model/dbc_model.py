@@ -1,10 +1,12 @@
 import cantools
+import shutil
 from PyQt5.QtCore import QObject, pyqtSignal
 
 class DBCModel(QObject):
     # Signals for notifying the view of changes
     dbc_loaded = pyqtSignal(str)  # Emitted when a DBC file is successfully loaded
     dbc_error = pyqtSignal(str)   # Emitted when there's an error loading a DBC file
+    dbc_exported = pyqtSignal(str) # Emitted when a DBC file is successfully exported
     
     def __init__(self):
         super().__init__()
@@ -54,4 +56,35 @@ class DBCModel(QObject):
         """
         Returns a list of all loaded DBC file paths
         """
-        return list(self.dbc_files.keys()) 
+        return list(self.dbc_files.keys())
+    
+    def export_dbc(self, source_file_path, target_file_path):
+        """
+        Exports a DBC file to the specified path.
+        This method copies the DBC file to the target location.
+        
+        Args:
+            source_file_path (str): Path to the source DBC file
+            target_file_path (str): Path where the DBC file should be exported
+            
+        Returns:
+            tuple[bool, str]: (Success status, Error message if any)
+        """
+        try:
+            # Check if the source file exists in our database
+            if source_file_path not in self.dbc_files:
+                return False, "Source DBC file not loaded in the application"
+            
+            # Copy the file to the target location
+            shutil.copy2(source_file_path, target_file_path)
+            
+            # Emit signal for successful export
+            self.dbc_exported.emit(target_file_path)
+            
+            return True, None
+        except FileNotFoundError:
+            return False, f"Source file not found: {source_file_path}"
+        except PermissionError:
+            return False, f"Permission denied: Unable to write to {target_file_path}"
+        except Exception as e:
+            return False, f"Error exporting DBC file: {str(e)}"

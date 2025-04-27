@@ -8,6 +8,7 @@ class DBC_IO_Controller(QObject):
     handler_created = pyqtSignal(DBC_IO_Handler)  # Emitted when a new handler is created
     handler_removed = pyqtSignal(str)  # Emitted when a handler is removed
     handlers_changed = pyqtSignal(list)  # Emitted when the handlers list changes
+    dbc_exported = pyqtSignal(str)  # Emitted when a DBC file is exported
     
     def __init__(self):
         super().__init__()
@@ -39,6 +40,44 @@ class DBC_IO_Controller(QObject):
                 return None, None, error
         
         return None, None, None
+    
+    def export_dbc(self, file_path, parent_window=None):
+        """
+        Opens a file dialog to select a location to export the DBC file
+        
+        Args:
+            file_path (str): Path of the source DBC file to export
+            parent_window: Parent window for the file dialog
+            
+        Returns:
+            tuple[bool, str, str]: (Success status, Target file path, Error message if any)
+        """
+        if file_path not in self.handlers:
+            return False, None, "File not loaded in the application"
+            
+        target_file, _ = QFileDialog.getSaveFileName(
+            parent_window,
+            "Export DBC File",
+            "",
+            "DBC Files (*.dbc);;All Files (*.*)"
+        )
+        
+        if not target_file:
+            return False, None, "Export cancelled"
+            
+        # Ensure the file has .dbc extension if none is provided
+        if not target_file.lower().endswith('.dbc'):
+            target_file += '.dbc'
+            
+        # Use the model to perform the export
+        success, error = self.model.export_dbc(file_path, target_file)
+        
+        if success:
+            # Emit signal about successful export
+            self.dbc_exported.emit(target_file)
+            return True, target_file, None
+        else:
+            return False, None, error
     
     def remove_dbc(self, file_path):
         """

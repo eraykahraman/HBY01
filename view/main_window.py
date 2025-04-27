@@ -42,11 +42,17 @@ class MainWindow(QMainWindow):
         left_layout.setContentsMargins(5, 5, 5, 5)
         left_layout.setSpacing(1)
         
+        # Create buttons layout for import/export
+        buttons_layout = QHBoxLayout()
+        
         # Create and add the import button
         self.import_button = QPushButton("Import DBC")
         self.import_button.setFixedWidth(120)
         self.import_button.clicked.connect(self.import_dbc)
-        left_layout.addWidget(self.import_button)
+        buttons_layout.addWidget(self.import_button)
+        
+        # Add buttons layout to left panel
+        left_layout.addLayout(buttons_layout)
         
         # Create and add the DBC list view
         self.dbc_list = DBCListView()
@@ -72,11 +78,16 @@ class MainWindow(QMainWindow):
         # Connect to controller signals
         self.dbc_controller.handlers_changed.connect(self.on_handlers_changed)
         self.dbc_controller.handler_removed.connect(self.on_handler_removed)
+        self.dbc_controller.dbc_exported.connect(self.on_dbc_exported)
         
         # Connect to list view signals
         self.dbc_list.handler_selected.connect(self.on_handler_selected)
         self.dbc_list.handler_removed.connect(self.dbc_controller.remove_dbc)
         self.dbc_list.handler_open_in_new_window.connect(self.open_dbc_in_new_window)
+        self.dbc_list.handler_export.connect(self.on_handler_export)
+        
+        # Connect to display view signals
+        self.dbc_display.export_requested.connect(self.on_handler_export)
         
     def import_dbc(self):
         handler, file_name, error = self.dbc_controller.import_dbc(self)
@@ -95,10 +106,48 @@ class MainWindow(QMainWindow):
             # This will go through on_handler_selected which will handle
             # displaying in main view or new window appropriately
             self.dbc_list.select_handler(handler)
+    
+    def export_dbc(self):
+        """
+        Export the currently selected DBC file
+        """
+        # Get the selected handler
+        handler = self.dbc_list.get_selected_handler()
+        if not handler:
+            QMessageBox.warning(
+                self,
+                "Export Error",
+                "No DBC file selected for export.",
+                QMessageBox.Ok
+            )
+            return
+            
+        # Get the file path from the handler
+        file_path = handler.get_file_path()
+        
+        # Call the controller to export the file
+        success, target_file, error = self.dbc_controller.export_dbc(file_path, self)
+        
+        if error and error != "Export cancelled":
+            # Show error message dialog
+            QMessageBox.critical(
+                self,
+                "DBC Export Error",
+                error,
+                QMessageBox.Ok
+            )
+            # Show shorter version in status bar
+            self.statusBar.showMessage("Failed to export DBC file - See error dialog for details")
+        
+    def on_dbc_exported(self, file_path):
+        """Handle successful DBC export"""
+        self.statusBar.showMessage(f"Successfully exported DBC file to: {file_path}")
         
     def on_handlers_changed(self, handlers):
         """Handle updates to the handlers list"""
         self.dbc_list.update_handlers(handlers)
+        # Enable/disable the export button based on whether there are handlers
+        # self.export_button.setEnabled(len(handlers) > 0)  # Removed as the button no longer exists
         
     def on_handler_removed(self, file_path):
         """Handle handler removal"""
@@ -123,4 +172,28 @@ class MainWindow(QMainWindow):
     def open_dbc_in_new_window(self, handler):
         """Open a DBC file in a new window"""
         window = DBCWindow(handler, self)
-        window.show() 
+        window.show()
+
+    def on_handler_export(self, handler):
+        """
+        Handle export request from the context menu
+        
+        Args:
+            handler (DBC_IO_Handler): The handler to export
+        """
+        # Get the file path from the handler
+        file_path = handler.get_file_path()
+        
+        # Call the controller to export the file
+        success, target_file, error = self.dbc_controller.export_dbc(file_path, self)
+        
+        if error and error != "Export cancelled":
+            # Show error message dialog
+            QMessageBox.critical(
+                self,
+                "DBC Export Error",
+                error,
+                QMessageBox.Ok
+            )
+            # Show shorter version in status bar
+            self.statusBar.showMessage("Failed to export DBC file - See error dialog for details") 
