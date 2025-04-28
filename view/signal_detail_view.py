@@ -1,8 +1,10 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                             QPushButton, QScrollArea, QWidget, QTableWidget,
-                            QTableWidgetItem, QHeaderView, QFrame, QSizePolicy)
+                            QTableWidgetItem, QHeaderView, QFrame, QSizePolicy, QMessageBox)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor
+from controller.edit_controller import EditController
+from view.signal_edit_dialog import SignalEditDialog
 
 class SignalValuesDialog(QDialog):
     """Dialog for displaying signal value choices"""
@@ -118,9 +120,10 @@ class SignalValuesDialog(QDialog):
         main_layout.addLayout(button_layout)
 
 class SignalDetailView(QDialog):
-    def __init__(self, signal_data, parent=None):
+    def __init__(self, signal_data, handler, parent=None):
         super().__init__(parent)
         self.signal_data = signal_data
+        self.handler = handler
         self.setup_ui()
         
     def setup_ui(self):
@@ -142,13 +145,20 @@ class SignalDetailView(QDialog):
         header_layout = QHBoxLayout(header_frame)
         header_layout.setContentsMargins(10, 10, 10, 10)
         
-        signal_name_label = QLabel(self.signal_data['name'])
-        signal_name_label.setFont(QFont("Arial", 14, QFont.Bold))
-        header_layout.addWidget(signal_name_label)
+        self.signal_name_label = QLabel(self.signal_data['name'])
+        self.signal_name_label.setFont(QFont("Arial", 14, QFont.Bold))
+        header_layout.addWidget(self.signal_name_label)
         
         message_info = QLabel(f"Message: {self.signal_data['message_name']} (ID: 0x{self.signal_data['message_id']:X})")
         message_info.setFont(QFont("Arial", 10))
         header_layout.addWidget(message_info)
+        
+        # Add Edit button
+        edit_button = QPushButton("Edit")
+        edit_button.setToolTip("Edit signal name")
+        edit_button.setMinimumWidth(80)
+        edit_button.clicked.connect(self.open_edit_dialog)
+        header_layout.addWidget(edit_button)
         
         # Check if signal has choices for later use
         has_choices = self.signal_data.get('choices') and isinstance(self.signal_data.get('choices'), dict) and len(self.signal_data.get('choices')) > 0
@@ -328,4 +338,41 @@ class SignalDetailView(QDialog):
     def show_values_dialog(self):
         """Show the values dialog if the signal has choices defined"""
         values_dialog = SignalValuesDialog(self.signal_data, self)
-        values_dialog.exec_() 
+        values_dialog.exec_()
+
+    def open_edit_dialog(self):
+        dialog = SignalEditDialog(self.signal_data['name'], self)
+        dialog.name_edited.connect(self.handle_name_edited)
+        dialog.exec_()
+
+    def handle_name_edited(self, new_name):
+        if new_name == self.signal_data['name']:
+            return  # No change
+        if not self.handler:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+        success, error = EditController.edit_signal_name(
+            self.handler,
+            self.signal_data['message_name'],
+            self.signal_data['name'],
+            new_name
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+        # Update local data and UI
+        self.signal_data['name'] = new_name
+        self.signal_name_label.setText(new_name)
+        self.setWindowTitle(f"Signal Details: {new_name}")
+
+    def find_handler(self):
+        # Traverse parent chain to find handler (assumes parent is MessageDetailView or similar)
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'message_data') and hasattr(parent, 'parent'):
+                # MessageDetailView: parent().parent() is likely DBCDisplayView
+                grandparent = parent.parent()
+                if hasattr(grandparent, 'current_handler'):
+                    return grandparent.current_handler
+            parent = parent.parent() if hasattr(parent, 'parent') else None
+        return None 

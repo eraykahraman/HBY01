@@ -54,26 +54,29 @@ class DBC_IO_Controller(QObject):
         """
         if file_path not in self.handlers:
             return False, None, "File not loaded in the application"
-            
+        handler = self.handlers[file_path]
         target_file, _ = QFileDialog.getSaveFileName(
             parent_window,
             "Export DBC File",
             "",
             "DBC Files (*.dbc);;All Files (*.*)"
         )
-        
         if not target_file:
             return False, None, "Export cancelled"
-            
         # Ensure the file has .dbc extension if none is provided
         if not target_file.lower().endswith('.dbc'):
             target_file += '.dbc'
-            
-        # Use the model to perform the export
+        # Use the edit_handler to perform the export if available
+        if hasattr(handler, 'edit_handler') and handler.edit_handler:
+            success = handler.edit_handler.save_to_file(target_file)
+            if success:
+                self.dbc_exported.emit(target_file)
+                return True, target_file, None
+            else:
+                return False, None, "Failed to save DBC file using in-memory edits."
+        # Fallback: Use the model to perform the export (legacy, not recommended)
         success, error = self.model.export_dbc(file_path, target_file)
-        
         if success:
-            # Emit signal about successful export
             self.dbc_exported.emit(target_file)
             return True, target_file, None
         else:

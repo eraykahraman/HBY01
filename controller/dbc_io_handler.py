@@ -3,6 +3,7 @@ from cantools.database import Database
 import os
 from model.dbc_model import DBCModel
 from PyQt5.QtCore import QObject, pyqtSignal
+from controller.edit_handler import EditHandler
 
 class DBC_IO_Handler(QObject):
     # Signals emitted when nodes or messages list changes
@@ -49,6 +50,8 @@ class DBC_IO_Handler(QObject):
             if self.model.load_dbc(self.file_path):
                 self.database = self.model.get_dbc(self.file_path)
                 self.is_loaded = True
+                # Create per-file EditHandler instance
+                self.edit_handler = EditHandler(self.database)
                 # Parse nodes and messages after successful load
                 self.nodes = self.parse_nodes()
                 self.messages = self.parse_messages()

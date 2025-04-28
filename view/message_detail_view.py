@@ -411,5 +411,14 @@ class MessageDetailView(QDialog):
         if 'message_id' not in signal_copy:
             signal_copy['message_id'] = self.message_data['frame_id']
         
-        signal_detail = SignalDetailView(signal_copy, self)
+        # Find handler from parent chain (assume parent is DBCDisplayView)
+        handler = None
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'current_handler'):
+                handler = parent.current_handler
+                break
+            parent = parent.parent() if hasattr(parent, 'parent') else None
+        
+        signal_detail = SignalDetailView(signal_copy, handler, self)
         signal_detail.show()

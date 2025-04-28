@@ -919,7 +919,7 @@ class DBCDisplayView(QWidget):
                 
                 # Show signal detail view if signal data was found
                 if signal_data:
-                    signal_detail = SignalDetailView(signal_data, self)
+                    signal_detail = SignalDetailView(signal_data, self.current_handler, self)
                     signal_detail.show()
             
             # Check if this is a message item
@@ -947,7 +947,7 @@ class DBCDisplayView(QWidget):
         if not signal_data:
             return
         # Show the signal detail view
-        signal_detail = SignalDetailView(signal_data, self)
+        signal_detail = SignalDetailView(signal_data, self.current_handler, self)
         signal_detail.show()  # Use show() instead of exec_() to allow multiple windows
         
     def on_message_double_clicked(self, item):
