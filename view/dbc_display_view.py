@@ -489,6 +489,7 @@ class DBCDisplayView(QWidget):
         for signal in signals:
             # Create basic text items
             name_item = create_text_item(signal['name'])
+            name_item.setData(Qt.UserRole, signal)  # Store full signal dict for correct lookup
             message_name_item = create_text_item(signal['message_name'])
             
             # Create message ID item - hex display with numeric sorting
@@ -620,6 +621,7 @@ class DBCDisplayView(QWidget):
             
             # Create name item
             name_item = create_text_item(msg['name'])
+            name_item.setData(Qt.UserRole, msg)  # Store full message dict for correct lookup
             
             # Create frame ID item - hex value but store numeric value for sorting
             frame_id_item = create_numeric_item(int(msg['frame_id']), f"0x{msg['frame_id']:X}")
@@ -825,8 +827,29 @@ class DBCDisplayView(QWidget):
             
         # Check if the clicked item is the Signals, Messages, or Network Nodes root
         if item.text(0) == "Signals":
-            signals = self.current_handler.get_signals()
-            self.update_signals_table(signals)
+            parent = item.parent()
+            # If parent is a message node, show only signals for that message
+            if parent and parent.text(0).startswith("Messages") or (parent and "(ID:" in parent.text(0)):
+                # Parent is a message node
+                message_item = parent
+                # Extract message name from the item text (format: "name (ID: 0xXX)")
+                message_name = message_item.text(0).split(" (ID:")[0]
+                messages = self.current_handler.get_messages()
+                for msg in messages:
+                    if msg['name'] == message_name:
+                        # Patch: add message_name and message_id to each signal
+                        signals = [
+                            {**signal, "message_name": msg["name"], "message_id": msg["frame_id"]}
+                            for signal in msg["signals"]
+                        ]
+                        self.update_signals_table(signals)
+                        return
+                # If not found, fallback to empty
+                self.update_signals_table([])
+            else:
+                # Root "Signals" node
+                signals = self.current_handler.get_signals()
+                self.update_signals_table(signals)
         elif item.text(0) == "Messages":
             messages = self.current_handler.get_messages()
             self.update_messages_table(messages)
@@ -912,30 +935,34 @@ class DBCDisplayView(QWidget):
         
     def on_signal_double_clicked(self, item):
         """Handle double-click on a signal in the signals table"""
-        if not self.current_handler or not hasattr(self, 'signals_data'):
+        if not self.current_handler:
             return
-            
         # Get the row of the clicked item
         row = item.row()
-        
-        # Get the signal data for this row
-        signal_data = self.signals_data[row]
-        
+        # Always get the signal dict from the first column's user data
+        signal_item = self.signals_table.item(row, 0)
+        if signal_item is None:
+            return
+        signal_data = signal_item.data(Qt.UserRole)
+        if not signal_data:
+            return
         # Show the signal detail view
         signal_detail = SignalDetailView(signal_data, self)
         signal_detail.show()  # Use show() instead of exec_() to allow multiple windows
         
     def on_message_double_clicked(self, item):
         """Handle double-click on a message in the messages table"""
-        if not self.current_handler or not hasattr(self, 'messages_data'):
+        if not self.current_handler:
             return
-            
         # Get the row of the clicked item
         row = item.row()
-        
-        # Get the message data for this row
-        message_data = self.messages_data[row]
-        
+        # Always get the message dict from the first column's user data
+        message_item = self.messages_table.item(row, 0)
+        if message_item is None:
+            return
+        message_data = message_item.data(Qt.UserRole)
+        if not message_data:
+            return
         # Show the message detail view
         message_detail = MessageDetailView(message_data, self)
         message_detail.show()  # Use show() to allow multiple windows
