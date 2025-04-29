@@ -5,6 +5,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor
 from controller.edit_controller import EditController
 from view.signal_edit_dialog import SignalEditDialog
+from controller.dbc_io_handler import DBC_IO_Handler
 
 class SignalValuesDialog(QDialog):
     """Dialog for displaying signal value choices"""
@@ -348,11 +349,11 @@ class SignalDetailView(QDialog):
     def handle_name_edited(self, new_name):
         if new_name == self.signal_data['name']:
             return  # No change
-        if not self.handler:
+        if not self.handler or not self.handler.edit_controller:
             QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
             return
-        success, error = EditController.edit_signal_name(
-            self.handler,
+        
+        success, error = self.handler.edit_controller.edit_signal_name(
             self.signal_data['message_name'],
             self.signal_data['name'],
             new_name

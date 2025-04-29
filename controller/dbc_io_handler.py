@@ -1,9 +1,12 @@
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from cantools.database import Database
 import os
 from model.dbc_model import DBCModel
 from PyQt5.QtCore import QObject, pyqtSignal
-from controller.edit_handler import EditHandler
+from controller.edit_controller import EditController  # Move this out of TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from controller.edit_controller import EditController
 
 class DBC_IO_Handler(QObject):
     # Signals emitted when nodes or messages list changes
@@ -27,6 +30,7 @@ class DBC_IO_Handler(QObject):
         self.nodes: List[Dict[str, Any]] = []  # Store the list of nodes
         self.messages: List[Dict[str, Any]] = []  # Store the list of messages
         self.signals: List[Dict[str, Any]] = []  # Store the list of all signals
+        self.edit_controller: Optional[EditController] = None
         # Connect to model signals to capture error messages
         self.model.dbc_error.connect(self._on_model_error)
         self.last_error: Optional[str] = None
@@ -50,27 +54,42 @@ class DBC_IO_Handler(QObject):
             if self.model.load_dbc(self.file_path):
                 self.database = self.model.get_dbc(self.file_path)
                 self.is_loaded = True
-                # Create per-file EditHandler instance
-                self.edit_handler = EditHandler(self.database)
+                # Create EditController instance
+                self.edit_controller = EditController(self)
                 # Parse nodes and messages after successful load
                 self.nodes = self.parse_nodes()
                 self.messages = self.parse_messages()
                 self.signals = self.parse_all_signals()  # Parse all signals
                 self.nodes_changed.emit(self.nodes)
                 self.messages_changed.emit(self.messages)
-                self.signals_changed.emit(self.signals)  # Emit signals list
+                self.signals_changed.emit(self.signals)
                 return True, None
-            else:
-                return False, self.last_error or "Failed to load DBC file"
-            
+            return False, self.last_error
         except Exception as e:
-            return False, f"Error loading DBC file: {str(e)}"
+            return False, str(e)
             
     def get_database(self) -> Optional[Database]:
         """
         Returns the DBC database
         """
-        return self.model.get_dbc(self.file_path)
+        # Always return our instance, not a new one from the model
+        return self.database
+        
+    def update_database(self):
+        """
+        Update the in-memory data structures after database changes
+        """
+        if self.is_loaded and self.database:
+            # Update the model's database
+            self.model.dbc_files[self.file_path] = self.database
+            # Update local data structures
+            self.nodes = self.parse_nodes()
+            self.messages = self.parse_messages()
+            self.signals = self.parse_all_signals()
+            # Emit signals
+            self.nodes_changed.emit(self.nodes)
+            self.messages_changed.emit(self.messages)
+            self.signals_changed.emit(self.signals)
         
     def get_file_info(self) -> Dict[str, Any]:
         """

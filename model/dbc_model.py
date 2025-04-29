@@ -112,7 +112,7 @@ class DBCModel(QObject):
     def export_dbc(self, source_file_path, target_file_path):
         """
         Exports a DBC file to the specified path.
-        This method copies the DBC file to the target location.
+        This method saves the current database state to the target location.
         
         Args:
             source_file_path (str): Path to the source DBC file
@@ -123,11 +123,13 @@ class DBCModel(QObject):
         """
         try:
             # Check if the source file exists in our database
-            if source_file_path not in self.dbc_files:
+            db = self.dbc_files.get(source_file_path)
+            if not db:
                 return False, "Source DBC file not loaded in the application"
             
-            # Copy the file to the target location
-            shutil.copy2(source_file_path, target_file_path)
+            # Save the current database state to the target file
+            with open(target_file_path, 'w', encoding='utf-8') as f:
+                f.write(db.as_dbc_string())
             
             # Emit signal for successful export
             self.dbc_exported.emit(target_file_path)
