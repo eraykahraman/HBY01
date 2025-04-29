@@ -41,7 +41,73 @@ class EditHandler:
                 return True, ""
                 
         return False, f"Signal '{old_signal_name}' not found in message '{message_name}'."
-        
+
+    def edit_signal_length(self, message_name: str, signal_name: str, new_length: int) -> tuple[bool, str]:
+        """
+        Edit the length of a signal in a given message.
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        if new_length <= 0:
+            return False, "Signal length must be greater than 0."
+            
+        # Find the message
+        message = None
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                message = msg
+                break
+                
+        if not message:
+            return False, f"Message '{message_name}' not found."
+            
+        # Find and update the signal
+        for signal in message.signals:
+            if signal.name == signal_name:
+                # Check if new length would exceed message length
+                if signal.start + new_length > message.length * 8:
+                    return False, f"Signal length would exceed message length. Maximum allowed: {message.length * 8 - signal.start} bits"
+                # Update the signal length
+                signal.length = new_length
+                return True, ""
+                
+        return False, f"Signal '{signal_name}' not found in message '{message_name}'."
+
+    def edit_signal_start_bit(self, message_name: str, signal_name: str, new_start_bit: int) -> tuple[bool, str]:
+        """
+        Edit the start bit of a signal in a given message.
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        if new_start_bit < 0:
+            return False, "Start bit cannot be negative."
+            
+        # Find the message
+        message = None
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                message = msg
+                break
+                
+        if not message:
+            return False, f"Message '{message_name}' not found."
+            
+        # Find and update the signal
+        for signal in message.signals:
+            if signal.name == signal_name:
+                # Check if new start bit + length would exceed message length
+                if new_start_bit + signal.length > message.length * 8:
+                    return False, f"Signal would exceed message length. Maximum allowed start bit: {message.length * 8 - signal.length}"
+                # Update the signal start bit
+                signal.start = new_start_bit
+                return True, ""
+                
+        return False, f"Signal '{signal_name}' not found in message '{message_name}'."
+
     def get_diff(self) -> Dict[str, Any]:
         """
         Get the differences between the original and edited database

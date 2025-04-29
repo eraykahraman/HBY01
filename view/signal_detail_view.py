@@ -249,79 +249,54 @@ class SignalDetailView(QDialog):
         
         # Define property groups and their items
         property_groups = [
-            ("Basic Properties", [
-                ("Name", self.signal_data['name']),
-                ("Message", self.signal_data['message_name']),
-                ("Message ID", f"0x{self.signal_data['message_id']:X}")
-            ]),
-            ("Bit Properties", [
-                ("Start Bit", str(self.signal_data['start'])),
-                ("Length", f"{self.signal_data['length']} bits"),
-                ("Byte Order", self.signal_data['byte_order']),
-                ("Signed", "Yes" if self.signal_data['is_signed'] else "No")
-            ]),
-            ("Scaling Properties", [
-                ("Scale", str(self.signal_data['scale'])),
-                ("Offset", str(self.signal_data['offset'])),
-                ("Minimum", format_value(self.signal_data['minimum'])),
-                ("Maximum", format_value(self.signal_data['maximum'])),
-                ("Unit", format_value(self.signal_data['unit']))
-            ]),
-            ("Multiplexing", [
-                ("Is Multiplexer", format_value(self.signal_data.get('is_multiplexer', False))),
-                ("Multiplexer ID", format_value(self.signal_data.get('multiplexer_id'))),
-                ("Multiplexer Signal", format_value(self.signal_data.get('multiplexer_signal'))),
-                ("Multiplexer Values", format_value(self.signal_data.get('multiplexer_values')))
-            ]),
-            ("Value Properties", [
-                ("Is Float", format_value(self.signal_data.get('is_float', False))),
-                ("Decimal Places", format_value(self.signal_data.get('decimal'))),
-                ("Choices", format_value(self.signal_data.get('choices')))
-            ]),
-            ("J1939 Properties", [
-                ("SPN", format_value(self.signal_data.get('spn'))),
-                ("PGN", format_value(self.signal_data.get('pgn'))),
-                ("Source Address (SA)", format_value(self.signal_data.get('sa'))),
-                ("Destination Address (DA)", format_value(self.signal_data.get('da'))),
-                ("Priority", format_value(self.signal_data.get('priority'))),
-                ("Address", format_value(self.signal_data.get('address'))),
-                ("Is J1939", format_value(self.signal_data.get('is_j1939', False)))
-            ]),
-            ("Communication", [
-                ("Receivers", ", ".join(self.signal_data['receivers']) if self.signal_data['receivers'] else "None")
-            ]),
-            ("Documentation", [
-                ("Comment", self.signal_data['comment'] if self.signal_data['comment'] else "No comment")
-            ])
+            {
+                "name": "Basic Information",
+                "items": [
+                    ("Name", self.signal_data['name'], True),
+                    ("Length", str(self.signal_data['length']), True),
+                    ("Start Bit", str(self.signal_data['start']), True),
+                    ("Byte Order", self.signal_data.get('byte_order', 'Not specified'), False),
+                    ("Value Type", self.signal_data.get('value_type', 'Not specified'), False),
+                    ("Factor", str(self.signal_data.get('factor', 1)), False),
+                    ("Offset", str(self.signal_data.get('offset', 0)), False),
+                    ("Minimum", str(self.signal_data.get('minimum', 'Not specified')), False),
+                    ("Maximum", str(self.signal_data.get('maximum', 'Not specified')), False),
+                    ("Unit", self.signal_data.get('unit', 'Not specified'), False),
+                    ("Comment", self.signal_data.get('comment', 'Not specified'), False)
+                ]
+            }
         ]
         
-        # Calculate total number of rows needed
-        total_rows = sum(len(items) + 1 for _, items in property_groups)  # +1 for each group header
+        # Add rows to table
+        total_rows = sum(len(group["items"]) for group in property_groups)
         table.setRowCount(total_rows)
         
-        # Add properties to table
         current_row = 0
-        for group_name, items in property_groups:
+        for group in property_groups:
             # Add group header
-            header_item = QTableWidgetItem(group_name)
-            header_item.setBackground(Qt.lightGray)
-            header_item.setFont(QFont("Arial", 11, QFont.Bold))
+            header_item = QTableWidgetItem(group["name"])
+            header_item.setBackground(QColor("#f0f0f0"))
+            header_item.setFont(QFont("Arial", 10, QFont.Bold))
             table.setItem(current_row, 0, header_item)
             table.setSpan(current_row, 0, 1, 2)
             current_row += 1
             
             # Add group items
-            for prop_name, prop_value in items:
+            for prop_name, prop_value, is_editable in group["items"]:
+                # Property name
                 name_item = QTableWidgetItem(prop_name)
-                name_item.setFont(QFont("Arial", 10))
-                value_item = QTableWidgetItem(str(prop_value))
-                value_item.setFont(QFont("Arial", 10))
-                
+                name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
                 table.setItem(current_row, 0, name_item)
+                
+                # Property value
+                value_item = QTableWidgetItem(format_value(prop_value))
+                if not is_editable:
+                    value_item.setFlags(value_item.flags() & ~Qt.ItemIsEditable)
                 table.setItem(current_row, 1, value_item)
+                
                 current_row += 1
         
-        # Add table to scroll area
+        # Add table to layout with a scroll area
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QFrame.NoFrame)
@@ -339,14 +314,69 @@ class SignalDetailView(QDialog):
         
         main_layout.addLayout(button_layout)
         
+        # Connect cell change signal
+        table.cellChanged.connect(self._on_cell_changed)
+        
+    def _on_cell_changed(self, row, column):
+        if column != 1:  # Only handle value column changes
+            return
+            
+        table = self.findChild(QTableWidget)
+        if not table:
+            return
+            
+        property_name = table.item(row, 0).text()
+        new_value = table.item(row, 1).text()
+        
+        try:
+            if property_name == "Length":
+                new_length = int(new_value)
+                success, error = self.handler.edit_controller.edit_signal_length(
+                    self.signal_data['message_name'],
+                    self.signal_data['name'],
+                    new_length
+                )
+                if success:
+                    self.signal_data['length'] = new_length
+                else:
+                    QMessageBox.critical(self, "Error", error)
+                    table.item(row, 1).setText(str(self.signal_data['length']))
+                    
+            elif property_name == "Start Bit":
+                new_start_bit = int(new_value)
+                success, error = self.handler.edit_controller.edit_signal_start_bit(
+                    self.signal_data['message_name'],
+                    self.signal_data['name'],
+                    new_start_bit
+                )
+                if success:
+                    self.signal_data['start'] = new_start_bit
+                else:
+                    QMessageBox.critical(self, "Error", error)
+                    table.item(row, 1).setText(str(self.signal_data['start']))
+                    
+        except ValueError:
+            QMessageBox.critical(self, "Error", f"Invalid value for {property_name}. Must be a valid integer.")
+            if property_name == "Length":
+                table.item(row, 1).setText(str(self.signal_data['length']))
+            elif property_name == "Start Bit":
+                table.item(row, 1).setText(str(self.signal_data['start']))
+
     def show_values_dialog(self):
         """Show the values dialog if the signal has choices defined"""
         values_dialog = SignalValuesDialog(self.signal_data, self)
         values_dialog.exec_()
 
     def open_edit_dialog(self):
-        dialog = SignalEditDialog(self.signal_data['name'], self)
+        dialog = SignalEditDialog(
+            self.signal_data['name'],
+            self.signal_data['length'],
+            self.signal_data['start'],
+            self
+        )
         dialog.name_edited.connect(self.handle_name_edited)
+        dialog.length_edited.connect(self.handle_length_edited)
+        dialog.start_bit_edited.connect(self.handle_start_bit_edited)
         dialog.exec_()
 
     def handle_name_edited(self, new_name):
@@ -370,6 +400,52 @@ class SignalDetailView(QDialog):
         self.signal_data['name'] = new_name
         self.signal_name_label.setText(new_name)
         self.setWindowTitle(f"Signal Details: {new_name}")
+        
+        # Emit signal with old and new signal data
+        self.signal_edited.emit(old_signal, self.signal_data)
+
+    def handle_length_edited(self, new_length):
+        if new_length == self.signal_data['length']:
+            return  # No change
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+            
+        old_signal = self.signal_data.copy()
+        success, error = self.handler.edit_controller.edit_signal_length(
+            self.signal_data['message_name'],
+            self.signal_data['name'],
+            new_length
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data
+        self.signal_data['length'] = new_length
+        
+        # Emit signal with old and new signal data
+        self.signal_edited.emit(old_signal, self.signal_data)
+
+    def handle_start_bit_edited(self, new_start_bit):
+        if new_start_bit == self.signal_data['start']:
+            return  # No change
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+            
+        old_signal = self.signal_data.copy()
+        success, error = self.handler.edit_controller.edit_signal_start_bit(
+            self.signal_data['message_name'],
+            self.signal_data['name'],
+            new_start_bit
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data
+        self.signal_data['start'] = new_start_bit
         
         # Emit signal with old and new signal data
         self.signal_edited.emit(old_signal, self.signal_data)

@@ -116,7 +116,6 @@ class DBCDisplayView(QWidget):
         self.current_handler = None
         self.bus_load_button = None  # Initialize as None
         self.export_button = None    # Initialize as None
-        self.last_edited_signal = None
         self.setup_ui()
         
     def setup_ui(self):
@@ -450,10 +449,6 @@ class DBCDisplayView(QWidget):
 
     def update_signals_table(self, signals):
         """Update the signals table with data"""
-        print("Updating signals table...")  # Debug print
-        if hasattr(self, 'last_edited_signal'):
-            print(f"Last edited signal info: {self.last_edited_signal}")  # Debug print
-        
         # Temporarily disable sorting while updating
         self.signals_table.setSortingEnabled(False)
         
@@ -489,29 +484,12 @@ class DBCDisplayView(QWidget):
             item.setData(Qt.UserRole, 1 if value else 0)
             return item
         
-        # Store if we found and highlighted the edited signal
-        highlighted_edited_signal = False
-        
         # Prepare all items first
         table_items = []
         for signal in signals:
             # Create basic text items
             name_item = create_text_item(signal['name'])
             name_item.setData(Qt.UserRole, signal)  # Store full signal dict for correct lookup
-            
-            # Check if this signal was recently edited
-            if not highlighted_edited_signal and hasattr(self, 'last_edited_signal') and self.last_edited_signal:
-                print(f"Checking signal: {signal['name']} against last edited: {self.last_edited_signal['new_name']}")  # Debug print
-                if (signal['message_name'] == self.last_edited_signal['message_name'] and 
-                    str(signal['message_id']) == str(self.last_edited_signal['message_id']) and
-                    signal['name'] == self.last_edited_signal['new_name']):
-                    print(f"Found edited signal, highlighting: {signal['name']}")  # Debug print
-                    # This signal's name was edited, highlight only the name cell
-                    name_item.setBackground(QColor(255, 255, 200))  # Light yellow background
-                    name_item.setForeground(QColor(0, 0, 0))  # Black text
-                    name_item.setFont(QFont("Arial", 10, QFont.Bold))  # Bold font
-                    name_item.setToolTip(f"Name changed from '{self.last_edited_signal['old_name']}' to '{signal['name']}'")
-                    highlighted_edited_signal = True
             
             message_name_item = create_text_item(signal['message_name'])
             
@@ -591,10 +569,6 @@ class DBCDisplayView(QWidget):
         for row, row_items in enumerate(table_items):
             for col, item in enumerate(row_items):
                 self.signals_table.setItem(row, col, item)
-        
-        # Clear the last edited signal info after we've used it
-        if highlighted_edited_signal:
-            self.last_edited_signal = None
         
         # Re-enable sorting
         self.signals_table.setSortingEnabled(True)
@@ -981,16 +955,7 @@ class DBCDisplayView(QWidget):
         
     def on_signal_edited(self, old_signal, new_signal):
         """Handle when a signal is edited in the signal detail view"""
-        print(f"Signal edited: {old_signal['name']} -> {new_signal['name']}")  # Debug print
-        self.last_edited_signal = {
-            'message_name': new_signal['message_name'],
-            'message_id': new_signal['message_id'],
-            'old_name': old_signal['name'],
-            'new_name': new_signal['name']
-        }
-        print(f"Stored last_edited_signal: {self.last_edited_signal}")  # Debug print
-        
-        # Force update of signals table to show highlight
+        # Force update of signals table
         if self.signals_table.isVisible():
             signals = self.current_handler.get_signals()
             self.update_signals_table(signals)
@@ -1109,20 +1074,6 @@ class DBCDisplayView(QWidget):
 
     def on_signals_changed(self, signals):
         """Handle signals_changed signal from handler"""
-        # Store the last edited signal info before updating
-        if hasattr(self, 'signals_data') and self.signals_data:
-            for old_signal in self.signals_data:
-                for new_signal in signals:
-                    if (old_signal['message_name'] == new_signal['message_name'] and 
-                        old_signal['message_id'] == new_signal['message_id'] and
-                        old_signal['name'] != new_signal['name']):
-                        self.last_edited_signal = {
-                            'message_name': new_signal['message_name'],
-                            'message_id': new_signal['message_id'],
-                            'old_name': old_signal['name'],
-                            'new_name': new_signal['name']
-                        }
-                        break
         self.update_signals_table(signals)
 
     def update_display(self, handler: DBC_IO_Handler):
