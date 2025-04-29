@@ -108,6 +108,141 @@ class EditHandler:
                 
         return False, f"Signal '{signal_name}' not found in message '{message_name}'."
 
+    def edit_signal_byte_order(self, message_name: str, signal_name: str, new_byte_order: str) -> tuple[bool, str]:
+        """
+        Edit the byte order of a signal in a given message.
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        if new_byte_order not in ['little_endian', 'big_endian']:
+            return False, "Byte order must be either 'little_endian' or 'big_endian'."
+            
+        # Find the message and signal
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                for signal in msg.signals:
+                    if signal.name == signal_name:
+                        signal.byte_order = new_byte_order
+                        return True, ""
+                return False, f"Signal '{signal_name}' not found in message '{message_name}'."
+        return False, f"Message '{message_name}' not found."
+
+    def edit_signal_is_signed(self, message_name: str, signal_name: str, is_signed: bool) -> tuple[bool, str]:
+        """
+        Edit whether a signal is signed in a given message.
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message and signal
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                for signal in msg.signals:
+                    if signal.name == signal_name:
+                        signal.is_signed = is_signed
+                        return True, ""
+                return False, f"Signal '{signal_name}' not found in message '{message_name}'."
+        return False, f"Message '{message_name}' not found."
+
+    def edit_signal_scale(self, message_name: str, signal_name: str, new_scale: float) -> tuple[bool, str]:
+        """
+        Edit the scale factor of a signal in a given message.
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message and signal
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                for signal in msg.signals:
+                    if signal.name == signal_name:
+                        signal.scale = float(new_scale)
+                        return True, ""
+                return False, f"Signal '{signal_name}' not found in message '{message_name}'."
+        return False, f"Message '{message_name}' not found."
+
+    def edit_signal_offset(self, message_name: str, signal_name: str, new_offset: float) -> tuple[bool, str]:
+        """
+        Edit the offset of a signal in a given message.
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message and signal
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                for signal in msg.signals:
+                    if signal.name == signal_name:
+                        signal.offset = float(new_offset)
+                        return True, ""
+                return False, f"Signal '{signal_name}' not found in message '{message_name}'."
+        return False, f"Message '{message_name}' not found."
+
+    def edit_signal_minimum(self, message_name: str, signal_name: str, new_minimum: Optional[float]) -> tuple[bool, str]:
+        """
+        Edit the minimum value of a signal in a given message.
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message and signal
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                for signal in msg.signals:
+                    if signal.name == signal_name:
+                        # Check if minimum is less than maximum (if maximum exists)
+                        if signal.maximum is not None and new_minimum is not None and new_minimum > signal.maximum:
+                            return False, f"Minimum value ({new_minimum}) cannot be greater than maximum value ({signal.maximum})"
+                        signal.minimum = new_minimum
+                        return True, ""
+                return False, f"Signal '{signal_name}' not found in message '{message_name}'."
+        return False, f"Message '{message_name}' not found."
+
+    def edit_signal_maximum(self, message_name: str, signal_name: str, new_maximum: Optional[float]) -> tuple[bool, str]:
+        """
+        Edit the maximum value of a signal in a given message.
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message and signal
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                for signal in msg.signals:
+                    if signal.name == signal_name:
+                        # Check if maximum is greater than minimum (if minimum exists)
+                        if signal.minimum is not None and new_maximum is not None and new_maximum < signal.minimum:
+                            return False, f"Maximum value ({new_maximum}) cannot be less than minimum value ({signal.minimum})"
+                        signal.maximum = new_maximum
+                        return True, ""
+                return False, f"Signal '{signal_name}' not found in message '{message_name}'."
+        return False, f"Message '{message_name}' not found."
+
+    def edit_signal_unit(self, message_name: str, signal_name: str, new_unit: str) -> tuple[bool, str]:
+        """
+        Edit the unit of a signal in a given message.
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message and signal
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                for signal in msg.signals:
+                    if signal.name == signal_name:
+                        signal.unit = new_unit.strip()
+                        return True, ""
+                return False, f"Signal '{signal_name}' not found in message '{message_name}'."
+        return False, f"Message '{message_name}' not found."
+
     def get_diff(self) -> Dict[str, Any]:
         """
         Get the differences between the original and edited database

@@ -379,6 +379,13 @@ class SignalDetailView(QDialog):
         dialog.name_edited.connect(self.handle_name_edited)
         dialog.length_edited.connect(self.handle_length_edited)
         dialog.start_bit_edited.connect(self.handle_start_bit_edited)
+        dialog.byte_order_edited.connect(self.handle_byte_order_edited)
+        dialog.is_signed_edited.connect(self.handle_is_signed_edited)
+        dialog.scale_edited.connect(self.handle_scale_edited)
+        dialog.offset_edited.connect(self.handle_offset_edited)
+        dialog.minimum_edited.connect(self.handle_minimum_edited)
+        dialog.maximum_edited.connect(self.handle_maximum_edited)
+        dialog.unit_edited.connect(self.handle_unit_edited)
         dialog.exec_()
 
     def handle_name_edited(self, new_name):
@@ -448,6 +455,167 @@ class SignalDetailView(QDialog):
             
         # Update local data
         self.signal_data['start'] = new_start_bit
+        
+        # Emit signal with old and new signal data
+        self.signal_edited.emit(old_signal, self.signal_data)
+
+    def handle_byte_order_edited(self, new_byte_order):
+        if new_byte_order == self.signal_data.get('byte_order'):
+            return  # No change
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+            
+        old_signal = self.signal_data.copy()
+        success, error = self.handler.edit_controller.edit_signal_byte_order(
+            self.signal_data['message_name'],
+            self.signal_data['name'],
+            new_byte_order
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data
+        self.signal_data['byte_order'] = new_byte_order
+        
+        # Emit signal with old and new signal data
+        self.signal_edited.emit(old_signal, self.signal_data)
+
+    def handle_is_signed_edited(self, is_signed):
+        if is_signed == self.signal_data.get('is_signed'):
+            return  # No change
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+            
+        old_signal = self.signal_data.copy()
+        success, error = self.handler.edit_controller.edit_signal_is_signed(
+            self.signal_data['message_name'],
+            self.signal_data['name'],
+            is_signed
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data
+        self.signal_data['is_signed'] = is_signed
+        
+        # Emit signal with old and new signal data
+        self.signal_edited.emit(old_signal, self.signal_data)
+
+    def handle_scale_edited(self, new_scale):
+        if new_scale == float(self.signal_data.get('scale', 1.0)):
+            return  # No change
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+            
+        old_signal = self.signal_data.copy()
+        success, error = self.handler.edit_controller.edit_signal_scale(
+            self.signal_data['message_name'],
+            self.signal_data['name'],
+            new_scale
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data
+        self.signal_data['scale'] = new_scale
+        
+        # Emit signal with old and new signal data
+        self.signal_edited.emit(old_signal, self.signal_data)
+
+    def handle_offset_edited(self, new_offset):
+        if new_offset == float(self.signal_data.get('offset', 0.0)):
+            return  # No change
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+            
+        old_signal = self.signal_data.copy()
+        success, error = self.handler.edit_controller.edit_signal_offset(
+            self.signal_data['message_name'],
+            self.signal_data['name'],
+            new_offset
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data
+        self.signal_data['offset'] = new_offset
+        
+        # Emit signal with old and new signal data
+        self.signal_edited.emit(old_signal, self.signal_data)
+
+    def handle_minimum_edited(self, new_minimum):
+        if new_minimum == self.signal_data.get('minimum'):
+            return  # No change
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+            
+        old_signal = self.signal_data.copy()
+        success, error = self.handler.edit_controller.edit_signal_minimum(
+            self.signal_data['message_name'],
+            self.signal_data['name'],
+            new_minimum
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data
+        self.signal_data['minimum'] = new_minimum
+        
+        # Emit signal with old and new signal data
+        self.signal_edited.emit(old_signal, self.signal_data)
+
+    def handle_maximum_edited(self, new_maximum):
+        if new_maximum == self.signal_data.get('maximum'):
+            return  # No change
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+            
+        old_signal = self.signal_data.copy()
+        success, error = self.handler.edit_controller.edit_signal_maximum(
+            self.signal_data['message_name'],
+            self.signal_data['name'],
+            new_maximum
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data
+        self.signal_data['maximum'] = new_maximum
+        
+        # Emit signal with old and new signal data
+        self.signal_edited.emit(old_signal, self.signal_data)
+
+    def handle_unit_edited(self, new_unit):
+        if new_unit == self.signal_data.get('unit', ''):
+            return  # No change
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+            
+        old_signal = self.signal_data.copy()
+        success, error = self.handler.edit_controller.edit_signal_unit(
+            self.signal_data['message_name'],
+            self.signal_data['name'],
+            new_unit
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data
+        self.signal_data['unit'] = new_unit
         
         # Emit signal with old and new signal data
         self.signal_edited.emit(old_signal, self.signal_data)

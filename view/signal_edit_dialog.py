@@ -1,70 +1,123 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
-                            QPushButton, QDialogButtonBox, QSpinBox, QFormLayout, QMessageBox)
+                            QPushButton, QDialogButtonBox, QSpinBox, QFormLayout, QMessageBox,
+                            QComboBox, QCheckBox, QDoubleSpinBox)
 from PyQt5.QtCore import pyqtSignal
 
 class SignalEditDialog(QDialog):
     name_edited = pyqtSignal(str)
     length_edited = pyqtSignal(int)
     start_bit_edited = pyqtSignal(int)
-    all_edited = pyqtSignal(str, int, int)  # name, length, start_bit
+    byte_order_edited = pyqtSignal(str)
+    is_signed_edited = pyqtSignal(bool)
+    scale_edited = pyqtSignal(float)
+    offset_edited = pyqtSignal(float)
+    minimum_edited = pyqtSignal(float)
+    maximum_edited = pyqtSignal(float)
+    unit_edited = pyqtSignal(str)
 
-    def __init__(self, current_name, current_length=None, current_start_bit=None, signal_data=None, handler=None, parent=None):
+    def __init__(self, current_name, current_length, current_start_bit, signal_data, handler, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Edit Signal")
-        self.setMinimumWidth(350)
         self.current_name = current_name
         self.current_length = current_length
         self.current_start_bit = current_start_bit
         self.signal_data = signal_data
         self.handler = handler
+        
+        self.setWindowTitle("Edit Signal")
+        self.setMinimumWidth(400)
         self.setup_ui()
 
     def setup_ui(self):
-        layout = QVBoxLayout(self)
-        
-        # Create form layout for better organization
+        layout = QVBoxLayout()
         form_layout = QFormLayout()
-        
-        # Current name display
-        current_name_label = QLabel(f"Current Name: {self.current_name}")
-        layout.addWidget(current_name_label)
-        
-        # Name edit field
-        self.name_edit = QLineEdit(self)
-        self.name_edit.setText(self.current_name)
-        form_layout.addRow("New Name:", self.name_edit)
-        
-        # Add help text for signal name rules
-        help_label = QLabel("Signal name must:\n- Start with a letter\n- Contain only letters, numbers, and underscores\n- No spaces or special characters")
-        help_label.setStyleSheet("color: #666; font-size: 10px;")
-        layout.addWidget(help_label)
-        
-        # Length edit field
-        self.length_spin = QSpinBox(self)
-        self.length_spin.setRange(1, 64)  # Typical range for CAN signal length
-        if self.current_length is not None:
-            self.length_spin.setValue(self.current_length)
+
+        # Current name (display only)
+        current_name_label = QLabel(self.current_name)
+        form_layout.addRow("Current Name:", current_name_label)
+
+        # New name
+        self.new_name_edit = QLineEdit()
+        self.new_name_edit.setText(self.current_name)
+        form_layout.addRow("New Name:", self.new_name_edit)
+
+        # Length
+        self.length_spin = QSpinBox()
+        self.length_spin.setRange(1, 64)
+        self.length_spin.setValue(self.current_length)
         form_layout.addRow("Length (bits):", self.length_spin)
-        
-        # Start bit edit field
-        self.start_bit_spin = QSpinBox(self)
-        self.start_bit_spin.setRange(0, 63)  # Typical range for CAN signal start bit
-        if self.current_start_bit is not None:
-            self.start_bit_spin.setValue(self.current_start_bit)
+
+        # Start bit
+        self.start_bit_spin = QSpinBox()
+        self.start_bit_spin.setRange(0, 63)
+        self.start_bit_spin.setValue(self.current_start_bit)
         form_layout.addRow("Start Bit:", self.start_bit_spin)
-        
+
+        # Byte order
+        self.byte_order_combo = QComboBox()
+        self.byte_order_combo.addItems(['little_endian', 'big_endian'])
+        current_byte_order = self.signal_data.get('byte_order', 'little_endian')
+        self.byte_order_combo.setCurrentText(current_byte_order)
+        form_layout.addRow("Byte Order:", self.byte_order_combo)
+
+        # Is signed
+        self.is_signed_check = QCheckBox()
+        self.is_signed_check.setChecked(self.signal_data.get('is_signed', False))
+        form_layout.addRow("Is Signed:", self.is_signed_check)
+
+        # Scale
+        self.scale_spin = QDoubleSpinBox()
+        self.scale_spin.setRange(-1e9, 1e9)
+        self.scale_spin.setDecimals(6)
+        self.scale_spin.setValue(float(self.signal_data.get('scale', 1.0)))
+        form_layout.addRow("Scale:", self.scale_spin)
+
+        # Offset
+        self.offset_spin = QDoubleSpinBox()
+        self.offset_spin.setRange(-1e9, 1e9)
+        self.offset_spin.setDecimals(6)
+        self.offset_spin.setValue(float(self.signal_data.get('offset', 0.0)))
+        form_layout.addRow("Offset:", self.offset_spin)
+
+        # Minimum
+        self.minimum_spin = QDoubleSpinBox()
+        self.minimum_spin.setRange(-1e9, 1e9)
+        self.minimum_spin.setDecimals(6)
+        if 'minimum' in self.signal_data:
+            self.minimum_spin.setValue(float(self.signal_data['minimum']))
+        form_layout.addRow("Minimum:", self.minimum_spin)
+
+        # Maximum
+        self.maximum_spin = QDoubleSpinBox()
+        self.maximum_spin.setRange(-1e9, 1e9)
+        self.maximum_spin.setDecimals(6)
+        if 'maximum' in self.signal_data:
+            self.maximum_spin.setValue(float(self.signal_data['maximum']))
+        form_layout.addRow("Maximum:", self.maximum_spin)
+
+        # Unit
+        self.unit_edit = QLineEdit()
+        self.unit_edit.setText(self.signal_data.get('unit', ''))
+        form_layout.addRow("Unit:", self.unit_edit)
+
         layout.addLayout(form_layout)
-        
-        # Add button box
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.accepted.connect(self.validate_and_accept)
-        button_box.rejected.connect(self.reject)
-        layout.addWidget(button_box)
+
+        # Buttons
+        ok_button = QPushButton("OK")
+        ok_button.clicked.connect(self.validate_and_accept)
+        cancel_button = QPushButton("Cancel")
+        cancel_button.clicked.connect(self.reject)
+
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(ok_button)
+        button_layout.addWidget(cancel_button)
+        layout.addLayout(button_layout)
+
+        self.setLayout(layout)
 
     def is_name_duplicate(self, new_name):
         """Check if the signal name already exists in any message in the DBC file"""
         if not self.signal_data or not self.handler:
-            return False
+            return False, None
             
         # Get all signals from the DBC file
         all_signals = self.handler.get_signals()
@@ -160,47 +213,73 @@ class SignalEditDialog(QDialog):
         return True, ""
 
     def validate_and_accept(self):
-        new_name = self.name_edit.text().strip()
+        # Get values from UI
+        new_name = self.new_name_edit.text()
         new_length = self.length_spin.value()
         new_start_bit = self.start_bit_spin.value()
-        
-        # Validate DBC syntax
+        new_byte_order = self.byte_order_combo.currentText()
+        new_is_signed = self.is_signed_check.isChecked()
+        new_scale = self.scale_spin.value()
+        new_offset = self.offset_spin.value()
+        new_minimum = self.minimum_spin.value() if self.minimum_spin.value() != 0 else None
+        new_maximum = self.maximum_spin.value() if self.maximum_spin.value() != 0 else None
+        new_unit = self.unit_edit.text()
+
+        # Validate name
+        if not new_name:
+            QMessageBox.warning(self, "Validation Error", "Signal name cannot be empty.")
+            return
+
+        # Check if name is valid DBC name
         is_valid, error_msg = self.is_valid_dbc_name(new_name)
         if not is_valid:
             QMessageBox.warning(self, "Validation Error", error_msg)
             return
-            
-        # Check for duplicate names across entire DBC file
-        is_duplicate, message_name = self.is_name_duplicate(new_name)
-        if is_duplicate:
-            QMessageBox.warning(self, "Validation Error", 
-                              f"A signal with the name '{new_name}' already exists in message '{message_name}'.\n"
-                              "Signal names must be unique across the entire DBC file.")
-            return
 
-        # Check for signal overlap
+        # Check for duplicate name
+        if new_name != self.current_name:
+            is_duplicate, message_name = self.is_name_duplicate(new_name)
+            if is_duplicate:
+                QMessageBox.warning(self, "Validation Error", 
+                                  f"A signal with the name '{new_name}' already exists in message '{message_name}'.")
+                return
+
+        # Check signal overlap and message constraints
         has_overlap, overlap_error = self.check_signal_overlap(new_start_bit, new_length)
         if has_overlap:
-            QMessageBox.warning(self, "Validation Error", 
-                              f"Signal position invalid: {overlap_error}")
+            QMessageBox.warning(self, "Validation Error", overlap_error)
             return
 
-        # Check message constraints
-        is_valid_pos, pos_error = self.check_message_constraints(new_start_bit, new_length)
+        is_valid_pos, constraint_error = self.check_message_constraints(new_start_bit, new_length)
         if not is_valid_pos:
-            QMessageBox.warning(self, "Validation Error", 
-                              f"Signal position invalid: {pos_error}")
+            QMessageBox.warning(self, "Validation Error", constraint_error)
             return
-            
-        # Emit individual signals
+
+        # Validate min/max
+        if new_minimum is not None and new_maximum is not None and new_minimum > new_maximum:
+            QMessageBox.warning(self, "Validation Error", "Minimum value cannot be greater than maximum value.")
+            return
+
+        # Emit signals for changed values
         if new_name != self.current_name:
             self.name_edited.emit(new_name)
-        if self.current_length is not None and new_length != self.current_length:
+        if new_length != self.current_length:
             self.length_edited.emit(new_length)
-        if self.current_start_bit is not None and new_start_bit != self.current_start_bit:
+        if new_start_bit != self.current_start_bit:
             self.start_bit_edited.emit(new_start_bit)
-            
-        # Emit combined signal
-        self.all_edited.emit(new_name, new_length, new_start_bit)
-        
-        super().accept() 
+        if new_byte_order != self.signal_data.get('byte_order', 'little_endian'):
+            self.byte_order_edited.emit(new_byte_order)
+        if new_is_signed != self.signal_data.get('is_signed', False):
+            self.is_signed_edited.emit(new_is_signed)
+        if new_scale != float(self.signal_data.get('scale', 1.0)):
+            self.scale_edited.emit(new_scale)
+        if new_offset != float(self.signal_data.get('offset', 0.0)):
+            self.offset_edited.emit(new_offset)
+        if new_minimum != self.signal_data.get('minimum'):
+            self.minimum_edited.emit(new_minimum if new_minimum is not None else 0.0)
+        if new_maximum != self.signal_data.get('maximum'):
+            self.maximum_edited.emit(new_maximum if new_maximum is not None else 0.0)
+        if new_unit != self.signal_data.get('unit', ''):
+            self.unit_edited.emit(new_unit)
+
+        self.accept() 
