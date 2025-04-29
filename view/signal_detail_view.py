@@ -372,6 +372,8 @@ class SignalDetailView(QDialog):
             self.signal_data['name'],
             self.signal_data['length'],
             self.signal_data['start'],
+            self.signal_data,
+            self.handler,
             self
         )
         dialog.name_edited.connect(self.handle_name_edited)

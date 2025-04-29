@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
-                            QPushButton, QDialogButtonBox, QSpinBox, QFormLayout)
+                            QPushButton, QDialogButtonBox, QSpinBox, QFormLayout, QMessageBox)
 from PyQt5.QtCore import pyqtSignal
 
 class SignalEditDialog(QDialog):
@@ -8,13 +8,15 @@ class SignalEditDialog(QDialog):
     start_bit_edited = pyqtSignal(int)
     all_edited = pyqtSignal(str, int, int)  # name, length, start_bit
 
-    def __init__(self, current_name, current_length=None, current_start_bit=None, parent=None):
+    def __init__(self, current_name, current_length=None, current_start_bit=None, signal_data=None, handler=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Edit Signal")
         self.setMinimumWidth(350)
         self.current_name = current_name
         self.current_length = current_length
         self.current_start_bit = current_start_bit
+        self.signal_data = signal_data
+        self.handler = handler
         self.setup_ui()
 
     def setup_ui(self):
@@ -50,12 +52,41 @@ class SignalEditDialog(QDialog):
         
         # Add button box
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.accepted.connect(self.accept)
+        button_box.accepted.connect(self.validate_and_accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
 
-    def accept(self):
+    def is_name_duplicate(self, new_name):
+        """Check if the signal name already exists in any message in the DBC file"""
+        if not self.signal_data or not self.handler:
+            return False
+            
+        # Get all signals from the DBC file
+        all_signals = self.handler.get_signals()
+        
+        # Check for duplicates across all signals except the current one
+        for signal in all_signals:
+            if signal['name'] == new_name and new_name != self.current_name:
+                return True, signal['message_name']  # Return True and the message name where duplicate exists
+                
+        return False, None
+
+    def validate_and_accept(self):
         new_name = self.name_edit.text().strip()
+        
+        # Basic validation
+        if not new_name:
+            QMessageBox.warning(self, "Validation Error", "Signal name cannot be empty.")
+            return
+            
+        # Check for duplicate names across entire DBC file
+        is_duplicate, message_name = self.is_name_duplicate(new_name)
+        if is_duplicate:
+            QMessageBox.warning(self, "Validation Error", 
+                              f"A signal with the name '{new_name}' already exists in message '{message_name}'.\n"
+                              "Signal names must be unique across the entire DBC file.")
+            return
+            
         new_length = self.length_spin.value()
         new_start_bit = self.start_bit_spin.value()
         
