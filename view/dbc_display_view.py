@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                             QFrame, QSizePolicy, QTableWidget, QTableWidgetItem,
                             QHeaderView, QSplitter, QStackedWidget, QPushButton,
                             QMenu, QAction, QDialog, QCheckBox, QScrollArea, QDialogButtonBox,
-                            QAbstractItemView)
+                            QAbstractItemView, QMessageBox)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QIcon, QColor, QPalette, QFont
 from controller.dbc_io_handler import DBC_IO_Handler
@@ -11,26 +11,44 @@ from view.signal_detail_view import SignalDetailView
 from view.message_detail_view import MessageDetailView
 from view.node_detail_view import NodeDetailView
 from view.bus_load_dialog import BusLoadDialog
+from decimal import Decimal
 
 class NumericTableWidgetItem(QTableWidgetItem):
-    """Custom QTableWidgetItem subclass that sorts numerically"""
+    """Custom QTableWidgetItem that handles numeric sorting correctly"""
     def __init__(self, value=None, display_text=None):
-        """Initialize with numeric value for sorting and optional display text"""
         super().__init__()
-        if display_text is not None:
-            self.setData(Qt.DisplayRole, display_text)
         if value is not None:
-            self.setData(Qt.UserRole, value)
+            try:
+                # Handle Decimal objects
+                if isinstance(value, Decimal):
+                    numeric_value = float(str(value))
+                else:
+                    numeric_value = float(value)
+                self.setData(Qt.UserRole, numeric_value)
+            except (TypeError, ValueError):
+                # If conversion fails, store None
+                self.setData(Qt.UserRole, None)
+                
+        if display_text is not None:
+            self.setText(str(display_text))
+        else:
+            self.setText(str(value) if value is not None else "")
             
     def __lt__(self, other):
-        """Override less than operator to use UserRole for sorting"""
-        if self.data(Qt.UserRole) is None:
-            return True  # None values sort first
-        if other.data(Qt.UserRole) is None:
-            return False
+        try:
+            this_value = self.data(Qt.UserRole)
+            other_value = other.data(Qt.UserRole)
             
-        # Use the UserRole data for sorting
-        return self.data(Qt.UserRole) < other.data(Qt.UserRole)
+            # Handle None values
+            if this_value is None:
+                return True  # None values sort first
+            if other_value is None:
+                return False
+                
+            # Compare numeric values
+            return float(this_value) < float(other_value)
+        except (TypeError, ValueError):
+            return super().__lt__(other)
 
 class ColumnSelectorDialog(QDialog):
     """Dialog that allows selection of multiple columns to show/hide"""
