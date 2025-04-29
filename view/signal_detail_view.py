@@ -6,6 +6,7 @@ from PyQt5.QtGui import QFont, QColor
 from controller.edit_controller import EditController
 from view.signal_edit_dialog import SignalEditDialog
 from controller.dbc_io_handler import DBC_IO_Handler
+from PyQt5.QtCore import pyqtSignal
 
 class SignalValuesDialog(QDialog):
     """Dialog for displaying signal value choices"""
@@ -121,9 +122,11 @@ class SignalValuesDialog(QDialog):
         main_layout.addLayout(button_layout)
 
 class SignalDetailView(QDialog):
+    signal_edited = pyqtSignal(dict, dict)  # old_signal, new_signal
+    
     def __init__(self, signal_data, handler, parent=None):
         super().__init__(parent)
-        self.signal_data = signal_data
+        self.signal_data = signal_data.copy()  # Make a copy to track changes
         self.handler = handler
         self.setup_ui()
         
@@ -353,6 +356,7 @@ class SignalDetailView(QDialog):
             QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
             return
         
+        old_signal = self.signal_data.copy()
         success, error = self.handler.edit_controller.edit_signal_name(
             self.signal_data['message_name'],
             self.signal_data['name'],
@@ -361,10 +365,14 @@ class SignalDetailView(QDialog):
         if not success:
             QMessageBox.critical(self, "Edit Error", error)
             return
+            
         # Update local data and UI
         self.signal_data['name'] = new_name
         self.signal_name_label.setText(new_name)
         self.setWindowTitle(f"Signal Details: {new_name}")
+        
+        # Emit signal with old and new signal data
+        self.signal_edited.emit(old_signal, self.signal_data)
 
     def find_handler(self):
         # Traverse parent chain to find handler (assumes parent is MessageDetailView or similar)
