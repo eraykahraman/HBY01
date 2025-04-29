@@ -1062,13 +1062,28 @@ class DBCDisplayView(QWidget):
         signal_item.setIcon(0, self.get_signal_icon())
         parent_item.addChild(signal_item)
 
+    def on_signals_changed(self, signals):
+        """Handle signals_changed signal from handler"""
+        self.update_signals_table(signals)
+
     def update_display(self, handler: DBC_IO_Handler):
         """Update the display with information from the handler"""
         if not handler or not handler.is_valid():
             self.clear_display()
             return
             
+        # Disconnect old handler signals if they exist
+        if self.current_handler:
+            try:
+                self.current_handler.signals_changed.disconnect()
+            except:
+                pass
+            
         self.current_handler = handler
+        
+        # Connect new handler signals
+        if self.current_handler:
+            self.current_handler.signals_changed.connect(self.on_signals_changed)
             
         # Update file name and show the label
         file_info = handler.get_file_info()
