@@ -261,6 +261,46 @@ class EditHandler:
                 return False, f"Signal '{signal_name}' not found in message '{message_name}'."
         return False, f"Message '{message_name}' not found."
 
+    def edit_signal_receivers(self, message_name: str, signal_name: str, new_receivers: list) -> tuple[bool, str]:
+        """
+        Edit the receivers of a signal in a given message.
+        Args:
+            message_name: Name of the message containing the signal
+            signal_name: Name of the signal to edit
+            new_receivers: List of node names that receive this signal
+            
+        Returns:
+            tuple[bool, str]: (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Validate that all receivers exist as nodes
+        existing_nodes = {node.name: node for node in self.database.nodes}
+        invalid_receivers = [r for r in new_receivers if r not in existing_nodes]
+        if invalid_receivers:
+            return False, f"Invalid receiver nodes: {', '.join(invalid_receivers)}"
+            
+        # Find the message and signal
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                for signal in msg.signals:
+                    if signal.name == signal_name:
+                        try:
+                            # Only update the _receivers attribute
+                            signal._receivers = [str(name) for name in new_receivers]
+                            return True, ""
+                        except Exception as e:
+                            # If we can't set _receivers, try setting receivers directly
+                            try:
+                                signal.receivers = [str(name) for name in new_receivers]
+                                return True, ""
+                            except Exception as e2:
+                                return False, f"Error updating receivers: {str(e2)}"
+                        
+                return False, f"Signal '{signal_name}' not found in message '{message_name}'."
+        return False, f"Message '{message_name}' not found."
+
     def get_diff(self) -> Dict[str, Any]:
         """
         Get the differences between the original and edited database

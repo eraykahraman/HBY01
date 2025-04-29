@@ -1,7 +1,8 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
                             QPushButton, QDialogButtonBox, QSpinBox, QFormLayout, QMessageBox,
-                            QComboBox, QCheckBox, QDoubleSpinBox, QTextEdit)
-from PyQt5.QtCore import pyqtSignal
+                            QComboBox, QCheckBox, QDoubleSpinBox, QTextEdit, QListWidget,
+                            QListWidgetItem)
+from PyQt5.QtCore import pyqtSignal, Qt
 
 class SignalEditDialog(QDialog):
     name_edited = pyqtSignal(str)
@@ -15,6 +16,7 @@ class SignalEditDialog(QDialog):
     maximum_edited = pyqtSignal(float)
     unit_edited = pyqtSignal(str)
     comment_edited = pyqtSignal(str)
+    receivers_edited = pyqtSignal(list)  # New signal for receivers
 
     def __init__(self, current_name, current_length, current_start_bit, signal_data, handler, parent=None):
         super().__init__(parent)
@@ -25,11 +27,14 @@ class SignalEditDialog(QDialog):
         self.handler = handler
         
         self.setWindowTitle("Edit Signal")
-        self.setMinimumWidth(400)
+        self.setMinimumWidth(500)  # Increased width to accommodate receivers list
         self.setup_ui()
 
     def setup_ui(self):
         layout = QVBoxLayout()
+        
+        # Create a horizontal layout for the main form and receivers list
+        main_layout = QHBoxLayout()
         form_layout = QFormLayout()
 
         # Current name (display only)
@@ -107,20 +112,54 @@ class SignalEditDialog(QDialog):
         self.comment_edit.setMaximumHeight(100)  # Limit height to 3-4 lines
         form_layout.addRow("Comment:", self.comment_edit)
 
-        layout.addLayout(form_layout)
+        # Receivers list
+        receivers_layout = QVBoxLayout()
+        receivers_label = QLabel("Receivers:")
+        receivers_layout.addWidget(receivers_label)
+        
+        self.receivers_list = QListWidget()
+        self.receivers_list.setSelectionMode(QListWidget.MultiSelection)
+        
+        # Get all available nodes from handler
+        all_nodes = [node['name'] for node in self.handler.get_nodes()]
+        current_receivers = self.signal_data.get('receivers', [])
+        
+        # Add nodes to list widget
+        for node in all_nodes:
+            item = QListWidgetItem(node)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked if node in current_receivers else Qt.Unchecked)
+            self.receivers_list.addItem(item)
+            
+        receivers_layout.addWidget(self.receivers_list)
+        
+        # Add form layout and receivers layout to main layout
+        main_layout.addLayout(form_layout)
+        main_layout.addLayout(receivers_layout)
+        
+        layout.addLayout(main_layout)
 
         # Buttons
+        button_layout = QHBoxLayout()
         ok_button = QPushButton("OK")
         ok_button.clicked.connect(self.validate_and_accept)
         cancel_button = QPushButton("Cancel")
         cancel_button.clicked.connect(self.reject)
-
-        button_layout = QHBoxLayout()
+        
         button_layout.addWidget(ok_button)
         button_layout.addWidget(cancel_button)
         layout.addLayout(button_layout)
 
         self.setLayout(layout)
+
+    def get_selected_receivers(self):
+        """Get list of selected receivers from the list widget"""
+        selected_receivers = []
+        for i in range(self.receivers_list.count()):
+            item = self.receivers_list.item(i)
+            if item.checkState() == Qt.Checked:
+                selected_receivers.append(item.text())
+        return selected_receivers
 
     def is_name_duplicate(self, new_name):
         """Check if the signal name already exists in any message in the DBC file"""
@@ -269,6 +308,21 @@ class SignalEditDialog(QDialog):
             QMessageBox.warning(self, "Validation Error", "Minimum value cannot be greater than maximum value.")
             return
 
+        # Get selected receivers
+        new_receivers = self.get_selected_receivers()
+        
+        # Validate receivers
+        if not new_receivers:
+            response = QMessageBox.question(
+                self,
+                "No Receivers Selected",
+                "No receivers are selected for this signal. Do you want to continue?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if response == QMessageBox.No:
+                return
+
         # Emit signals for changed values
         if new_name != self.current_name:
             self.name_edited.emit(new_name)
@@ -292,5 +346,10 @@ class SignalEditDialog(QDialog):
             self.unit_edited.emit(new_unit)
         if new_comment != self.signal_data.get('comment', ''):
             self.comment_edited.emit(new_comment)
+
+        # Emit receivers_edited signal if changed
+        current_receivers = set(self.signal_data.get('receivers', []))
+        if set(new_receivers) != current_receivers:
+            self.receivers_edited.emit(new_receivers)
 
         self.accept() 

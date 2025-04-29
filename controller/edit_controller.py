@@ -193,4 +193,21 @@ class EditController:
             # Update the database in DBC_IO_Handler
             self.handler.update_database()
             
+        return success, error
+
+    def edit_signal_receivers(self, message_name: str, signal_name: str, new_receivers: list) -> tuple[bool, str]:
+        """
+        Edit the receivers of a signal in a given message.
+        Returns (success, error_message)
+        """
+        if not self.edit_handler:
+            return False, "Edit handler not initialized"
+            
+        # Delegate to EditHandler
+        success, error = self.edit_handler.edit_signal_receivers(message_name, signal_name, new_receivers)
+        
+        if success:
+            # Update the database in DBC_IO_Handler
+            self.handler.update_database()
+            
         return success, error 
