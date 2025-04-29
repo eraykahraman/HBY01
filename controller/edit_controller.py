@@ -176,4 +176,21 @@ class EditController:
         if success:
             self.handler.update_database()
             
+        return success, error
+
+    def edit_signal_comment(self, message_name: str, signal_name: str, new_comment: str) -> tuple[bool, str]:
+        """
+        Edit the comment of a signal in a given message.
+        Returns (success, error_message)
+        """
+        if not self.edit_handler:
+            return False, "Edit handler not initialized"
+            
+        # Delegate to EditHandler
+        success, error = self.edit_handler.edit_signal_comment(message_name, signal_name, new_comment)
+        
+        if success:
+            # Update the database in DBC_IO_Handler
+            self.handler.update_database()
+            
         return success, error 

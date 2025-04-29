@@ -386,6 +386,7 @@ class SignalDetailView(QDialog):
         dialog.minimum_edited.connect(self.handle_minimum_edited)
         dialog.maximum_edited.connect(self.handle_maximum_edited)
         dialog.unit_edited.connect(self.handle_unit_edited)
+        dialog.comment_edited.connect(self.handle_comment_edited)
         dialog.exec_()
 
     def handle_name_edited(self, new_name):
@@ -616,6 +617,38 @@ class SignalDetailView(QDialog):
             
         # Update local data
         self.signal_data['unit'] = new_unit
+        
+        # Emit signal with old and new signal data
+        self.signal_edited.emit(old_signal, self.signal_data)
+
+    def handle_comment_edited(self, new_comment):
+        """Handle editing of signal comment"""
+        if new_comment == self.signal_data.get('comment', ''):
+            return  # No change
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+            
+        old_signal = self.signal_data.copy()
+        success, error = self.handler.edit_controller.edit_signal_comment(
+            self.signal_data['message_name'],
+            self.signal_data['name'],
+            new_comment
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data
+        self.signal_data['comment'] = new_comment
+        
+        # Update the table if it exists
+        table = self.findChild(QTableWidget)
+        if table:
+            for row in range(table.rowCount()):
+                if table.item(row, 0) and table.item(row, 0).text() == "Comment":
+                    table.item(row, 1).setText(new_comment if new_comment else "Not specified")
+                    break
         
         # Emit signal with old and new signal data
         self.signal_edited.emit(old_signal, self.signal_data)

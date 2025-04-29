@@ -243,6 +243,24 @@ class EditHandler:
                 return False, f"Signal '{signal_name}' not found in message '{message_name}'."
         return False, f"Message '{message_name}' not found."
 
+    def edit_signal_comment(self, message_name: str, signal_name: str, new_comment: str) -> tuple[bool, str]:
+        """
+        Edit the comment of a signal in a given message.
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message and signal
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                for signal in msg.signals:
+                    if signal.name == signal_name:
+                        signal.comment = new_comment
+                        return True, ""
+                return False, f"Signal '{signal_name}' not found in message '{message_name}'."
+        return False, f"Message '{message_name}' not found."
+
     def get_diff(self) -> Dict[str, Any]:
         """
         Get the differences between the original and edited database

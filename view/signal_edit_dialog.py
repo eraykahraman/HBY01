@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
                             QPushButton, QDialogButtonBox, QSpinBox, QFormLayout, QMessageBox,
-                            QComboBox, QCheckBox, QDoubleSpinBox)
+                            QComboBox, QCheckBox, QDoubleSpinBox, QTextEdit)
 from PyQt5.QtCore import pyqtSignal
 
 class SignalEditDialog(QDialog):
@@ -14,6 +14,7 @@ class SignalEditDialog(QDialog):
     minimum_edited = pyqtSignal(float)
     maximum_edited = pyqtSignal(float)
     unit_edited = pyqtSignal(str)
+    comment_edited = pyqtSignal(str)
 
     def __init__(self, current_name, current_length, current_start_bit, signal_data, handler, parent=None):
         super().__init__(parent)
@@ -98,6 +99,13 @@ class SignalEditDialog(QDialog):
         self.unit_edit = QLineEdit()
         self.unit_edit.setText(self.signal_data.get('unit', ''))
         form_layout.addRow("Unit:", self.unit_edit)
+
+        # Comment (new)
+        self.comment_edit = QTextEdit()
+        self.comment_edit.setPlaceholderText("Enter signal comment...")
+        self.comment_edit.setText(self.signal_data.get('comment', ''))
+        self.comment_edit.setMaximumHeight(100)  # Limit height to 3-4 lines
+        form_layout.addRow("Comment:", self.comment_edit)
 
         layout.addLayout(form_layout)
 
@@ -224,6 +232,7 @@ class SignalEditDialog(QDialog):
         new_minimum = self.minimum_spin.value() if self.minimum_spin.value() != 0 else None
         new_maximum = self.maximum_spin.value() if self.maximum_spin.value() != 0 else None
         new_unit = self.unit_edit.text()
+        new_comment = self.comment_edit.toPlainText()
 
         # Validate name
         if not new_name:
@@ -281,5 +290,7 @@ class SignalEditDialog(QDialog):
             self.maximum_edited.emit(new_maximum if new_maximum is not None else 0.0)
         if new_unit != self.signal_data.get('unit', ''):
             self.unit_edited.emit(new_unit)
+        if new_comment != self.signal_data.get('comment', ''):
+            self.comment_edited.emit(new_comment)
 
         self.accept() 
