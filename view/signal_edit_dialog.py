@@ -95,8 +95,74 @@ class SignalEditDialog(QDialog):
             
         return True, ""
 
+    def check_signal_overlap(self, start_bit, length):
+        """
+        Check if the signal position overlaps with other signals in the same message
+        Returns: (bool, str) - (has_overlap, error_message)
+        """
+        if not self.signal_data or not self.handler:
+            return False, ""
+
+        # Get the current message
+        current_message = None
+        for message in self.handler.get_messages():
+            if message['name'] == self.signal_data['message_name']:
+                current_message = message
+                break
+
+        if not current_message:
+            return False, ""
+
+        # Calculate the bits that would be occupied by this signal
+        new_signal_bits = set(range(start_bit, start_bit + length))
+
+        # Check overlap with other signals in the same message
+        for signal in current_message['signals']:
+            # Skip the current signal being edited
+            if signal['name'] == self.current_name:
+                continue
+
+            # Calculate bits occupied by other signal
+            other_signal_bits = set(range(signal['start'], signal['start'] + signal['length']))
+
+            # Check for intersection
+            overlap = new_signal_bits.intersection(other_signal_bits)
+            if overlap:
+                return True, f"Signal would overlap with signal '{signal['name']}' at bit(s) {sorted(list(overlap))}"
+
+        return False, ""
+
+    def check_message_constraints(self, start_bit, length):
+        """
+        Check if the signal fits within message constraints
+        Returns: (bool, str) - (is_valid, error_message)
+        """
+        if not self.signal_data or not self.handler:
+            return False, "Cannot validate message constraints: missing data"
+
+        # Get the current message
+        current_message = None
+        for message in self.handler.get_messages():
+            if message['name'] == self.signal_data['message_name']:
+                current_message = message
+                break
+
+        if not current_message:
+            return False, "Cannot find current message"
+
+        # Calculate message length in bits (length is in bytes)
+        message_length_bits = current_message['length'] * 8
+
+        # Check if signal would exceed message length
+        if start_bit + length > message_length_bits:
+            return False, f"Signal would exceed message length. Maximum allowed end bit is {message_length_bits - 1}"
+
+        return True, ""
+
     def validate_and_accept(self):
         new_name = self.name_edit.text().strip()
+        new_length = self.length_spin.value()
+        new_start_bit = self.start_bit_spin.value()
         
         # Validate DBC syntax
         is_valid, error_msg = self.is_valid_dbc_name(new_name)
@@ -111,10 +177,21 @@ class SignalEditDialog(QDialog):
                               f"A signal with the name '{new_name}' already exists in message '{message_name}'.\n"
                               "Signal names must be unique across the entire DBC file.")
             return
+
+        # Check for signal overlap
+        has_overlap, overlap_error = self.check_signal_overlap(new_start_bit, new_length)
+        if has_overlap:
+            QMessageBox.warning(self, "Validation Error", 
+                              f"Signal position invalid: {overlap_error}")
+            return
+
+        # Check message constraints
+        is_valid_pos, pos_error = self.check_message_constraints(new_start_bit, new_length)
+        if not is_valid_pos:
+            QMessageBox.warning(self, "Validation Error", 
+                              f"Signal position invalid: {pos_error}")
+            return
             
-        new_length = self.length_spin.value()
-        new_start_bit = self.start_bit_spin.value()
-        
         # Emit individual signals
         if new_name != self.current_name:
             self.name_edited.emit(new_name)
