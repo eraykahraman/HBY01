@@ -34,6 +34,11 @@ class SignalEditDialog(QDialog):
         self.name_edit.setText(self.current_name)
         form_layout.addRow("New Name:", self.name_edit)
         
+        # Add help text for signal name rules
+        help_label = QLabel("Signal name must:\n- Start with a letter\n- Contain only letters, numbers, and underscores\n- No spaces or special characters")
+        help_label.setStyleSheet("color: #666; font-size: 10px;")
+        layout.addWidget(help_label)
+        
         # Length edit field
         self.length_spin = QSpinBox(self)
         self.length_spin.setRange(1, 64)  # Typical range for CAN signal length
@@ -71,12 +76,32 @@ class SignalEditDialog(QDialog):
                 
         return False, None
 
+    def is_valid_dbc_name(self, name):
+        """
+        Validate if the signal name follows DBC syntax rules
+        Returns: (bool, str) - (is_valid, error_message)
+        """
+        if not name:
+            return False, "Signal name cannot be empty."
+            
+        # Check if name starts with a number
+        if name[0].isdigit():
+            return False, "Signal name cannot start with a number."
+            
+        # Check for valid characters (letters, numbers, and underscores only)
+        import re
+        if not re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', name):
+            return False, "Signal name can only contain letters, numbers, and underscores, and must start with a letter."
+            
+        return True, ""
+
     def validate_and_accept(self):
         new_name = self.name_edit.text().strip()
         
-        # Basic validation
-        if not new_name:
-            QMessageBox.warning(self, "Validation Error", "Signal name cannot be empty.")
+        # Validate DBC syntax
+        is_valid, error_msg = self.is_valid_dbc_name(new_name)
+        if not is_valid:
+            QMessageBox.warning(self, "Validation Error", error_msg)
             return
             
         # Check for duplicate names across entire DBC file
