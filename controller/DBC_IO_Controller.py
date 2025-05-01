@@ -60,13 +60,41 @@ class DBC_IO_Controller(QObject):
         # Show changes summary if there are any changes
         if handler.has_changes():
             changes_summary = handler.get_changes_summary()
-            reply = QMessageBox.question(
-                parent_window,
-                "Changes Summary",
-                f"The following changes have been made:\n\n{changes_summary}\n\nDo you want to proceed with the export?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.Yes
-            )
+            
+            # Create custom message box with export button
+            msg_box = QMessageBox(parent_window)
+            msg_box.setWindowTitle("Changes Summary")
+            msg_box.setText(f"The following changes have been made:\n\n{changes_summary}\n\nDo you want to proceed with the export?")
+            msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            
+            # Add Export Changes button
+            export_button = msg_box.addButton("Export Changes", QMessageBox.ActionRole)
+            
+            reply = msg_box.exec_()
+            
+            # Handle Export Changes button
+            if msg_box.clickedButton() == export_button:
+                export_path, _ = QFileDialog.getSaveFileName(
+                    parent_window,
+                    "Export Changes Summary",
+                    "",
+                    "Text Files (*.txt);;All Files (*.*)"
+                )
+                if export_path:
+                    if not export_path.lower().endswith('.txt'):
+                        export_path += '.txt'
+                    try:
+                        # Use UTF-8 encoding with error handling
+                        with open(export_path, 'w', encoding='utf-8', errors='replace') as f:
+                            # Normalize the text to handle special characters
+                            import unicodedata
+                            normalized_summary = unicodedata.normalize('NFKD', changes_summary)
+                            f.write(normalized_summary)
+                        QMessageBox.information(parent_window, "Success", "Changes summary exported successfully.")
+                    except Exception as e:
+                        QMessageBox.critical(parent_window, "Error", f"Failed to export changes summary: {str(e)}")
+                return False, None, "Export cancelled to export changes instead"
+                
             if reply == QMessageBox.No:
                 return False, None, "Export cancelled"
         
