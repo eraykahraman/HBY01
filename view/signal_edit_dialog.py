@@ -1,9 +1,10 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
                             QPushButton, QDialogButtonBox, QSpinBox, QFormLayout, QMessageBox,
                             QComboBox, QCheckBox, QDoubleSpinBox, QTextEdit, QListWidget,
-                            QListWidgetItem, QGroupBox)
+                            QListWidgetItem, QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView)
 from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtGui import QIntValidator
+from typing import Dict
 
 class SignalEditDialog(QDialog):
     name_edited = pyqtSignal(str)
@@ -20,6 +21,7 @@ class SignalEditDialog(QDialog):
     receivers_edited = pyqtSignal(list)  # New signal for receivers
     is_multiplexer_edited = pyqtSignal(bool)
     multiplexer_id_edited = pyqtSignal(object)  # Changed to object to allow None
+    choices_edited = pyqtSignal(dict)  # New signal for value table edits
 
     def __init__(self, current_name, current_length, current_start_bit, signal_data, handler, parent=None):
         super().__init__(parent)
@@ -164,6 +166,48 @@ class SignalEditDialog(QDialog):
         multiplexer_group.setLayout(multiplexer_layout)
         layout.addWidget(multiplexer_group)
 
+        # Add value table group
+        value_table_group = QGroupBox("Value Table")
+        value_table_layout = QVBoxLayout()
+        
+        # Add table widget
+        self.value_table = QTableWidget()
+        self.value_table.setColumnCount(2)
+        self.value_table.setHorizontalHeaderLabels(["Raw Value", "Description"])
+        self.value_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        
+        # Add current choices
+        current_choices = self.signal_data.get('choices')
+        if current_choices is None:
+            current_choices = {}
+        self.value_table.setRowCount(len(current_choices))
+        for i, (value, description) in enumerate(sorted(current_choices.items())):
+            # Raw value
+            value_item = QTableWidgetItem(str(value))
+            value_item.setTextAlignment(Qt.AlignCenter)
+            self.value_table.setItem(i, 0, value_item)
+            
+            # Description
+            description_item = QTableWidgetItem(str(description))
+            self.value_table.setItem(i, 1, description_item)
+        
+        value_table_layout.addWidget(self.value_table)
+        
+        # Add buttons for value table management
+        button_layout = QHBoxLayout()
+        
+        add_value_button = QPushButton("Add Value")
+        add_value_button.clicked.connect(self.add_value)
+        button_layout.addWidget(add_value_button)
+        
+        remove_value_button = QPushButton("Remove Selected")
+        remove_value_button.clicked.connect(self.remove_selected_values)
+        button_layout.addWidget(remove_value_button)
+        
+        value_table_layout.addLayout(button_layout)
+        value_table_group.setLayout(value_table_layout)
+        layout.addWidget(value_table_group)
+
         # Buttons
         button_layout = QHBoxLayout()
         ok_button = QPushButton("OK")
@@ -284,6 +328,56 @@ class SignalEditDialog(QDialog):
 
         return True, ""
 
+    def add_value(self):
+        """Add a new value to the table"""
+        # Find an unused value
+        used_values = set()
+        for row in range(self.value_table.rowCount()):
+            try:
+                value_item = self.value_table.item(row, 0)
+                if value_item:
+                    used_values.add(int(value_item.text()))
+            except (ValueError, TypeError):
+                continue
+        
+        new_value = 0
+        while new_value in used_values:
+            new_value += 1
+        
+        # Add new row
+        current_row = self.value_table.rowCount()
+        self.value_table.setRowCount(current_row + 1)
+        
+        # Add value
+        value_item = QTableWidgetItem(str(new_value))
+        value_item.setTextAlignment(Qt.AlignCenter)
+        self.value_table.setItem(current_row, 0, value_item)
+        
+        # Add description
+        description_item = QTableWidgetItem("New Value")
+        self.value_table.setItem(current_row, 1, description_item)
+
+    def remove_selected_values(self):
+        """Remove selected values from the table"""
+        selected_rows = sorted(set(item.row() for item in self.value_table.selectedItems()), reverse=True)
+        for row in selected_rows:
+            self.value_table.removeRow(row)
+
+    def get_value_table(self) -> Dict[int, str]:
+        """Get the current value table as a dictionary"""
+        choices = {}
+        for row in range(self.value_table.rowCount()):
+            try:
+                value_item = self.value_table.item(row, 0)
+                description_item = self.value_table.item(row, 1)
+                if value_item and description_item:
+                    value = int(value_item.text())
+                    description = description_item.text()
+                    choices[value] = description
+            except (ValueError, TypeError):
+                continue
+        return choices
+
     def validate_and_accept(self):
         # Get values from UI
         new_name = self.new_name_edit.text()
@@ -386,5 +480,30 @@ class SignalEditDialog(QDialog):
             self.is_multiplexer_edited.emit(new_is_multiplexer)
         if new_multiplexer_id != self.signal_data.get('multiplexer_id'):
             self.multiplexer_id_edited.emit(new_multiplexer_id)
+
+        # Get and validate value table
+        new_choices = self.get_value_table()
+        current_choices = self.signal_data.get('choices', {})
+        
+        # Check for duplicate values
+        value_counts = {}
+        for row in range(self.value_table.rowCount()):
+            try:
+                value_item = self.value_table.item(row, 0)
+                if value_item:
+                    value = int(value_item.text())
+                    value_counts[value] = value_counts.get(value, 0) + 1
+                    if value_counts[value] > 1:
+                        QMessageBox.warning(self, "Validation Error", 
+                                         f"Duplicate raw value found: {value}")
+                        return
+            except (ValueError, TypeError):
+                QMessageBox.warning(self, "Validation Error", 
+                                 f"Invalid raw value in row {row + 1}")
+                return
+
+        # Emit choices_edited signal if changed
+        if new_choices != current_choices:
+            self.choices_edited.emit(new_choices)
 
         self.accept() 

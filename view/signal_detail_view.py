@@ -371,7 +371,8 @@ class SignalDetailView(QDialog):
         values_dialog.exec_()
 
     def open_edit_dialog(self):
-        dialog = SignalEditDialog(
+        """Open the edit dialog for this signal"""
+        edit_dialog = SignalEditDialog(
             self.signal_data['name'],
             self.signal_data['length'],
             self.signal_data['start'],
@@ -379,21 +380,25 @@ class SignalDetailView(QDialog):
             self.handler,
             self
         )
-        dialog.name_edited.connect(self.handle_name_edited)
-        dialog.length_edited.connect(self.handle_length_edited)
-        dialog.start_bit_edited.connect(self.handle_start_bit_edited)
-        dialog.byte_order_edited.connect(self.handle_byte_order_edited)
-        dialog.is_signed_edited.connect(self.handle_is_signed_edited)
-        dialog.scale_edited.connect(self.handle_scale_edited)
-        dialog.offset_edited.connect(self.handle_offset_edited)
-        dialog.minimum_edited.connect(self.handle_minimum_edited)
-        dialog.maximum_edited.connect(self.handle_maximum_edited)
-        dialog.unit_edited.connect(self.handle_unit_edited)
-        dialog.comment_edited.connect(self.handle_comment_edited)
-        dialog.receivers_edited.connect(self.handle_receivers_edited)
-        dialog.is_multiplexer_edited.connect(self.handle_is_multiplexer_edited)
-        dialog.multiplexer_id_edited.connect(self.handle_multiplexer_id_edited)
-        dialog.exec_()
+        
+        # Connect edit signals
+        edit_dialog.name_edited.connect(self.handle_name_edited)
+        edit_dialog.length_edited.connect(self.handle_length_edited)
+        edit_dialog.start_bit_edited.connect(self.handle_start_bit_edited)
+        edit_dialog.byte_order_edited.connect(self.handle_byte_order_edited)
+        edit_dialog.is_signed_edited.connect(self.handle_is_signed_edited)
+        edit_dialog.scale_edited.connect(self.handle_scale_edited)
+        edit_dialog.offset_edited.connect(self.handle_offset_edited)
+        edit_dialog.minimum_edited.connect(self.handle_minimum_edited)
+        edit_dialog.maximum_edited.connect(self.handle_maximum_edited)
+        edit_dialog.unit_edited.connect(self.handle_unit_edited)
+        edit_dialog.comment_edited.connect(self.handle_comment_edited)
+        edit_dialog.receivers_edited.connect(self.handle_receivers_edited)
+        edit_dialog.is_multiplexer_edited.connect(self.handle_is_multiplexer_edited)
+        edit_dialog.multiplexer_id_edited.connect(self.handle_multiplexer_id_edited)
+        edit_dialog.choices_edited.connect(self.handle_choices_edited)
+        
+        edit_dialog.exec_()
 
     def handle_name_edited(self, new_name):
         if new_name == self.signal_data['name']:
@@ -751,6 +756,39 @@ class SignalDetailView(QDialog):
             for row in range(table.rowCount()):
                 if table.item(row, 0) and table.item(row, 0).text() == "Multiplexer ID":
                     table.item(row, 1).setText(str(multiplexer_id) if multiplexer_id is not None else "None")
+                    break
+        
+        # Emit signal with old and new signal data
+        self.signal_edited.emit(old_signal, self.signal_data)
+
+    def handle_choices_edited(self, new_choices):
+        """Handle editing of signal value table"""
+        if new_choices == self.signal_data.get('choices', {}):
+            return  # No change
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+            
+        old_signal = self.signal_data.copy()
+        success, error = self.handler.edit_controller.edit_signal_choices(
+            self.signal_data['message_name'],
+            self.signal_data['name'],
+            new_choices
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data
+        self.signal_data['choices'] = new_choices
+        
+        # Update the table if it exists
+        table = self.findChild(QTableWidget)
+        if table:
+            for row in range(table.rowCount()):
+                if table.item(row, 0) and table.item(row, 0).text() == "Value Table":
+                    choices_count = len(new_choices) if new_choices else 0
+                    table.item(row, 1).setText(f"{choices_count} values defined" if choices_count > 0 else "No values defined")
                     break
         
         # Emit signal with old and new signal data

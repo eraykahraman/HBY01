@@ -370,6 +370,34 @@ class EditHandler:
                 return False, f"Signal '{signal_name}' not found in message '{message_name}'."
         return False, f"Message '{message_name}' not found."
 
+    def edit_signal_choices(self, message_name: str, signal_name: str, choices: Dict[int, str]) -> tuple[bool, str]:
+        """
+        Edit the value table (choices) of a signal in a given message.
+        Args:
+            message_name: Name of the message containing the signal
+            signal_name: Name of the signal to edit
+            choices: Dictionary mapping raw values to their descriptions
+            
+        Returns:
+            tuple[bool, str]: (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message and signal
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                for signal in msg.signals:
+                    if signal.name == signal_name:
+                        try:
+                            # Update the choices dictionary
+                            signal._choices = {int(k): str(v) for k, v in choices.items()}
+                            return True, ""
+                        except Exception as e:
+                            return False, f"Error updating choices: {str(e)}"
+                return False, f"Signal '{signal_name}' not found in message '{message_name}'."
+        return False, f"Message '{message_name}' not found."
+
     def get_diff(self) -> Dict[str, Any]:
         """
         Get the differences between the original and edited database
