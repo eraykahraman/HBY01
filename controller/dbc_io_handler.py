@@ -4,6 +4,7 @@ import os
 from model.dbc_model import DBCModel
 from PyQt5.QtCore import QObject, pyqtSignal
 from controller.edit_controller import EditController  # Move this out of TYPE_CHECKING
+from .change_tracker import ChangeTracker
 
 if TYPE_CHECKING:
     from controller.edit_controller import EditController
@@ -31,6 +32,7 @@ class DBC_IO_Handler(QObject):
         self.messages: List[Dict[str, Any]] = []  # Store the list of messages
         self.signals: List[Dict[str, Any]] = []  # Store the list of all signals
         self.edit_controller: Optional[EditController] = None
+        self.change_tracker = ChangeTracker()
         # Connect to model signals to capture error messages
         self.model.dbc_error.connect(self._on_model_error)
         self.last_error: Optional[str] = None
@@ -586,3 +588,15 @@ class DBC_IO_Handler(QObject):
             "tx_signals": tx_signals,
             "rx_signals": rx_signals
         } 
+
+    def get_changes_summary(self) -> str:
+        """Get summary of changes made to this DBC file"""
+        return self.change_tracker.get_changes_summary()
+        
+    def has_changes(self) -> bool:
+        """Check if there are any tracked changes"""
+        return self.change_tracker.has_changes()
+        
+    def clear_changes(self):
+        """Clear tracked changes"""
+        self.change_tracker.clear_changes() 

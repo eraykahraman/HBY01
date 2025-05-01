@@ -424,7 +424,7 @@ class SignalDetailView(QDialog):
         self.setWindowTitle(f"Signal Details: {new_name}")
         
         # Emit signal with old and new signal data
-        self.signal_edited.emit(old_signal, self.signal_data)
+        self.handle_signal_edited(old_signal, self.signal_data)
 
     def handle_length_edited(self, new_length):
         if new_length == self.signal_data['length']:
@@ -447,7 +447,7 @@ class SignalDetailView(QDialog):
         self.signal_data['length'] = new_length
         
         # Emit signal with old and new signal data
-        self.signal_edited.emit(old_signal, self.signal_data)
+        self.handle_signal_edited(old_signal, self.signal_data)
 
     def handle_start_bit_edited(self, new_start_bit):
         if new_start_bit == self.signal_data['start']:
@@ -470,7 +470,7 @@ class SignalDetailView(QDialog):
         self.signal_data['start'] = new_start_bit
         
         # Emit signal with old and new signal data
-        self.signal_edited.emit(old_signal, self.signal_data)
+        self.handle_signal_edited(old_signal, self.signal_data)
 
     def handle_byte_order_edited(self, new_byte_order):
         if new_byte_order == self.signal_data.get('byte_order'):
@@ -493,7 +493,7 @@ class SignalDetailView(QDialog):
         self.signal_data['byte_order'] = new_byte_order
         
         # Emit signal with old and new signal data
-        self.signal_edited.emit(old_signal, self.signal_data)
+        self.handle_signal_edited(old_signal, self.signal_data)
 
     def handle_is_signed_edited(self, is_signed):
         if is_signed == self.signal_data.get('is_signed'):
@@ -516,7 +516,7 @@ class SignalDetailView(QDialog):
         self.signal_data['is_signed'] = is_signed
         
         # Emit signal with old and new signal data
-        self.signal_edited.emit(old_signal, self.signal_data)
+        self.handle_signal_edited(old_signal, self.signal_data)
 
     def handle_scale_edited(self, new_scale):
         if new_scale == float(self.signal_data.get('scale', 1.0)):
@@ -539,7 +539,7 @@ class SignalDetailView(QDialog):
         self.signal_data['scale'] = new_scale
         
         # Emit signal with old and new signal data
-        self.signal_edited.emit(old_signal, self.signal_data)
+        self.handle_signal_edited(old_signal, self.signal_data)
 
     def handle_offset_edited(self, new_offset):
         if new_offset == float(self.signal_data.get('offset', 0.0)):
@@ -562,7 +562,7 @@ class SignalDetailView(QDialog):
         self.signal_data['offset'] = new_offset
         
         # Emit signal with old and new signal data
-        self.signal_edited.emit(old_signal, self.signal_data)
+        self.handle_signal_edited(old_signal, self.signal_data)
 
     def handle_minimum_edited(self, new_minimum):
         if new_minimum == self.signal_data.get('minimum'):
@@ -585,7 +585,7 @@ class SignalDetailView(QDialog):
         self.signal_data['minimum'] = new_minimum
         
         # Emit signal with old and new signal data
-        self.signal_edited.emit(old_signal, self.signal_data)
+        self.handle_signal_edited(old_signal, self.signal_data)
 
     def handle_maximum_edited(self, new_maximum):
         if new_maximum == self.signal_data.get('maximum'):
@@ -608,7 +608,7 @@ class SignalDetailView(QDialog):
         self.signal_data['maximum'] = new_maximum
         
         # Emit signal with old and new signal data
-        self.signal_edited.emit(old_signal, self.signal_data)
+        self.handle_signal_edited(old_signal, self.signal_data)
 
     def handle_unit_edited(self, new_unit):
         if new_unit == self.signal_data.get('unit', ''):
@@ -631,7 +631,7 @@ class SignalDetailView(QDialog):
         self.signal_data['unit'] = new_unit
         
         # Emit signal with old and new signal data
-        self.signal_edited.emit(old_signal, self.signal_data)
+        self.handle_signal_edited(old_signal, self.signal_data)
 
     def handle_comment_edited(self, new_comment):
         """Handle editing of signal comment"""
@@ -663,7 +663,7 @@ class SignalDetailView(QDialog):
                     break
         
         # Emit signal with old and new signal data
-        self.signal_edited.emit(old_signal, self.signal_data)
+        self.handle_signal_edited(old_signal, self.signal_data)
 
     def handle_receivers_edited(self, new_receivers):
         """Handle editing of signal receivers"""
@@ -696,7 +696,7 @@ class SignalDetailView(QDialog):
                     break
         
         # Emit signal with old and new signal data
-        self.signal_edited.emit(old_signal, self.signal_data)
+        self.handle_signal_edited(old_signal, self.signal_data)
 
     def handle_is_multiplexer_edited(self, is_multiplexer):
         """Handle editing of signal multiplexer status"""
@@ -728,7 +728,7 @@ class SignalDetailView(QDialog):
                     break
         
         # Emit signal with old and new signal data
-        self.signal_edited.emit(old_signal, self.signal_data)
+        self.handle_signal_edited(old_signal, self.signal_data)
 
     def handle_multiplexer_id_edited(self, multiplexer_id):
         """Handle editing of signal multiplexer ID"""
@@ -760,7 +760,7 @@ class SignalDetailView(QDialog):
                     break
         
         # Emit signal with old and new signal data
-        self.signal_edited.emit(old_signal, self.signal_data)
+        self.handle_signal_edited(old_signal, self.signal_data)
 
     def handle_choices_edited(self, new_choices):
         """Handle editing of signal value table"""
@@ -793,7 +793,7 @@ class SignalDetailView(QDialog):
                     break
         
         # Emit signal with old and new signal data
-        self.signal_edited.emit(old_signal, self.signal_data)
+        self.handle_signal_edited(old_signal, self.signal_data)
 
     def handle_signal_deleted(self, message_name: str, signal_name: str):
         """Handle signal deletion"""
@@ -806,8 +806,22 @@ class SignalDetailView(QDialog):
             QMessageBox.critical(self, "Delete Error", error)
             return
             
+        # Track the deletion
+        if self.handler and hasattr(self.handler, 'change_tracker'):
+            self.handler.change_tracker.add_signal_deletion(message_name, signal_name)
+            
         # Close the dialog since the signal no longer exists
         self.accept()
+
+    def handle_signal_edited(self, old_signal: dict, new_signal: dict):
+        """Handle when signal is edited and OK is clicked"""
+        if self.handler and hasattr(self.handler, 'change_tracker'):
+            self.handler.change_tracker.add_signal_change(
+                old_signal['message_name'],
+                old_signal,
+                new_signal
+            )
+        self.signal_edited.emit(old_signal, new_signal)
 
     def find_handler(self):
         # Traverse parent chain to find handler (assumes parent is MessageDetailView or similar)

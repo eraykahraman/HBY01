@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QFileDialog
+from PyQt5.QtWidgets import QFileDialog, QMessageBox
 from PyQt5.QtCore import QObject, pyqtSignal
 from model.dbc_model import DBCModel
 from .dbc_io_handler import DBC_IO_Handler
@@ -54,30 +54,53 @@ class DBC_IO_Controller(QObject):
         """
         if file_path not in self.handlers:
             return False, None, "File not loaded in the application"
+            
         handler = self.handlers[file_path]
+        
+        # Show changes summary if there are any changes
+        if handler.has_changes():
+            changes_summary = handler.get_changes_summary()
+            reply = QMessageBox.question(
+                parent_window,
+                "Changes Summary",
+                f"The following changes have been made:\n\n{changes_summary}\n\nDo you want to proceed with the export?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes
+            )
+            if reply == QMessageBox.No:
+                return False, None, "Export cancelled"
+        
         target_file, _ = QFileDialog.getSaveFileName(
             parent_window,
             "Export DBC File",
             "",
             "DBC Files (*.dbc);;All Files (*.*)"
         )
+        
         if not target_file:
             return False, None, "Export cancelled"
+            
         # Ensure the file has .dbc extension if none is provided
         if not target_file.lower().endswith('.dbc'):
             target_file += '.dbc'
+            
         # Use the edit_handler to perform the export if available
         if hasattr(handler, 'edit_handler') and handler.edit_handler:
             success = handler.edit_handler.save_to_file(target_file)
             if success:
                 self.dbc_exported.emit(target_file)
+                # Clear changes after successful export
+                handler.clear_changes()
                 return True, target_file, None
             else:
                 return False, None, "Failed to save DBC file using in-memory edits."
+                
         # Fallback: Use the model to perform the export (legacy, not recommended)
         success, error = self.model.export_dbc(file_path, target_file)
         if success:
             self.dbc_exported.emit(target_file)
+            # Clear changes after successful export
+            handler.clear_changes()
             return True, target_file, None
         else:
             return False, None, error
