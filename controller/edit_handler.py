@@ -466,4 +466,55 @@ class EditHandler:
             return True
         except Exception as e:
             print(f"Error saving DBC file: {e}")
-            return False 
+            return False
+
+    def edit_message_name(self, old_message_name: str, new_message_name: str) -> tuple[bool, str]:
+        """
+        Edit the name of a message.
+        Returns (success, error_message)
+        """
+        if not new_message_name or not new_message_name.strip():
+            return False, "Message name cannot be empty."
+            
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message in both current and original database
+        message = None
+        for msg in self.database.messages:
+            if msg.name == old_message_name:
+                message = msg
+                break
+                
+        if not message:
+            return False, f"Message '{old_message_name}' not found."
+            
+        # Check for uniqueness
+        if any(m.name == new_message_name for m in self.database.messages):
+            return False, f"A message with the name '{new_message_name}' already exists."
+            
+        # Update the message name in the database
+        message.name = new_message_name
+        return True, ""
+
+    def delete_message(self, message_name: str) -> tuple[bool, str]:
+        """
+        Delete a message from the database.
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message
+        message = None
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                message = msg
+                break
+                
+        if not message:
+            return False, f"Message '{message_name}' not found."
+            
+        # Remove the message from the database
+        self.database.messages.remove(message)
+        return True, "" 

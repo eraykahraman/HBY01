@@ -278,4 +278,38 @@ class EditController:
             # Update the database in DBC_IO_Handler
             self.handler.update_database()
             
+        return success, error
+
+    def edit_message_name(self, old_message_name: str, new_message_name: str) -> tuple[bool, str]:
+        """
+        Edit the name of a message.
+        Returns (success, error_message)
+        """
+        if not self.edit_handler:
+            return False, "Edit handler not initialized"
+            
+        # Delegate to EditHandler
+        success, error = self.edit_handler.edit_message_name(old_message_name, new_message_name)
+        
+        if success:
+            # Update the database in DBC_IO_Handler
+            self.handler.update_database()
+            
+        return success, error
+
+    def delete_message(self, message_name: str) -> tuple[bool, str]:
+        """
+        Delete a message from the database.
+        Returns (success, error_message)
+        """
+        if not self.edit_handler:
+            return False, "Edit handler not initialized"
+            
+        # Delegate to EditHandler
+        success, error = self.edit_handler.delete_message(message_name)
+        
+        if success:
+            # Update the database in DBC_IO_Handler
+            self.handler.update_database()
+            
         return success, error 

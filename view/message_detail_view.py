@@ -1,23 +1,27 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                             QPushButton, QScrollArea, QWidget, QTableWidget,
                             QTableWidgetItem, QHeaderView, QFrame, QSizePolicy,
-                            QTabWidget)
-from PyQt5.QtCore import Qt
+                            QTabWidget, QMessageBox)
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
 from .signal_layout_view import SignalLayoutView
 from .signal_detail_view import SignalDetailView
+from .message_edit_dialog import MessageEditDialog
 
 class MessageDetailView(QDialog):
-    def __init__(self, message_data, parent=None):
+    message_edited = pyqtSignal(dict, dict)  # old_message, new_message
+    
+    def __init__(self, message_data, handler, parent=None):
         super().__init__(parent)
-        self.message_data = message_data
+        self.message_data = message_data.copy()  # Make a copy to track changes
+        self.handler = handler
         self.setup_ui()
         
     def setup_ui(self):
         """Setup the UI components"""
         # Set window properties
         self.setWindowTitle(f"Message Details: {self.message_data['name']}")
-        self.setMinimumSize(800, 600)
+        self.setMinimumSize(700, 600)
         self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint | Qt.WindowSystemMenuHint)
         
         # Create main layout
@@ -32,21 +36,20 @@ class MessageDetailView(QDialog):
         header_layout = QHBoxLayout(header_frame)
         header_layout.setContentsMargins(10, 10, 10, 10)
         
-        message_name_label = QLabel(self.message_data['name'])
-        message_name_label.setFont(QFont("Arial", 14, QFont.Bold))
-        header_layout.addWidget(message_name_label)
+        self.message_name_label = QLabel(self.message_data['name'])
+        self.message_name_label.setFont(QFont("Arial", 14, QFont.Bold))
+        header_layout.addWidget(self.message_name_label)
         
-        message_id_label = QLabel(f"ID: 0x{self.message_data['frame_id']:X}")
-        message_id_label.setFont(QFont("Arial", 10))
-        header_layout.addWidget(message_id_label)
+        message_id = QLabel(f"ID: 0x{self.message_data['frame_id']:X}")
+        message_id.setFont(QFont("Arial", 10))
+        header_layout.addWidget(message_id)
         
-        # Add signal count label
-        signals_count = len(self.message_data['signals'])
-        signals_label = QLabel(f"Signals: {signals_count}")
-        signals_label.setFont(QFont("Arial", 10))
-        header_layout.addWidget(signals_label)
-        
-        header_layout.addStretch()
+        # Add Edit button
+        edit_button = QPushButton("Edit")
+        edit_button.setToolTip("Edit message name")
+        edit_button.setMinimumWidth(80)
+        edit_button.clicked.connect(self.open_edit_dialog)
+        header_layout.addWidget(edit_button)
         
         main_layout.addWidget(header_frame)
         
@@ -422,3 +425,69 @@ class MessageDetailView(QDialog):
         
         signal_detail = SignalDetailView(signal_copy, handler, self)
         signal_detail.show()
+
+    def open_edit_dialog(self):
+        """Open the edit dialog for this message"""
+        edit_dialog = MessageEditDialog(
+            self.message_data['name'],
+            self.message_data,
+            self.handler,
+            self
+        )
+        
+        # Connect edit signals
+        edit_dialog.name_edited.connect(self.handle_name_edited)
+        edit_dialog.message_deleted.connect(self.handle_message_deleted)
+        
+        edit_dialog.exec_()
+
+    def handle_name_edited(self, new_name):
+        if new_name == self.message_data['name']:
+            return  # No change
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+        
+        old_message = self.message_data.copy()
+        success, error = self.handler.edit_controller.edit_message_name(
+            self.message_data['name'],
+            new_name
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data and UI
+        self.message_data['name'] = new_name
+        self.message_name_label.setText(new_name)
+        self.setWindowTitle(f"Message Details: {new_name}")
+        
+        # Emit signal with old and new message data
+        self.handle_message_edited(old_message, self.message_data)
+
+    def handle_message_deleted(self, message_name: str):
+        """Handle message deletion"""
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for deletion.")
+            return
+            
+        success, error = self.handler.edit_controller.delete_message(message_name)
+        if not success:
+            QMessageBox.critical(self, "Delete Error", error)
+            return
+            
+        # Track the deletion
+        if self.handler and hasattr(self.handler, 'change_tracker'):
+            self.handler.change_tracker.add_message_deletion(message_name)
+            
+        # Close the dialog since the message no longer exists
+        self.accept()
+
+    def handle_message_edited(self, old_message: dict, new_message: dict):
+        """Handle when message is edited and OK is clicked"""
+        if self.handler and hasattr(self.handler, 'change_tracker'):
+            self.handler.change_tracker.add_message_change(
+                old_message,
+                new_message
+            )
+        self.message_edited.emit(old_message, new_message)

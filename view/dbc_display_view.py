@@ -590,9 +590,13 @@ class DBCDisplayView(QWidget):
         
         # Re-enable sorting
         self.signals_table.setSortingEnabled(True)
-        self.signals_table.setVisible(True)
-        self.tables_stack.setCurrentWidget(self.signals_table)
-
+        
+        # Make signals table visible and current if it's being explicitly shown
+        # or if it's already the current widget
+        if self.tables_stack.currentWidget() == self.signals_table:
+            self.signals_table.setVisible(True)
+            self.tables_stack.setCurrentWidget(self.signals_table)
+        
     def update_messages_table(self, messages):
         """Update the messages table with data"""
         # Temporarily disable sorting while updating
@@ -649,87 +653,39 @@ class DBCDisplayView(QWidget):
             length_item = create_numeric_item(int(msg['length']))
             signals_count_item = create_numeric_item(len(msg['signals']))
             
-            # Create other items
-            senders_item = create_text_item(', '.join(msg['senders']) if msg['senders'] else '')
-            
-            # Boolean items
-            extended_item = create_bool_item(msg.get('is_extended_frame', False))
-            fd_item = create_bool_item(msg.get('is_fd', False))
-            
-            # Text and numeric items
-            bus_item = create_text_item(msg.get('bus_name', ''))
-            cycle_time = msg.get('cycle_time')
-            cycle_time_item = create_numeric_item(int(cycle_time) if cycle_time is not None else None, 
-                                                  f"{cycle_time} ms" if cycle_time is not None else "")
-            send_type_item = create_text_item(msg.get('send_type', ''))
-            comment_item = create_text_item(msg.get('comment', ''))
-            
-            # Additional message properties
-            header_id = msg.get('header_id')
-            header_id_item = create_numeric_item(header_id, f"0x{header_id:X}" if header_id is not None else "")
-            header_byte_order_item = create_text_item(msg.get('header_byte_order', ''))
-            unused_bit_pattern_item = create_numeric_item(msg.get('unused_bit_pattern', 0))
-            
-            # Determine if message is multiplexed
-            is_multiplexed = False
-            for signal in msg['signals']:
-                if signal.get('is_multiplexer', False):
-                    is_multiplexed = True
-                    break
-            is_multiplexed_item = create_bool_item(is_multiplexed)
-            
-            # Count contained messages
-            contained_count = len(msg.get('contained_messages', []))
-            contained_count_item = create_numeric_item(contained_count)
-            
-            # J1939 specific fields
-            pgn_item = create_numeric_item(j1939_specifics.get('pgn'))
-            priority_item = create_numeric_item(j1939_specifics.get('priority'))
-            source_address_item = create_numeric_item(j1939_specifics.get('source_address'))
-            destination_address_item = create_numeric_item(j1939_specifics.get('destination_address'))
-            
-            # Determine protocol type
-            protocol = "Standard CAN"
-            if msg.get('is_fd', False):
-                protocol = "CAN FD"
-            elif j1939_specifics:
-                protocol = "J1939"
-            protocol_item = create_text_item(protocol)
-            
-            row_items = [
+            # Create items for each column
+            items = [
                 name_item,
                 frame_id_item,
                 length_item,
                 signals_count_item,
-                senders_item,
-                extended_item,
-                fd_item,
-                bus_item,
-                cycle_time_item,
-                send_type_item,
-                comment_item,
-                header_id_item,
-                header_byte_order_item,
-                unused_bit_pattern_item,
-                is_multiplexed_item,
-                contained_count_item,
-                pgn_item,
-                priority_item,
-                source_address_item,
-                destination_address_item,
-                protocol_item
+                create_text_item(msg.get('sender')),
+                create_text_item(msg.get('comment', '')),
+                create_bool_item(msg.get('is_extended', False)),
+                create_text_item(j1939_specifics.get('pgn', '')),
+                create_text_item(j1939_specifics.get('source_address', '')),
+                create_text_item(j1939_specifics.get('priority', '')),
+                create_text_item(j1939_specifics.get('destination_address', '')),
+                create_text_item(j1939_specifics.get('data_page', '')),
+                create_text_item(j1939_specifics.get('pdu_format', '')),
+                create_text_item(j1939_specifics.get('pdu_specific', '')),
+                create_text_item(j1939_specifics.get('pdu_format_extension', ''))
             ]
-            table_items.append(row_items)
+            table_items.append(items)
         
         # Set all items at once
-        for row, row_items in enumerate(table_items):
-            for col, item in enumerate(row_items):
+        for row, items in enumerate(table_items):
+            for col, item in enumerate(items):
                 self.messages_table.setItem(row, col, item)
         
         # Re-enable sorting
         self.messages_table.setSortingEnabled(True)
-        self.messages_table.setVisible(True)
-        self.tables_stack.setCurrentWidget(self.messages_table)
+        
+        # Only make messages table visible and current if it's already visible
+        # This prevents unwanted table switching when updating data
+        if self.tables_stack.currentWidget() == self.messages_table:
+            self.messages_table.setVisible(True)
+            self.tables_stack.setCurrentWidget(self.messages_table)
 
     def update_nodes_table(self, nodes):
         """Update the nodes table with data"""
@@ -844,6 +800,11 @@ class DBCDisplayView(QWidget):
         if not self.current_handler:
             return
             
+        # Hide all tables first
+        self.signals_table.setVisible(False)
+        self.messages_table.setVisible(False)
+        self.nodes_table.setVisible(False)
+            
         # Check if the clicked item is the Signals, Messages, or Network Nodes root
         if item.text(0) == "Signals":
             parent = item.parent()
@@ -861,19 +822,29 @@ class DBCDisplayView(QWidget):
                             {**signal, "message_name": msg["name"], "message_id": msg["frame_id"]}
                             for signal in msg["signals"]
                         ]
+                        self.signals_table.setVisible(True)
+                        self.tables_stack.setCurrentWidget(self.signals_table)
                         self.update_signals_table(signals)
                         return
                 # If not found, fallback to empty
+                self.signals_table.setVisible(True)
+                self.tables_stack.setCurrentWidget(self.signals_table)
                 self.update_signals_table([])
             else:
                 # Root "Signals" node
                 signals = self.current_handler.get_signals()
+                self.signals_table.setVisible(True)
+                self.tables_stack.setCurrentWidget(self.signals_table)
                 self.update_signals_table(signals)
         elif item.text(0) == "Messages":
             messages = self.current_handler.get_messages()
+            self.messages_table.setVisible(True)
+            self.tables_stack.setCurrentWidget(self.messages_table)
             self.update_messages_table(messages)
         elif item.text(0) == "Network Nodes":
             nodes = self.current_handler.get_nodes()
+            self.nodes_table.setVisible(True)
+            self.tables_stack.setCurrentWidget(self.nodes_table)
             self.update_nodes_table(nodes)
         # Check if the clicked item is "Tx Messages" or "Rx Messages" under a node
         elif item.text(0) in ["Tx Messages", "Rx Messages"]:
@@ -946,7 +917,8 @@ class DBCDisplayView(QWidget):
             elif self.is_message_item(item):
                 message_data = self.get_message_data_from_item(item)
                 if message_data:
-                    message_detail = MessageDetailView(message_data, self)
+                    message_detail = MessageDetailView(message_data, self.current_handler, self)
+                    message_detail.message_edited.connect(self.on_message_edited)
                     message_detail.show()
             else:
                 self.signals_table.setVisible(False)
@@ -978,6 +950,16 @@ class DBCDisplayView(QWidget):
             signals = self.current_handler.get_signals()
             self.update_signals_table(signals)
 
+    def on_message_edited(self, old_message, new_message):
+        """Handle when a message is edited in the message detail view"""
+        # Force update of messages table if it's visible
+        if self.messages_table.isVisible():
+            messages = self.current_handler.get_messages()
+            # Ensure the messages table stays visible and current
+            self.messages_table.setVisible(True)
+            self.tables_stack.setCurrentWidget(self.messages_table)
+            self.update_messages_table(messages)
+
     def on_message_double_clicked(self, item):
         """Handle double-click on a message in the messages table"""
         if not self.current_handler:
@@ -992,7 +974,8 @@ class DBCDisplayView(QWidget):
         if not message_data:
             return
         # Show the message detail view
-        message_detail = MessageDetailView(message_data, self)
+        message_detail = MessageDetailView(message_data, self.current_handler, self)
+        message_detail.message_edited.connect(self.on_message_edited)
         message_detail.show()  # Use show() to allow multiple windows
 
     def show_node_details(self, node_name):
