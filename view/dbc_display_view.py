@@ -351,7 +351,7 @@ class DBCDisplayView(QWidget):
     def setup_messages_table(self):
         """Setup the messages table structure"""
         columns = [
-            "Name", "ID", "Length", "Signals Count", "Senders", "Extended", "CAN FD", 
+            "Name", "ID", "Length", "Signals Count", "Extended", "Senders", "CAN FD", 
             "Bus", "Cycle Time", "Send Type", "Comment", "Header ID", "Header Byte Order",
             "Unused Bit Pattern", "Is Multiplexed", "Contained Messages Count",
             "PGN", "Priority", "Source Address", "Destination Address", "Protocol"
@@ -376,8 +376,8 @@ class DBCDisplayView(QWidget):
             "ID": 100,      # Wider to fit hex values
             "Length": 80,    # Fixed size for byte length
             "Signals Count": 100,  # Increased to fit content
-            "Senders": 150,  # Wider for multiple sender names
             "Extended": 80,  # Yes/No field
+            "Senders": 150,  # Wider for multiple sender names
             "CAN FD": 80,   # Yes/No field
             "Bus": 100,     # Bus name
             "Cycle Time": 100,  # Cycle time in ms
@@ -621,7 +621,7 @@ class DBCDisplayView(QWidget):
         
         # Helper function to create text items
         def create_text_item(text):
-            if text is None:
+            if text is None or text == "":
                 return QTableWidgetItem("")
             item = QTableWidgetItem(str(text))
             item.setData(Qt.UserRole, str(text))
@@ -653,23 +653,37 @@ class DBCDisplayView(QWidget):
             length_item = create_numeric_item(int(msg['length']))
             signals_count_item = create_numeric_item(len(msg['signals']))
             
-            # Create items for each column
+            # Handle senders - could be a string or list
+            senders = msg.get('senders', [])
+            if isinstance(senders, str):
+                senders = [senders]
+            elif not isinstance(senders, list):
+                senders = []
+            senders_text = ', '.join(filter(None, senders))  # Filter out empty strings
+            
+            # Create items for each column in the correct order
             items = [
-                name_item,
-                frame_id_item,
-                length_item,
-                signals_count_item,
-                create_text_item(msg.get('sender')),
-                create_text_item(msg.get('comment', '')),
-                create_bool_item(msg.get('is_extended', False)),
-                create_text_item(j1939_specifics.get('pgn', '')),
-                create_text_item(j1939_specifics.get('source_address', '')),
-                create_text_item(j1939_specifics.get('priority', '')),
-                create_text_item(j1939_specifics.get('destination_address', '')),
-                create_text_item(j1939_specifics.get('data_page', '')),
-                create_text_item(j1939_specifics.get('pdu_format', '')),
-                create_text_item(j1939_specifics.get('pdu_specific', '')),
-                create_text_item(j1939_specifics.get('pdu_format_extension', ''))
+                name_item,                    # Name
+                frame_id_item,                # ID
+                length_item,                  # Length
+                signals_count_item,           # Signals Count
+                create_bool_item(msg.get('is_extended', False)),  # Extended
+                create_text_item(senders_text),  # Senders
+                create_bool_item(msg.get('is_can_fd', False)),  # CAN FD
+                create_text_item(msg.get('bus', '')),  # Bus
+                create_numeric_item(msg.get('cycle_time', '')),  # Cycle Time
+                create_text_item(msg.get('send_type', '')),  # Send Type
+                create_text_item(msg.get('comment', '')),  # Comment
+                create_text_item(msg.get('header_id', '')),  # Header ID
+                create_text_item(msg.get('header_byte_order', '')),  # Header Byte Order
+                create_text_item(msg.get('unused_bit_pattern', '')),  # Unused Bit Pattern
+                create_bool_item(msg.get('is_multiplexed', False)),  # Is Multiplexed
+                create_numeric_item(len(msg.get('contained_messages', []))),  # Contained Messages Count
+                create_text_item(j1939_specifics.get('pgn', '')),  # PGN
+                create_text_item(j1939_specifics.get('priority', '')),  # Priority
+                create_text_item(j1939_specifics.get('source_address', '')),  # Source Address
+                create_text_item(j1939_specifics.get('destination_address', '')),  # Destination Address
+                create_text_item(msg.get('protocol', ''))  # Protocol
             ]
             table_items.append(items)
         
