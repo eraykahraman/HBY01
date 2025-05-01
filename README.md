@@ -188,4 +188,123 @@ Displays the content of a DBC file in a structured view, including trees and tab
 
 ## Conclusion
 
-DBC Master is a comprehensive tool for working with DBC files, providing detailed views into CAN network specifications. With its MVC architecture, it offers a clean separation of concerns while maintaining robust communication between components through the signal-slot mechanism. The application's rich feature set makes it an essential tool for automotive engineers and CAN network specialists working with vehicle network configurations. 
+DBC Master is a comprehensive tool for working with DBC files, providing detailed views into CAN network specifications. With its MVC architecture, it offers a clean separation of concerns while maintaining robust communication between components through the signal-slot mechanism. The application's rich feature set makes it an essential tool for automotive engineers and CAN network specialists working with vehicle network configurations.
+
+## Signal Editing Flow
+
+The application provides a comprehensive signal editing system with change tracking and validation. Here's a detailed breakdown of the signal editing process:
+
+### 1. Opening Edit Dialog
+
+- The signal editing process starts from `SignalDetailView` when the user clicks the "Edit" button
+- `SignalEditDialog` is created with the following parameters:
+  - Current signal name
+  - Current signal length
+  - Current start bit
+  - Complete signal data dictionary
+  - DBC handler reference
+  - Parent widget reference
+
+### 2. Edit Dialog UI
+
+The edit dialog provides fields for editing all signal properties:
+- Basic Properties:
+  - Name
+  - Length (bits)
+  - Start Bit
+  - Byte Order (little_endian/big_endian)
+  - Is Signed
+  - Scale
+  - Offset
+  - Minimum
+  - Maximum
+  - Unit
+  - Comment
+- Advanced Properties:
+  - Receivers (multi-select list of available nodes)
+  - Multiplexer Settings:
+    - Is Multiplexer checkbox
+    - Multiplexer ID
+  - Value Table:
+    - Table of raw values and descriptions
+    - Add/Remove value buttons
+
+### 3. Validation Process
+
+When the user clicks OK, the following validations are performed:
+1. Name Validation:
+   - Checks for empty names
+   - Validates DBC name format
+   - Checks for duplicate names in the message
+2. Signal Position Validation:
+   - Checks for signal overlap with other signals
+   - Validates against message constraints
+3. Value Validation:
+   - Validates min/max values
+   - Checks for duplicate values in value table
+4. Receivers Validation:
+   - Warns if no receivers are selected
+
+### 4. Change Tracking
+
+The application maintains a detailed change tracking system:
+
+1. Local Changes:
+   - `SignalDetailView` keeps a copy of the original signal data
+   - Each edit operation creates a new copy of the signal data
+   - Changes are tracked using the `signal_edited` signal
+
+2. Global Change Tracking:
+   - `ChangeTracker` class maintains a list of all changes
+   - Each change includes:
+     - Timestamp
+     - Message name
+     - Signal name
+     - Detailed list of changed properties
+   - Changes are tracked for:
+     - Signal property modifications
+     - Signal deletions
+
+### 5. Edit Process Flow
+
+1. User makes changes in the edit dialog
+2. On OK click:
+   - Validations are performed
+   - If valid, changes are applied through `EditController`
+   - `EditController` delegates to `EditHandler`
+   - `EditHandler` updates the in-memory database
+   - Changes are tracked in `ChangeTracker`
+   - UI is updated to reflect changes
+
+### 6. Export Process
+
+When exporting changes:
+1. The `EditHandler` converts the in-memory database to DBC format
+2. Changes are written to the target file
+3. Change tracker is cleared after successful export
+4. UI is updated to reflect the saved state
+
+### 7. Error Handling
+
+The system includes comprehensive error handling:
+- Validation errors are shown to the user
+- Database operation errors are caught and displayed
+- Invalid changes are prevented
+- User is notified of any issues during the process
+
+### 8. Data Flow
+
+1. UI Layer:
+   - `SignalDetailView`: Displays signal details
+   - `SignalEditDialog`: Handles user input
+   - `SignalValuesDialog`: Shows value table
+
+2. Controller Layer:
+   - `EditController`: Manages edit operations
+   - `EditHandler`: Performs actual database modifications
+   - `ChangeTracker`: Tracks all changes
+
+3. Model Layer:
+   - In-memory database representation
+   - Original database copy for comparison
+   - DBC file export functionality 
