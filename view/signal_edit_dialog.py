@@ -32,9 +32,23 @@ class SignalEditDialog(QDialog):
         self.signal_data = signal_data
         self.handler = handler
         
+        # Prevent dialog from accepting when Enter is pressed
+        self.setWindowFlags(self.windowFlags() | Qt.CustomizeWindowHint)
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        
+        # Ensure no default button is set
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        self.setWindowFlags(self.windowFlags() | Qt.CustomizeWindowHint)
+        
+        # Disable default button behavior
+        self.setWindowFlags(self.windowFlags() | Qt.MSWindowsFixedSizeDialogHint)
+        
         self.setWindowTitle("Edit Signal")
         self.setMinimumWidth(500)  # Increased width to accommodate receivers list
         self.setup_ui()
+        
+        # Clear default focus
+        self.setFocus()
 
     def setup_ui(self):
         layout = QVBoxLayout()
@@ -198,10 +212,16 @@ class SignalEditDialog(QDialog):
         button_layout = QHBoxLayout()
         
         add_value_button = QPushButton("Add Value")
+        add_value_button.setAutoDefault(False)  # Prevent auto-default
+        add_value_button.setDefault(False)      # Prevent being default button
+        add_value_button.setFocusPolicy(Qt.NoFocus)  # Prevent focus
         add_value_button.clicked.connect(self.add_value)
         button_layout.addWidget(add_value_button)
         
         remove_value_button = QPushButton("Remove Selected")
+        remove_value_button.setAutoDefault(False)  # Prevent auto-default
+        remove_value_button.setDefault(False)      # Prevent being default button
+        remove_value_button.setFocusPolicy(Qt.NoFocus)  # Prevent focus
         remove_value_button.clicked.connect(self.remove_selected_values)
         button_layout.addWidget(remove_value_button)
         
@@ -214,6 +234,9 @@ class SignalEditDialog(QDialog):
         
         # Add delete button
         delete_button = QPushButton("Delete Signal")
+        delete_button.setAutoDefault(False)  # Prevent auto-default
+        delete_button.setDefault(False)      # Prevent being default button
+        delete_button.setFocusPolicy(Qt.NoFocus)  # Prevent focus
         delete_button.setStyleSheet("background-color: #ff6b6b; color: white;")
         delete_button.clicked.connect(self.delete_signal)
         button_layout.addWidget(delete_button)
@@ -221,8 +244,14 @@ class SignalEditDialog(QDialog):
         button_layout.addStretch()
         
         ok_button = QPushButton("OK")
+        ok_button.setAutoDefault(False)  # Prevent auto-default
+        ok_button.setDefault(False)      # Prevent being default button
+        ok_button.setFocusPolicy(Qt.NoFocus)  # Prevent focus
         ok_button.clicked.connect(self.validate_and_accept)
         cancel_button = QPushButton("Cancel")
+        cancel_button.setAutoDefault(False)  # Prevent auto-default
+        cancel_button.setDefault(False)      # Prevent being default button
+        cancel_button.setFocusPolicy(Qt.NoFocus)  # Prevent focus
         cancel_button.clicked.connect(self.reject)
         
         button_layout.addWidget(ok_button)
