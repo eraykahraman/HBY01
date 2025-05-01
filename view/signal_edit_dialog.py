@@ -1,8 +1,9 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
                             QPushButton, QDialogButtonBox, QSpinBox, QFormLayout, QMessageBox,
                             QComboBox, QCheckBox, QDoubleSpinBox, QTextEdit, QListWidget,
-                            QListWidgetItem)
+                            QListWidgetItem, QGroupBox)
 from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtGui import QIntValidator
 
 class SignalEditDialog(QDialog):
     name_edited = pyqtSignal(str)
@@ -17,6 +18,8 @@ class SignalEditDialog(QDialog):
     unit_edited = pyqtSignal(str)
     comment_edited = pyqtSignal(str)
     receivers_edited = pyqtSignal(list)  # New signal for receivers
+    is_multiplexer_edited = pyqtSignal(bool)
+    multiplexer_id_edited = pyqtSignal(object)  # Changed to object to allow None
 
     def __init__(self, current_name, current_length, current_start_bit, signal_data, handler, parent=None):
         super().__init__(parent)
@@ -138,6 +141,28 @@ class SignalEditDialog(QDialog):
         main_layout.addLayout(receivers_layout)
         
         layout.addLayout(main_layout)
+
+        # Add multiplexer fields
+        multiplexer_group = QGroupBox("Multiplexer Settings")
+        multiplexer_layout = QVBoxLayout()
+        
+        # Is Multiplexer checkbox
+        self.is_multiplexer_checkbox = QCheckBox("Is Multiplexer")
+        self.is_multiplexer_checkbox.setChecked(self.signal_data.get('is_multiplexer', False))
+        multiplexer_layout.addWidget(self.is_multiplexer_checkbox)
+        
+        # Multiplexer ID
+        multiplexer_id_layout = QHBoxLayout()
+        multiplexer_id_layout.addWidget(QLabel("Multiplexer ID:"))
+        self.multiplexer_id_edit = QLineEdit()
+        multiplexer_id = self.signal_data.get('multiplexer_id')
+        self.multiplexer_id_edit.setText(str(multiplexer_id) if multiplexer_id is not None else '')
+        self.multiplexer_id_edit.setValidator(QIntValidator())
+        multiplexer_id_layout.addWidget(self.multiplexer_id_edit)
+        multiplexer_layout.addLayout(multiplexer_id_layout)
+        
+        multiplexer_group.setLayout(multiplexer_layout)
+        layout.addWidget(multiplexer_group)
 
         # Buttons
         button_layout = QHBoxLayout()
@@ -351,5 +376,15 @@ class SignalEditDialog(QDialog):
         current_receivers = set(self.signal_data.get('receivers', []))
         if set(new_receivers) != current_receivers:
             self.receivers_edited.emit(new_receivers)
+
+        # Get and emit multiplexer values if changed
+        new_is_multiplexer = self.is_multiplexer_checkbox.isChecked()
+        text = self.multiplexer_id_edit.text().strip()
+        new_multiplexer_id = int(text) if text and text.lower() != 'none' else None
+
+        if new_is_multiplexer != self.signal_data.get('is_multiplexer', False):
+            self.is_multiplexer_edited.emit(new_is_multiplexer)
+        if new_multiplexer_id != self.signal_data.get('multiplexer_id'):
+            self.multiplexer_id_edited.emit(new_multiplexer_id)
 
         self.accept() 

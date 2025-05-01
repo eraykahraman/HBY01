@@ -262,7 +262,10 @@ class SignalDetailView(QDialog):
                     ("Minimum", str(self.signal_data.get('minimum', 'Not specified')), False),
                     ("Maximum", str(self.signal_data.get('maximum', 'Not specified')), False),
                     ("Unit", self.signal_data.get('unit', 'Not specified'), False),
-                    ("Comment", self.signal_data.get('comment', 'Not specified'), False)
+                    ("Comment", self.signal_data.get('comment', 'Not specified'), False),
+                    ("Receivers", ", ".join(self.signal_data.get('receivers', [])) or "None", False),
+                    ("Is Multiplexer", "Yes" if self.signal_data.get('is_multiplexer', False) else "No", True),
+                    ("Multiplexer ID", str(self.signal_data.get('multiplexer_id', 'Not specified')), True)
                 ]
             }
         ]
@@ -388,6 +391,8 @@ class SignalDetailView(QDialog):
         dialog.unit_edited.connect(self.handle_unit_edited)
         dialog.comment_edited.connect(self.handle_comment_edited)
         dialog.receivers_edited.connect(self.handle_receivers_edited)
+        dialog.is_multiplexer_edited.connect(self.handle_is_multiplexer_edited)
+        dialog.multiplexer_id_edited.connect(self.handle_multiplexer_id_edited)
         dialog.exec_()
 
     def handle_name_edited(self, new_name):
@@ -682,6 +687,70 @@ class SignalDetailView(QDialog):
                 if table.item(row, 0) and table.item(row, 0).text() == "Receivers":
                     receivers_text = ", ".join(new_receivers) if new_receivers else "None"
                     table.item(row, 1).setText(receivers_text)
+                    break
+        
+        # Emit signal with old and new signal data
+        self.signal_edited.emit(old_signal, self.signal_data)
+
+    def handle_is_multiplexer_edited(self, is_multiplexer):
+        """Handle editing of signal multiplexer status"""
+        if is_multiplexer == self.signal_data.get('is_multiplexer', False):
+            return  # No change
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+            
+        old_signal = self.signal_data.copy()
+        success, error = self.handler.edit_controller.edit_signal_is_multiplexer(
+            self.signal_data['message_name'],
+            self.signal_data['name'],
+            is_multiplexer
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data
+        self.signal_data['is_multiplexer'] = is_multiplexer
+        
+        # Update the table if it exists
+        table = self.findChild(QTableWidget)
+        if table:
+            for row in range(table.rowCount()):
+                if table.item(row, 0) and table.item(row, 0).text() == "Is Multiplexer":
+                    table.item(row, 1).setText("Yes" if is_multiplexer else "No")
+                    break
+        
+        # Emit signal with old and new signal data
+        self.signal_edited.emit(old_signal, self.signal_data)
+
+    def handle_multiplexer_id_edited(self, multiplexer_id):
+        """Handle editing of signal multiplexer ID"""
+        if multiplexer_id == self.signal_data.get('multiplexer_id'):
+            return  # No change
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+            
+        old_signal = self.signal_data.copy()
+        success, error = self.handler.edit_controller.edit_signal_multiplexer_id(
+            self.signal_data['message_name'],
+            self.signal_data['name'],
+            multiplexer_id
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data
+        self.signal_data['multiplexer_id'] = multiplexer_id
+        
+        # Update the table if it exists
+        table = self.findChild(QTableWidget)
+        if table:
+            for row in range(table.rowCount()):
+                if table.item(row, 0) and table.item(row, 0).text() == "Multiplexer ID":
+                    table.item(row, 1).setText(str(multiplexer_id) if multiplexer_id is not None else "None")
                     break
         
         # Emit signal with old and new signal data

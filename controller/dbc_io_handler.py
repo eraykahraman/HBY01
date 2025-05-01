@@ -386,6 +386,9 @@ class DBC_IO_Handler(QObject):
                     if not hasattr(signal, 'name'):
                         continue
                         
+                    # Get multiplexer ID from multiplexer_ids if available
+                    multiplexer_id = signal.multiplexer_ids[0] if hasattr(signal, 'multiplexer_ids') and signal.multiplexer_ids else None
+                    
                     signal_info = {
                         "name": signal.name,
                         "message_name": msg.name,
@@ -405,7 +408,7 @@ class DBC_IO_Handler(QObject):
                             for node in getattr(signal, 'receivers', [])
                         ],
                         # Additional signal fields
-                        "multiplexer_id": getattr(signal, 'multiplexer_id', None),
+                        "multiplexer_id": multiplexer_id,
                         "multiplexer_signal": getattr(signal, 'multiplexer_signal', None),
                         "multiplexer_values": getattr(signal, 'multiplexer_values', None),
                         "is_multiplexer": getattr(signal, 'is_multiplexer', False),

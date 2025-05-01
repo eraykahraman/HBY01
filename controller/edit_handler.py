@@ -301,6 +301,75 @@ class EditHandler:
                 return False, f"Signal '{signal_name}' not found in message '{message_name}'."
         return False, f"Message '{message_name}' not found."
 
+    def edit_signal_is_multiplexer(self, message_name: str, signal_name: str, is_multiplexer: bool) -> tuple[bool, str]:
+        """
+        Edit whether a signal is a multiplexer in a given message.
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message and signal
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                for signal in msg.signals:
+                    if signal.name == signal_name:
+                        # Update multiplexer properties
+                        signal.is_multiplexer = is_multiplexer
+                        if is_multiplexer:
+                            # If this is a multiplexer signal, clear multiplexer_ids and multiplexer_signal
+                            signal.multiplexer_ids = None
+                            signal.multiplexer_signal = None
+                            # Set the multiplexer attribute for cantools export
+                            signal.multiplexer = 'Multiplexer'
+                            # Update all signals in the message that use this as their multiplexer
+                            for other_signal in msg.signals:
+                                if hasattr(other_signal, 'multiplexer_ids') and other_signal.multiplexer_ids:
+                                    other_signal.multiplexer_signal = signal.name
+                        else:
+                            # If this is no longer a multiplexer, remove references from other signals
+                            signal.multiplexer = None
+                            for other_signal in msg.signals:
+                                if other_signal.multiplexer_signal == signal.name:
+                                    other_signal.multiplexer_signal = None
+                                    other_signal.multiplexer_ids = None
+                        return True, ""
+                return False, f"Signal '{signal_name}' not found in message '{message_name}'."
+        return False, f"Message '{message_name}' not found."
+
+    def edit_signal_multiplexer_id(self, message_name: str, signal_name: str, multiplexer_id: Optional[int]) -> tuple[bool, str]:
+        """
+        Edit the multiplexer ID of a signal in a given message.
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message and signal
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                for signal in msg.signals:
+                    if signal.name == signal_name:
+                        # Update multiplexer properties
+                        signal.multiplexer_ids = [multiplexer_id] if multiplexer_id is not None else None
+                        if multiplexer_id is not None:
+                            # If setting a multiplexer ID, find the multiplexer signal in the message
+                            signal.is_multiplexer = False
+                            multiplexer_signal = next((s for s in msg.signals if s.is_multiplexer), None)
+                            if multiplexer_signal:
+                                signal.multiplexer_signal = multiplexer_signal.name
+                                # Set the multiplexer attribute for cantools export
+                                signal.multiplexer = str(multiplexer_id)
+                            else:
+                                return False, "No multiplexer signal found in the message"
+                        else:
+                            # If clearing multiplexer ID, clear multiplexer signal reference
+                            signal.multiplexer_signal = None
+                            signal.multiplexer = None
+                        return True, ""
+                return False, f"Signal '{signal_name}' not found in message '{message_name}'."
+        return False, f"Message '{message_name}' not found."
+
     def get_diff(self) -> Dict[str, Any]:
         """
         Get the differences between the original and edited database

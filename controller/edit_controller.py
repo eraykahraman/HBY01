@@ -210,4 +210,38 @@ class EditController:
             # Update the database in DBC_IO_Handler
             self.handler.update_database()
             
+        return success, error
+
+    def edit_signal_is_multiplexer(self, message_name: str, signal_name: str, is_multiplexer: bool) -> tuple[bool, str]:
+        """
+        Edit whether a signal is a multiplexer in a given message.
+        Returns (success, error_message)
+        """
+        if not self.edit_handler:
+            return False, "Edit handler not initialized"
+            
+        # Delegate to EditHandler
+        success, error = self.edit_handler.edit_signal_is_multiplexer(message_name, signal_name, is_multiplexer)
+        
+        if success:
+            # Update the database in DBC_IO_Handler
+            self.handler.update_database()
+            
+        return success, error
+
+    def edit_signal_multiplexer_id(self, message_name: str, signal_name: str, multiplexer_id: Optional[int]) -> tuple[bool, str]:
+        """
+        Edit the multiplexer ID of a signal in a given message.
+        Returns (success, error_message)
+        """
+        if not self.edit_handler:
+            return False, "Edit handler not initialized"
+            
+        # Delegate to EditHandler
+        success, error = self.edit_handler.edit_signal_multiplexer_id(message_name, signal_name, multiplexer_id)
+        
+        if success:
+            # Update the database in DBC_IO_Handler
+            self.handler.update_database()
+            
         return success, error 
