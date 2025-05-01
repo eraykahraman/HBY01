@@ -517,4 +517,69 @@ class EditHandler:
             
         # Remove the message from the database
         self.database.messages.remove(message)
+        return True, ""
+
+    def edit_message_frame_id(self, message_name: str, new_frame_id: int) -> tuple[bool, str]:
+        """
+        Edit the frame ID of a message.
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message
+        message = None
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                message = msg
+                break
+                
+        if not message:
+            return False, f"Message '{message_name}' not found."
+            
+        # Validate frame ID
+        if new_frame_id < 0:
+            return False, "Frame ID cannot be negative."
+            
+        # Check if frame ID is within valid range based on extended frame flag
+        if message.is_extended_frame:
+            if new_frame_id > 0x1FFFFFFF:  # 29-bit max
+                return False, "Extended frame ID cannot exceed 0x1FFFFFFF (29 bits)"
+        else:
+            if new_frame_id > 0x7FF:  # 11-bit max
+                return False, "Standard frame ID cannot exceed 0x7FF (11 bits)"
+                
+        # Check for duplicate frame IDs
+        for msg in self.database.messages:
+            if msg != message and msg.frame_id == new_frame_id:
+                return False, f"A message with frame ID 0x{new_frame_id:X} already exists."
+                
+        # Update the frame ID
+        message.frame_id = new_frame_id
+        return True, ""
+
+    def edit_message_is_extended_frame(self, message_name: str, is_extended: bool) -> tuple[bool, str]:
+        """
+        Edit whether a message uses extended frame format.
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message
+        message = None
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                message = msg
+                break
+                
+        if not message:
+            return False, f"Message '{message_name}' not found."
+            
+        # If switching to standard frame, validate current frame ID
+        if not is_extended and message.frame_id > 0x7FF:
+            return False, "Cannot switch to standard frame: frame ID exceeds 11 bits (0x7FF)"
+            
+        # Update the extended frame flag
+        message.is_extended_frame = is_extended
         return True, "" 

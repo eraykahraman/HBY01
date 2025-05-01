@@ -312,4 +312,38 @@ class EditController:
             # Update the database in DBC_IO_Handler
             self.handler.update_database()
             
+        return success, error
+
+    def edit_message_frame_id(self, message_name: str, new_frame_id: int) -> tuple[bool, str]:
+        """
+        Edit the frame ID of a message.
+        Returns (success, error_message)
+        """
+        if not self.edit_handler:
+            return False, "Edit handler not initialized"
+            
+        # Delegate to EditHandler
+        success, error = self.edit_handler.edit_message_frame_id(message_name, new_frame_id)
+        
+        if success:
+            # Update the database in DBC_IO_Handler
+            self.handler.update_database()
+            
+        return success, error
+
+    def edit_message_is_extended_frame(self, message_name: str, is_extended: bool) -> tuple[bool, str]:
+        """
+        Edit whether a message uses extended frame format.
+        Returns (success, error_message)
+        """
+        if not self.edit_handler:
+            return False, "Edit handler not initialized"
+            
+        # Delegate to EditHandler
+        success, error = self.edit_handler.edit_message_is_extended_frame(message_name, is_extended)
+        
+        if success:
+            # Update the database in DBC_IO_Handler
+            self.handler.update_database()
+            
         return success, error 

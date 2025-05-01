@@ -437,6 +437,8 @@ class MessageDetailView(QDialog):
         
         # Connect edit signals
         edit_dialog.name_edited.connect(self.handle_name_edited)
+        edit_dialog.frame_id_edited.connect(self.handle_frame_id_edited)
+        edit_dialog.extended_frame_edited.connect(self.handle_extended_frame_edited)
         edit_dialog.message_deleted.connect(self.handle_message_deleted)
         
         edit_dialog.exec_()
@@ -461,6 +463,65 @@ class MessageDetailView(QDialog):
         self.message_data['name'] = new_name
         self.message_name_label.setText(new_name)
         self.setWindowTitle(f"Message Details: {new_name}")
+        
+        # Emit signal with old and new message data
+        self.handle_message_edited(old_message, self.message_data)
+
+    def handle_frame_id_edited(self, new_frame_id: int):
+        """Handle when frame ID is edited"""
+        if new_frame_id == self.message_data['frame_id']:
+            return  # No change
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+        
+        old_message = self.message_data.copy()
+        success, error = self.handler.edit_controller.edit_message_frame_id(
+            self.message_data['name'],
+            new_frame_id
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data and UI
+        self.message_data['frame_id'] = new_frame_id
+        self.setWindowTitle(f"Message Details: {self.message_data['name']}")
+        
+        # Update frame ID in header
+        for i in range(self.layout().count()):
+            item = self.layout().itemAt(i)
+            if isinstance(item.widget(), QFrame):  # Header frame
+                header_layout = item.widget().layout()
+                for j in range(header_layout.count()):
+                    widget = header_layout.itemAt(j).widget()
+                    if isinstance(widget, QLabel) and "ID:" in widget.text():
+                        widget.setText(f"ID: 0x{new_frame_id:X}")
+                        break
+                break
+        
+        # Emit signal with old and new message data
+        self.handle_message_edited(old_message, self.message_data)
+
+    def handle_extended_frame_edited(self, is_extended: bool):
+        """Handle when extended frame flag is edited"""
+        if is_extended == self.message_data.get('is_extended_frame', False):
+            return  # No change
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+        
+        old_message = self.message_data.copy()
+        success, error = self.handler.edit_controller.edit_message_is_extended_frame(
+            self.message_data['name'],
+            is_extended
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data
+        self.message_data['is_extended_frame'] = is_extended
         
         # Emit signal with old and new message data
         self.handle_message_edited(old_message, self.message_data)
