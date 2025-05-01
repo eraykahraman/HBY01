@@ -25,6 +25,10 @@ class DBCModel(QObject):
             duplicate_messages = {}  # { message_name: [frame_id] }
             
             for message in db.messages:
+                # Set extended frame flag based on frame ID
+                if message.frame_id > 0x7FF:  # If ID is more than 11 bits
+                    message.is_extended_frame = True
+                
                 if message.name in message_names:
                     if message.name not in duplicate_messages:
                         duplicate_messages[message.name] = message_names[message.name].copy()

@@ -659,7 +659,7 @@ class DBCDisplayView(QWidget):
                 senders = [senders]
             elif not isinstance(senders, list):
                 senders = []
-            senders_text = ', '.join(filter(None, senders))  # Filter out empty strings
+            senders_text = ', '.join(filter(None, senders))
             
             # Create items for each column in the correct order
             items = [
@@ -667,9 +667,9 @@ class DBCDisplayView(QWidget):
                 frame_id_item,                # ID
                 length_item,                  # Length
                 signals_count_item,           # Signals Count
-                create_bool_item(msg.get('is_extended', False)),  # Extended
+                create_bool_item(msg.get('is_extended_frame', False)),  # Extended - Fixed key name
                 create_text_item(senders_text),  # Senders
-                create_bool_item(msg.get('is_can_fd', False)),  # CAN FD
+                create_bool_item(msg.get('is_fd', False)),  # CAN FD
                 create_text_item(msg.get('bus', '')),  # Bus
                 create_numeric_item(msg.get('cycle_time', '')),  # Cycle Time
                 create_text_item(msg.get('send_type', '')),  # Send Type
