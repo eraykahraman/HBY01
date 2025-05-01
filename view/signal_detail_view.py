@@ -397,6 +397,7 @@ class SignalDetailView(QDialog):
         edit_dialog.is_multiplexer_edited.connect(self.handle_is_multiplexer_edited)
         edit_dialog.multiplexer_id_edited.connect(self.handle_multiplexer_id_edited)
         edit_dialog.choices_edited.connect(self.handle_choices_edited)
+        edit_dialog.signal_deleted.connect(self.handle_signal_deleted)
         
         edit_dialog.exec_()
 
@@ -793,6 +794,20 @@ class SignalDetailView(QDialog):
         
         # Emit signal with old and new signal data
         self.signal_edited.emit(old_signal, self.signal_data)
+
+    def handle_signal_deleted(self, message_name: str, signal_name: str):
+        """Handle signal deletion"""
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for deletion.")
+            return
+            
+        success, error = self.handler.edit_controller.delete_signal(message_name, signal_name)
+        if not success:
+            QMessageBox.critical(self, "Delete Error", error)
+            return
+            
+        # Close the dialog since the signal no longer exists
+        self.accept()
 
     def find_handler(self):
         # Traverse parent chain to find handler (assumes parent is MessageDetailView or similar)

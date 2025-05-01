@@ -22,6 +22,7 @@ class SignalEditDialog(QDialog):
     is_multiplexer_edited = pyqtSignal(bool)
     multiplexer_id_edited = pyqtSignal(object)  # Changed to object to allow None
     choices_edited = pyqtSignal(dict)  # New signal for value table edits
+    signal_deleted = pyqtSignal(str, str)  # message_name, signal_name
 
     def __init__(self, current_name, current_length, current_start_bit, signal_data, handler, parent=None):
         super().__init__(parent)
@@ -210,6 +211,15 @@ class SignalEditDialog(QDialog):
 
         # Buttons
         button_layout = QHBoxLayout()
+        
+        # Add delete button
+        delete_button = QPushButton("Delete Signal")
+        delete_button.setStyleSheet("background-color: #ff6b6b; color: white;")
+        delete_button.clicked.connect(self.delete_signal)
+        button_layout.addWidget(delete_button)
+        
+        button_layout.addStretch()
+        
         ok_button = QPushButton("OK")
         ok_button.clicked.connect(self.validate_and_accept)
         cancel_button = QPushButton("Cancel")
@@ -506,4 +516,18 @@ class SignalEditDialog(QDialog):
         if new_choices != current_choices:
             self.choices_edited.emit(new_choices)
 
-        self.accept() 
+        self.accept()
+
+    def delete_signal(self):
+        """Handle signal deletion"""
+        reply = QMessageBox.question(
+            self,
+            "Delete Signal",
+            f"Are you sure you want to delete signal '{self.current_name}'?\nThis action cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            self.signal_deleted.emit(self.signal_data['message_name'], self.current_name)
+            self.accept() 

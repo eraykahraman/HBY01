@@ -398,6 +398,31 @@ class EditHandler:
                 return False, f"Signal '{signal_name}' not found in message '{message_name}'."
         return False, f"Message '{message_name}' not found."
 
+    def delete_signal(self, message_name: str, signal_name: str) -> tuple[bool, str]:
+        """
+        Delete a signal from a message.
+        Args:
+            message_name: Name of the message containing the signal
+            signal_name: Name of the signal to delete
+            
+        Returns:
+            tuple[bool, str]: (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                # Find and remove the signal
+                for i, signal in enumerate(msg.signals):
+                    if signal.name == signal_name:
+                        # Remove the signal
+                        del msg.signals[i]
+                        return True, ""
+                return False, f"Signal '{signal_name}' not found in message '{message_name}'."
+        return False, f"Message '{message_name}' not found."
+
     def get_diff(self) -> Dict[str, Any]:
         """
         Get the differences between the original and edited database
