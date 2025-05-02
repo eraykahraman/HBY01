@@ -582,4 +582,40 @@ class EditHandler:
             
         # Update the extended frame flag
         message.is_extended_frame = is_extended
-        return True, "" 
+        return True, ""
+
+    def edit_message_senders(self, message_name: str, new_senders: list) -> tuple[bool, str]:
+        """
+        Edit the senders of a message.
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message
+        message = None
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                message = msg
+                break
+                
+        if not message:
+            return False, f"Message '{message_name}' not found."
+            
+        # Validate that all senders exist as nodes
+        existing_nodes = {node.name: node for node in self.database.nodes}
+        invalid_senders = [s for s in new_senders if s not in existing_nodes]
+        if invalid_senders:
+            return False, f"Invalid sender nodes: {', '.join(invalid_senders)}"
+            
+        try:
+            # Set the senders attribute directly (preferred for cantools)
+            message.senders = [str(name) for name in new_senders]
+            return True, ""
+        except Exception:
+            # Fallback: try to set the internal _senders attribute
+            try:
+                message._senders = [str(name) for name in new_senders]
+                return True, ""
+            except Exception as e:
+                return False, f"Error updating senders: {str(e)}" 

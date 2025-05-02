@@ -1,5 +1,6 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
-                            QPushButton, QMessageBox, QFormLayout, QCheckBox, QComboBox)
+                            QPushButton, QMessageBox, QFormLayout, QCheckBox, QComboBox,
+                            QListWidget, QListWidgetItem)
 from PyQt5.QtCore import pyqtSignal, Qt
 
 class MessageEditDialog(QDialog):
@@ -7,23 +8,25 @@ class MessageEditDialog(QDialog):
     frame_id_edited = pyqtSignal(int)
     extended_frame_edited = pyqtSignal(bool)
     message_deleted = pyqtSignal(str)  # message_name
+    senders_edited = pyqtSignal(list)  # new_senders
 
     def __init__(self, current_name, message_data, handler, parent=None):
         super().__init__(parent)
         self.current_name = current_name
         self.message_data = message_data
         self.handler = handler
+        self.available_nodes = [node['name'] for node in handler.get_nodes()] if handler else []
         
         # Priority ranges for extended frames
         self.priority_ranges = [
-            {"priority": "000 (0x0)", "range_start": 0x0000_0000, "range_end": 0x03FF_FFFF},
-            {"priority": "001 (0x1)", "range_start": 0x0400_0000, "range_end": 0x07FF_FFFF},
-            {"priority": "010 (0x2)", "range_start": 0x0800_0000, "range_end": 0x0BFF_FFFF},
-            {"priority": "011 (0x3)", "range_start": 0x0C00_0000, "range_end": 0x0FFF_FFFF},
-            {"priority": "100 (0x4)", "range_start": 0x1000_0000, "range_end": 0x13FF_FFFF},
-            {"priority": "101 (0x5)", "range_start": 0x1400_0000, "range_end": 0x17FF_FFFF},
-            {"priority": "110 (0x6)", "range_start": 0x1800_0000, "range_end": 0x1BFF_FFFF},
-            {"priority": "111 (0x7)", "range_start": 0x1C00_0000, "range_end": 0x1FFF_FFFF}
+            {"priority": "000 (0x0)", "range_start": 0x00000000, "range_end": 0x03FFFFFF},
+            {"priority": "001 (0x1)", "range_start": 0x04000000, "range_end": 0x07FFFFFF},
+            {"priority": "010 (0x2)", "range_start": 0x08000000, "range_end": 0x0BFFFFFF},
+            {"priority": "011 (0x3)", "range_start": 0x0C000000, "range_end": 0x0FFFFFFF},
+            {"priority": "100 (0x4)", "range_start": 0x10000000, "range_end": 0x13FFFFFF},
+            {"priority": "101 (0x5)", "range_start": 0x14000000, "range_end": 0x17FFFFFF},
+            {"priority": "110 (0x6)", "range_start": 0x18000000, "range_end": 0x18FFFFFF},
+            {"priority": "111 (0x7)", "range_start": 0x1C000000, "range_end": 0x1CFFFFFF},
         ]
         
         # Prevent dialog from accepting when Enter is pressed
@@ -107,6 +110,22 @@ class MessageEditDialog(QDialog):
         self.update_frame_id_display(current_frame_id)
         
         form_layout.addRow("Frame ID (hex):", frame_id_layout)
+
+        # Senders
+        senders_layout = QVBoxLayout()
+        self.senders_list = QListWidget()
+        self.senders_list.setSelectionMode(QListWidget.MultiSelection)
+        self.senders_list.setMaximumHeight(100)
+        
+        # Add all available nodes
+        for node in self.available_nodes:
+            item = QListWidgetItem(node)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked if node in self.message_data.get('senders', []) else Qt.Unchecked)
+            self.senders_list.addItem(item)
+            
+        senders_layout.addWidget(self.senders_list)
+        form_layout.addRow("Senders:", senders_layout)
 
         layout.addLayout(form_layout)
 
@@ -296,60 +315,69 @@ class MessageEditDialog(QDialog):
             # Handle both "0x123" and "123" formats
             frame_id_text = frame_id_text.lower().strip()
             if frame_id_text.startswith("0x"):
-                frame_id = int(frame_id_text[2:], 16)
-            else:
-                frame_id = int(frame_id_text, 16)
+                frame_id_text = frame_id_text[2:]
+            id_value = int(frame_id_text, 16)
         except ValueError:
             QMessageBox.warning(self, "Validation Error", "Invalid frame ID format. Please enter a valid hexadecimal number.")
             return
 
         # First handle extended frame changes
         if is_extended != self.message_data.get('is_extended_frame', False):
-            # If switching to extended frame, validate the frame ID
             if is_extended:
-                if frame_id > 0x1FFFFFFF:  # 29-bit max
-                    QMessageBox.warning(self, "Validation Error", 
-                                      "Extended frame ID cannot exceed 0x1FFFFFFF (29 bits).\n"
-                                      "Please enter a value between 0x0 and 0x1FFFFFFF.")
-                    return
-                
-                # Update priority bits based on selected priority
                 priority_range = self.priority_ranges[self.priority_combo.currentIndex()]
-                frame_id = (frame_id & 0x03FFFFFF) | (priority_range["range_start"] & 0x1C000000)
-                self.frame_id_edit.setText(f"0x{frame_id:08x}")
-                
-            else:
-                # If switching to standard frame, validate the frame ID
-                if frame_id > 0x7FF:  # 11-bit max
+                full_frame_id = priority_range["range_start"] | id_value
+                if full_frame_id > priority_range["range_end"]:
                     QMessageBox.warning(self, "Validation Error", 
-                                      "Cannot switch to standard frame: frame ID exceeds 11 bits (0x7FF).\n"
-                                      "Please reduce the frame ID or keep extended frame enabled.")
+                        f"Extended frame ID cannot exceed 0x{priority_range['range_end']:08X} (for this priority).\n"
+                        f"Please enter a value between 0x0 and 0x{priority_range['range_end'] - priority_range['range_start']:06X}.")
                     return
-            # Emit extended frame change signal
+                frame_id = full_frame_id
+                self.frame_id_edit.setText(f"{id_value:06x}")
+            else:
+                if id_value > 0x7FF:  # 11-bit max
+                    QMessageBox.warning(self, "Validation Error", 
+                        "Cannot switch to standard frame: frame ID exceeds 11 bits (0x7FF).\n"
+                        "Please reduce the frame ID or keep extended frame enabled.")
+                    return
             self.extended_frame_edited.emit(is_extended)
 
         # Then validate frame ID based on current extended frame status
         if is_extended:
-            if frame_id > 0x1FFFFFFF:  # 29-bit max
-                QMessageBox.warning(self, "Validation Error", 
-                                  "Extended frame ID cannot exceed 0x1FFFFFFF (29 bits).\n"
-                                  "Please enter a value between 0x0 and 0x1FFFFFFF.")
-                return
-                
-            # Validate priority bits match selected priority
             priority_range = self.priority_ranges[self.priority_combo.currentIndex()]
-            if frame_id < priority_range["range_start"] or frame_id > priority_range["range_end"]:
-                QMessageBox.warning(self, "Validation Error",
-                                  f"Frame ID does not match selected priority.\n"
-                                  f"For priority {priority_range['priority']}, ID must be between "
-                                  f"0x{priority_range['range_start']:08X} and 0x{priority_range['range_end']:08X}")
-                return
-        else:
-            if frame_id > 0x7FF:  # 11-bit max
+            full_frame_id = priority_range["range_start"] | id_value
+            if full_frame_id < priority_range["range_start"] or full_frame_id > priority_range["range_end"]:
                 QMessageBox.warning(self, "Validation Error", 
-                                  "Standard frame ID cannot exceed 0x7FF (11 bits).\n"
-                                  "Please enter a value between 0x0 and 0x7FF or enable extended frame.")
+                    f"Frame ID does not match selected priority.\n"
+                    f"For priority {priority_range['priority']}, ID must be between "
+                    f"0x{priority_range['range_start']:08X} and 0x{priority_range['range_end']:08X}")
                 return
+            frame_id = full_frame_id
+        else:
+            if id_value > 0x7FF:  # 11-bit max
+                QMessageBox.warning(self, "Validation Error", 
+                    "Standard frame ID cannot exceed 0x7FF (11 bits).\n"
+                    "Please enter a value between 0x0 and 0x7FF or enable extended frame.")
+                return
+            frame_id = id_value
+
+        # Get selected senders
+        selected_senders = []
+        for i in range(self.senders_list.count()):
+            item = self.senders_list.item(i)
+            if item.checkState() == Qt.Checked:
+                selected_senders.append(item.text())
+
+        # Enforce sender selection rules
+        if not selected_senders:
+            QMessageBox.warning(self, "Validation Error", "Please select at least one sender.")
+            return
+        if len(selected_senders) > 1:
+            QMessageBox.warning(self, "Validation Error", "Please select only one sender.")
+            return
+
+        # Emit senders signal if changed
+        if set(selected_senders) != set(self.message_data.get('senders', [])):
+            self.senders_edited.emit(selected_senders)
 
         # Emit remaining signals
         if new_name != self.current_name:

@@ -440,6 +440,7 @@ class MessageDetailView(QDialog):
         edit_dialog.frame_id_edited.connect(self.handle_frame_id_edited)
         edit_dialog.extended_frame_edited.connect(self.handle_extended_frame_edited)
         edit_dialog.message_deleted.connect(self.handle_message_deleted)
+        edit_dialog.senders_edited.connect(self.handle_senders_edited)
         
         edit_dialog.exec_()
 
@@ -543,6 +544,27 @@ class MessageDetailView(QDialog):
             
         # Close the dialog since the message no longer exists
         self.accept()
+
+    def handle_senders_edited(self, new_senders: list):
+        """Handle when senders are edited"""
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+            
+        old_message = self.message_data.copy()
+        success, error = self.handler.edit_controller.edit_message_senders(
+            self.message_data['name'],
+            new_senders
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data
+        self.message_data['senders'] = new_senders
+        
+        # Emit signal with old and new message data
+        self.handle_message_edited(old_message, self.message_data)
 
     def handle_message_edited(self, old_message: dict, new_message: dict):
         """Handle when message is edited and OK is clicked"""
