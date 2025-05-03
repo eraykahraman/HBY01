@@ -276,12 +276,23 @@ class DBC_IO_Handler(QObject):
                 - is_extended_frame (bool): Whether the message uses extended frame format
                 - is_fd (bool): Whether the message uses CAN FD format
                 - bus_name (Optional[str]): Name of the bus the message belongs to
+                - send_type_choices (Optional[Dict[int, str]]): Available choices for send_type
         """
         if not self.is_valid():
             return []
             
         messages = []
         try:
+            # Extract send type choices if available
+            send_type_choices = None
+            if hasattr(self.database, 'dbc') and hasattr(self.database.dbc, 'attribute_definitions'):
+                send_type_def = self.database.dbc.attribute_definitions.get('GenMsgSendType')
+                if send_type_def and hasattr(send_type_def, 'choices'):
+                    send_type_choices = send_type_def.choices
+                    print("Send Type Enum Values:")
+                    for value in send_type_def.choices:
+                        print(f"- {value}")
+            
             for msg in self.database.messages:
                 # Check if message has all required attributes
                 if not hasattr(msg, 'name'):
@@ -341,7 +352,8 @@ class DBC_IO_Handler(QObject):
                     "cycle_time": getattr(msg, 'cycle_time', None),
                     "is_extended_frame": getattr(msg, 'is_extended_frame', False),
                     "is_fd": getattr(msg, 'is_fd', False),
-                    "bus_name": getattr(msg, 'bus_name', None)
+                    "bus_name": getattr(msg, 'bus_name', None),
+                    "send_type_choices": send_type_choices
                 }
                 messages.append(message_info)
         except Exception as e:
