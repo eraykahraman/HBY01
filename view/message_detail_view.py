@@ -167,16 +167,27 @@ class MessageDetailView(QDialog):
             
             # Timing Information
             ("Timing Information", None),  # Header
-            ("Send Type", format_value(self.message_data.get('send_type'))),
-            ("Cycle Time", f"{self.message_data.get('cycle_time')} ms" if self.message_data.get('cycle_time') is not None else "Not specified"),
+        ]
+        
+        # Add Send Type if it exists, otherwise show N/A
+        send_type = self.message_data.get('send_type')
+        if send_type:
+            properties.append(("Send Type", format_value(send_type)))
+        else:
+            properties.append(("Send Type", "N/A"))
             
-            # Add available send types if they exist
-            ("Available Send Types", self.format_send_type_choices()) if self.message_data.get('send_type_choices') else None,
+        # Add Cycle Time
+        properties.append(("Cycle Time", f"{self.message_data.get('cycle_time')} ms" if self.message_data.get('cycle_time') is not None else "Not specified"))
+        
+        # Add available send types only if they exist
+        if self.message_data.get('send_type_choices'):
+            properties.append(("Available Send Types", self.format_send_type_choices()))
             
-            # Multiplexing
+        # Multiplexing
+        properties.extend([
             ("Multiplexing", None),  # Header
             ("Is Multiplexed", format_value(is_multiplexed)),
-        ]
+        ])
         
         # J1939 Properties
         properties.extend([
@@ -218,6 +229,9 @@ class MessageDetailView(QDialog):
                 properties.append((f"Contained Message {i+1}", f"{contained_msg['name']} (ID: 0x{contained_msg['frame_id']:X}, Length: {contained_msg['length']} bytes)"))
         else:
             properties.append(("Contained Messages", "None"))
+        
+        # Filter out any None entries that might have been conditionally added
+        properties = [prop for prop in properties if prop is not None]
         
         # Set table rows
         table.setRowCount(len(properties))

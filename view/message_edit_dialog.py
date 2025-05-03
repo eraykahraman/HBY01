@@ -131,28 +131,25 @@ class MessageEditDialog(QDialog):
         # Send Type
         self.send_type_combo = QComboBox()
         
-        # Default send types if not specified in message data
-        default_send_types = ["CYCLIC", "SPONTANEOUS", "CYCLIC_IF_ACTIVE", "NONE", "TRIGGERED"]
-        
-        # Use send_type_choices from message data if available
-        send_type_choices = self.message_data.get('send_type_choices', default_send_types)
-        
-        # Add items to combo box
-        if isinstance(send_type_choices, dict):
-            # If it's a dictionary, add all values
-            for value in send_type_choices.values():
-                self.send_type_combo.addItem(str(value))
-        elif isinstance(send_type_choices, list):
-            # If it's a list, add all items
-            for value in send_type_choices:
-                self.send_type_combo.addItem(str(value))
-        else:
-            # Use default send types
-            for value in default_send_types:
-                self.send_type_combo.addItem(value)
-        
-        # Set current value if it exists
+        # Get send type choices from message data if available
+        send_type_choices = self.message_data.get('send_type_choices')
         current_send_type = self.message_data.get('send_type')
+        
+        if send_type_choices:
+            # Add items to combo box from defined choices
+            if isinstance(send_type_choices, dict):
+                # If it's a dictionary, add all values
+                for value in send_type_choices.values():
+                    self.send_type_combo.addItem(str(value))
+            elif isinstance(send_type_choices, list):
+                # If it's a list, add all items
+                for value in send_type_choices:
+                    self.send_type_combo.addItem(str(value))
+        elif current_send_type:
+            # If no choices but we have a current send type, just add the current one
+            self.send_type_combo.addItem(str(current_send_type))
+            
+        # Set current value if it exists
         if current_send_type:
             index = self.send_type_combo.findText(current_send_type)
             if index >= 0:
