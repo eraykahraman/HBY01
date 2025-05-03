@@ -170,6 +170,9 @@ class MessageDetailView(QDialog):
             ("Send Type", format_value(self.message_data.get('send_type'))),
             ("Cycle Time", f"{self.message_data.get('cycle_time')} ms" if self.message_data.get('cycle_time') is not None else "Not specified"),
             
+            # Add available send types if they exist
+            ("Available Send Types", self.format_send_type_choices()) if self.message_data.get('send_type_choices') else None,
+            
             # Multiplexing
             ("Multiplexing", None),  # Header
             ("Is Multiplexed", format_value(is_multiplexed)),
@@ -441,6 +444,7 @@ class MessageDetailView(QDialog):
         edit_dialog.extended_frame_edited.connect(self.handle_extended_frame_edited)
         edit_dialog.message_deleted.connect(self.handle_message_deleted)
         edit_dialog.senders_edited.connect(self.handle_senders_edited)
+        edit_dialog.send_type_edited.connect(self.handle_send_type_edited)
         
         edit_dialog.exec_()
 
@@ -566,6 +570,27 @@ class MessageDetailView(QDialog):
         # Emit signal with old and new message data
         self.handle_message_edited(old_message, self.message_data)
 
+    def handle_send_type_edited(self, new_send_type: str):
+        """Handle when send type is edited"""
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+            
+        old_message = self.message_data.copy()
+        success, error = self.handler.edit_controller.edit_message_send_type(
+            self.message_data['name'],
+            new_send_type
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data
+        self.message_data['send_type'] = new_send_type
+        
+        # Emit signal with old and new message data
+        self.handle_message_edited(old_message, self.message_data)
+
     def handle_message_edited(self, old_message: dict, new_message: dict):
         """Handle when message is edited and OK is clicked"""
         if self.handler and hasattr(self.handler, 'change_tracker'):
@@ -574,3 +599,20 @@ class MessageDetailView(QDialog):
                 new_message
             )
         self.message_edited.emit(old_message, new_message)
+
+    def format_send_type_choices(self):
+        """Format the send type choices for display in the details table"""
+        send_type_choices = self.message_data.get('send_type_choices')
+        if not send_type_choices:
+            return "Not specified"
+            
+        # Format based on data type
+        if isinstance(send_type_choices, dict):
+            # If it's a dictionary, format as "key: value"
+            return ", ".join([f"{k}: {v}" for k, v in send_type_choices.items()])
+        elif isinstance(send_type_choices, list):
+            # If it's a list, just join with commas
+            return ", ".join([str(v) for v in send_type_choices])
+        else:
+            # Otherwise, convert to string
+            return str(send_type_choices)

@@ -2,6 +2,8 @@ from typing import Optional, Dict, Any, List
 import cantools
 from cantools.database import Database
 from copy import deepcopy
+from cantools.database.can.attribute import Attribute
+from cantools.database.can.message import DbcSpecifics
 
 class EditHandler:
     def __init__(self, database: Database):
@@ -618,4 +620,98 @@ class EditHandler:
                 message._senders = [str(name) for name in new_senders]
                 return True, ""
             except Exception as e:
-                return False, f"Error updating senders: {str(e)}" 
+                return False, f"Error updating senders: {str(e)}"
+
+    def edit_message_send_type(self, message_name: str, new_send_type: str) -> tuple[bool, str]:
+        """
+        Edit the send type of a message.
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message
+        message = None
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                message = msg
+                break
+                
+        if not message:
+            return False, f"Message '{message_name}' not found."
+            
+        # Debug: Print initial state
+        print(f"[DEBUG] Editing send_type for message '{message_name}'")
+        print(f"[DEBUG] Current send_type: {getattr(message, 'send_type', None)}")
+        print(f"[DEBUG] Has message.dbc: {hasattr(message, 'dbc')}")
+        
+        try:
+            print(f"[DEBUG] Attempting to update to new send_type: {new_send_type}")
+            
+            # Make sure message.dbc is initialized
+            if not hasattr(message, 'dbc') or message.dbc is None:
+                print("[DEBUG] Creating new DbcSpecifics")
+                message.dbc = DbcSpecifics()
+                
+            # Make sure message.dbc.attributes is initialized
+            if not hasattr(message.dbc, 'attributes') or message.dbc.attributes is None:
+                print("[DEBUG] Creating new attributes dictionary")
+                message.dbc.attributes = {}
+                
+            # Check if the attribute definition exists
+            if hasattr(self.database, 'dbc') and hasattr(self.database.dbc, 'attribute_definitions'):
+                attribute_definitions = self.database.dbc.attribute_definitions
+                if 'GenMsgSendType' in attribute_definitions:
+                    # Get the attribute definition
+                    attribute_def = attribute_definitions['GenMsgSendType']
+                    
+                    # Set the attribute with the proper structure
+                    print(f"[DEBUG] Setting GenMsgSendType attribute to '{new_send_type}' with definition")
+                    message.dbc.attributes['GenMsgSendType'] = Attribute(
+                        name='GenMsgSendType',
+                        value=new_send_type,
+                        definition=attribute_def
+                    )
+                    
+                    # Also try to update _send_type internal attribute
+                    try:
+                        print("[DEBUG] Attempting to set _send_type attribute directly")
+                        object.__setattr__(message, '_send_type', new_send_type)
+                        print("[DEBUG] Direct _send_type setting succeeded")
+                    except Exception as e:
+                        print(f"[DEBUG] Direct _send_type setting failed: {str(e)}")
+                    
+                    # Check if the send_type property reflects the change
+                    print(f"[DEBUG] After update - send_type: {getattr(message, 'send_type', None)}")
+                    
+                    return True, ""
+                else:
+                    print("[DEBUG] No GenMsgSendType definition found in the database")
+                    # Try a simpler approach if no definition exists
+                    if hasattr(message.dbc, 'attributes'):
+                        message.dbc.attributes['GenMsgSendType'] = Attribute(
+                            name='GenMsgSendType',
+                            value=new_send_type,
+                            definition=None
+                        )
+                        print(f"[DEBUG] Added GenMsgSendType without definition")
+                        return True, ""
+                    return False, "GenMsgSendType definition not found in the database"
+            else:
+                print("[DEBUG] Database does not have attribute definitions")
+                # Try a simpler approach without definitions
+                if hasattr(message, 'dbc') and hasattr(message.dbc, 'attributes'):
+                    message.dbc.attributes['GenMsgSendType'] = Attribute(
+                        name='GenMsgSendType',
+                        value=new_send_type,
+                        definition=None
+                    )
+                    print(f"[DEBUG] Added GenMsgSendType without definition")
+                    return True, ""
+                return False, "Database does not have attribute definitions"
+                
+        except Exception as e:
+            print(f"[DEBUG] Exception while updating send_type: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False, f"Error updating send_type: {str(e)}" 

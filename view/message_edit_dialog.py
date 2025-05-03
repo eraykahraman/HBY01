@@ -9,6 +9,7 @@ class MessageEditDialog(QDialog):
     extended_frame_edited = pyqtSignal(bool)
     message_deleted = pyqtSignal(str)  # message_name
     senders_edited = pyqtSignal(list)  # new_senders
+    send_type_edited = pyqtSignal(str)  # new_send_type
 
     def __init__(self, current_name, message_data, handler, parent=None):
         super().__init__(parent)
@@ -126,6 +127,42 @@ class MessageEditDialog(QDialog):
             
         senders_layout.addWidget(self.senders_list)
         form_layout.addRow("Senders:", senders_layout)
+
+        # Send Type
+        self.send_type_combo = QComboBox()
+        
+        # Default send types if not specified in message data
+        default_send_types = ["CYCLIC", "SPONTANEOUS", "CYCLIC_IF_ACTIVE", "NONE", "TRIGGERED"]
+        
+        # Use send_type_choices from message data if available
+        send_type_choices = self.message_data.get('send_type_choices', default_send_types)
+        
+        # Add items to combo box
+        if isinstance(send_type_choices, dict):
+            # If it's a dictionary, add all values
+            for value in send_type_choices.values():
+                self.send_type_combo.addItem(str(value))
+        elif isinstance(send_type_choices, list):
+            # If it's a list, add all items
+            for value in send_type_choices:
+                self.send_type_combo.addItem(str(value))
+        else:
+            # Use default send types
+            for value in default_send_types:
+                self.send_type_combo.addItem(value)
+        
+        # Set current value if it exists
+        current_send_type = self.message_data.get('send_type')
+        if current_send_type:
+            index = self.send_type_combo.findText(current_send_type)
+            if index >= 0:
+                self.send_type_combo.setCurrentIndex(index)
+            else:
+                # If not in list, add it
+                self.send_type_combo.addItem(current_send_type)
+                self.send_type_combo.setCurrentText(current_send_type)
+                
+        form_layout.addRow("Send Type:", self.send_type_combo)
 
         layout.addLayout(form_layout)
 
@@ -374,6 +411,13 @@ class MessageEditDialog(QDialog):
         if len(selected_senders) > 1:
             QMessageBox.warning(self, "Validation Error", "Please select only one sender.")
             return
+
+        # Get the selected send type
+        new_send_type = self.send_type_combo.currentText()
+        
+        # Emit send_type_edited signal if changed
+        if new_send_type != self.message_data.get('send_type', ""):
+            self.send_type_edited.emit(new_send_type)
 
         # Emit senders signal if changed
         if set(selected_senders) != set(self.message_data.get('senders', [])):
