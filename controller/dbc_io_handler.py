@@ -286,6 +286,7 @@ class DBC_IO_Handler(QObject):
             # Extract send type choices if available
             send_type_choices = None
             frame_format_choices = None
+            default_frame_format = None
             if hasattr(self.database, 'dbc') and hasattr(self.database.dbc, 'attribute_definitions'):
                 # Extract send type choices
                 send_type_def = self.database.dbc.attribute_definitions.get('GenMsgSendType')
@@ -295,13 +296,52 @@ class DBC_IO_Handler(QObject):
                     for value in send_type_def.choices:
                         print(f"- {value}")
                 
-                # Extract frame format choices
+                # Extract frame format choices and default
                 frame_format_def = self.database.dbc.attribute_definitions.get('VFrameFormat')
-                if frame_format_def and hasattr(frame_format_def, 'choices'):
-                    frame_format_choices = frame_format_def.choices
-                    print("Frame Format Enum Values:")
-                    for value in frame_format_def.choices:
-                        print(f"- {value}")
+                if frame_format_def:
+                    if hasattr(frame_format_def, 'choices'):
+                        frame_format_choices = frame_format_def.choices
+                        print("Frame Format Enum Values:")
+                        for value in frame_format_def.choices:
+                            print(f"- {value}")
+                    
+                    # Get default frame format
+                    if hasattr(frame_format_def, 'default_value'):
+                        default_value = frame_format_def.default_value
+                        print(f"Raw default frame format value: {default_value}, type: {type(default_value)}")
+                        print(f"Frame format choices type: {type(frame_format_choices)}")
+                        if isinstance(frame_format_choices, list):
+                            print(f"Frame format choices list: {frame_format_choices}")
+                        elif isinstance(frame_format_choices, dict):
+                            print(f"Frame format choices dict: {frame_format_choices}")
+                            
+                        if frame_format_choices:
+                            # Try to convert string to int if it represents a number
+                            try:
+                                default_value_int = int(default_value)
+                                print(f"Converted default value '{default_value}' to int: {default_value_int}")
+                                default_value = default_value_int
+                            except (ValueError, TypeError):
+                                print(f"Could not convert default value '{default_value}' to int")
+                                
+                            if isinstance(frame_format_choices, list) and isinstance(default_value, int):
+                                if 0 <= default_value < len(frame_format_choices):
+                                    default_frame_format = frame_format_choices[default_value]
+                                    print(f"Resolved default frame format from list: {default_frame_format}")
+                            elif isinstance(frame_format_choices, list) and default_value == "0":
+                                # Special case for "0" string with list choices
+                                default_frame_format = frame_format_choices[0]
+                                print(f"Resolved default frame format from list using string '0': {default_frame_format}")
+                            elif isinstance(frame_format_choices, dict) and default_value in frame_format_choices:
+                                default_frame_format = frame_format_choices[default_value]
+                                print(f"Resolved default frame format from dict: {default_frame_format}")
+                            else:
+                                default_frame_format = str(default_value)
+                                print(f"Using default value as string: {default_frame_format}")
+                        else:
+                            default_frame_format = str(default_value)
+                            print(f"No choices available, using default value as string: {default_frame_format}")
+                        print(f"Final default frame format: {default_frame_format}")
             
             for msg in self.database.messages:
                 # Check if message has all required attributes
@@ -365,30 +405,50 @@ class DBC_IO_Handler(QObject):
                     "bus_name": getattr(msg, 'bus_name', None),
                     "send_type_choices": send_type_choices,
                     "frame_format_choices": frame_format_choices
+                    # frame_format will be set below
                 }
                 
                 # Extract frame format attribute if it exists in message.dbc.attributes
+                has_frame_format = False
                 if hasattr(msg, 'dbc') and hasattr(msg.dbc, 'attributes'):
                     if 'VFrameFormat' in msg.dbc.attributes:
+                        has_frame_format = True
                         frame_format_attr = msg.dbc.attributes['VFrameFormat']
                         if hasattr(frame_format_attr, 'value') and frame_format_choices:
                             # If it's an index into choices list
                             if isinstance(frame_format_choices, list) and isinstance(frame_format_attr.value, int):
                                 if 0 <= frame_format_attr.value < len(frame_format_choices):
                                     message_info['frame_format'] = frame_format_choices[frame_format_attr.value]
+                                    print(f"Applied specific frame format '{message_info['frame_format']}' to message '{msg.name}' (from attribute)")
                             # If it's a key into choices dict
                             elif isinstance(frame_format_choices, dict) and frame_format_attr.value in frame_format_choices:
                                 message_info['frame_format'] = frame_format_choices[frame_format_attr.value]
+                                print(f"Applied specific frame format '{message_info['frame_format']}' to message '{msg.name}' (from attribute)")
                             else:
-                                message_info['frame_format'] = str(frame_format_attr.value)
+                                message_info['frame_format'] = str(frame_format_attr)
+                                print(f"Applied specific frame format '{message_info['frame_format']}' to message '{msg.name}' (as string)")
                         else:
                             message_info['frame_format'] = str(frame_format_attr)
-                
+                            print(f"Applied specific frame format '{message_info['frame_format']}' to message '{msg.name}' (as string)")
+                    elif default_frame_format is not None:
+                        # Apply default frame format only if not explicitly set
+                        message_info['frame_format'] = default_frame_format
+                        print(f"Applied default frame format '{default_frame_format}' to message '{msg.name}'")
+                elif default_frame_format is not None:
+                    # Still apply default if msg doesn't have dbc attributes at all
+                    message_info['frame_format'] = default_frame_format
+                    print(f"Applied default frame format '{default_frame_format}' to message '{msg.name}' (no dbc attributes)")
+                    
                 messages.append(message_info)
         except Exception as e:
             print(f"Error parsing message: {str(e)}")
             # Return empty list on error
             return []
+            
+        # Debug: Print all message frame formats
+        print("Message Frame Formats:")
+        for msg in messages:
+            print(f"Message: {msg['name']}, Frame Format: {msg.get('frame_format', 'None')}")
             
         return messages
 
