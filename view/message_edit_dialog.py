@@ -9,6 +9,7 @@ class MessageEditDialog(QDialog):
     extended_frame_edited = pyqtSignal(bool)
     message_deleted = pyqtSignal(str)  # message_name
     senders_edited = pyqtSignal(list)  # new_senders
+    receivers_edited = pyqtSignal(list)  # new_receivers - nodes to add to ALL signals
     send_type_edited = pyqtSignal(str)  # new_send_type
     frame_format_edited = pyqtSignal(str)  # new_frame_format
     cycle_time_edited = pyqtSignal(object)  # new_cycle_time (int or None)
@@ -19,6 +20,12 @@ class MessageEditDialog(QDialog):
         self.message_data = message_data
         self.handler = handler
         self.available_nodes = [node['name'] for node in handler.get_nodes()] if handler else []
+        
+        # Get current receivers from all signals
+        self.current_receivers = set()
+        for signal in self.message_data.get('signals', []):
+            if 'receivers' in signal and signal['receivers']:
+                self.current_receivers.update(signal['receivers'])
         
         # Priority ranges for extended frames
         self.priority_ranges = [
@@ -129,6 +136,32 @@ class MessageEditDialog(QDialog):
             
         senders_layout.addWidget(self.senders_list)
         form_layout.addRow("Senders:", senders_layout)
+        
+        # Receivers
+        receivers_layout = QVBoxLayout()
+        receivers_label = QLabel("Select nodes that will be receivers for ALL signals in this message:")
+        receivers_label.setWordWrap(True)
+        receivers_layout.addWidget(receivers_label)
+        
+        help_label = QLabel("Note: Unchecked nodes will be REMOVED from all signals' receivers lists.")
+        help_label.setWordWrap(True)
+        help_label.setStyleSheet("color: #d32f2f;")
+        receivers_layout.addWidget(help_label)
+        
+        self.receivers_list = QListWidget()
+        self.receivers_list.setSelectionMode(QListWidget.MultiSelection)
+        self.receivers_list.setMaximumHeight(150)
+        
+        # Add all available nodes
+        for node in self.available_nodes:
+            item = QListWidgetItem(node)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            # Check if this node is a receiver for any signal in the message
+            item.setCheckState(Qt.Checked if node in self.current_receivers else Qt.Unchecked)
+            self.receivers_list.addItem(item)
+            
+        receivers_layout.addWidget(self.receivers_list)
+        form_layout.addRow("Receivers:", receivers_layout)
 
         # Send Type
         self.send_type_combo = QComboBox()
@@ -453,6 +486,13 @@ class MessageEditDialog(QDialog):
         if len(selected_senders) > 1:
             QMessageBox.warning(self, "Validation Error", "Please select only one sender.")
             return
+            
+        # Get selected receivers
+        selected_receivers = []
+        for i in range(self.receivers_list.count()):
+            item = self.receivers_list.item(i)
+            if item.checkState() == Qt.Checked:
+                selected_receivers.append(item.text())
 
         # Get the selected send type
         new_send_type = self.send_type_combo.currentText()
@@ -488,6 +528,10 @@ class MessageEditDialog(QDialog):
         current_cycle_time = self.message_data.get('cycle_time')
         if new_cycle_time != current_cycle_time:
             self.cycle_time_edited.emit(new_cycle_time)
+
+        # Emit receivers_edited signal if receivers changed
+        if set(selected_receivers) != self.current_receivers:
+            self.receivers_edited.emit(selected_receivers)
 
         # Emit senders signal if changed
         if set(selected_senders) != set(self.message_data.get('senders', [])):

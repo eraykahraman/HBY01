@@ -474,6 +474,7 @@ class MessageDetailView(QDialog):
         edit_dialog.send_type_edited.connect(self.handle_send_type_edited)
         edit_dialog.frame_format_edited.connect(self.handle_frame_format_edited)
         edit_dialog.cycle_time_edited.connect(self.handle_cycle_time_edited)
+        edit_dialog.receivers_edited.connect(self.handle_receivers_edited)
         
         edit_dialog.exec_()
 
@@ -665,6 +666,91 @@ class MessageDetailView(QDialog):
         
         # Emit signal with old and new message data
         self.handle_message_edited(old_message, self.message_data)
+
+    def handle_receivers_edited(self, new_receivers: list):
+        """Handle when receivers are edited (nodes to add to all signals)"""
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+            
+        old_message = self.message_data.copy()
+        
+        # Track success across all signals
+        all_success = True
+        last_error = ""
+        updated_signal_count = 0
+        
+        # Track receiver changes for each signal
+        signal_updates = []
+        
+        # Get the set of all available nodes from the handler
+        available_nodes = set(node['name'] for node in self.handler.get_nodes())
+        
+        # Convert new_receivers to a set for faster lookups
+        new_receivers_set = set(new_receivers)
+        
+        # For each signal in the message, update its receivers
+        for signal in self.message_data.get('signals', []):
+            signal_name = signal['name']
+            
+            # Get current receivers for this signal
+            current_receivers = set(signal.get('receivers', []))
+            
+            # Add receivers that are in new_receivers but not in current_receivers
+            # Remove receivers that are not in new_receivers but are in current_receivers
+            target_receivers = []
+            for node in available_nodes:
+                # If node is in new_receivers, include it
+                # If node is not in new_receivers, exclude it
+                if node in new_receivers_set:
+                    target_receivers.append(node)
+                    
+            # Only update if there are changes
+            if set(target_receivers) != current_receivers:
+                # Track the change for this signal (before updating it)
+                signal_updates.append({
+                    'signal_name': signal_name,
+                    'old_receivers': list(current_receivers),
+                    'new_receivers': target_receivers
+                })
+                
+                success, error = self.handler.edit_controller.edit_signal_receivers(
+                    self.message_data['name'],
+                    signal_name,
+                    target_receivers
+                )
+                
+                if not success:
+                    all_success = False
+                    last_error = error
+                else:
+                    # Update local data for the signal
+                    for s in self.message_data['signals']:
+                        if s['name'] == signal_name:
+                            s['receivers'] = target_receivers
+                            updated_signal_count += 1
+                            break
+        
+        if not all_success:
+            QMessageBox.warning(self, "Edit Warning", 
+                f"Not all signals could be updated: {last_error}\n"
+                f"Successfully updated {updated_signal_count} of {len(self.message_data['signals'])} signals.")
+        elif updated_signal_count > 0:
+            # Track changes using the specialized method for signal receivers
+            if self.handler and hasattr(self.handler, 'change_tracker'):
+                self.handler.change_tracker.add_signal_receivers_change(
+                    self.message_data['name'],
+                    signal_updates
+                )
+                
+            # Still emit the signal to notify about updates
+            self.message_edited.emit(old_message, self.message_data)
+        
+        # Refresh all tabs to show updated receivers
+        parent = self.parent()
+        if parent and hasattr(parent, 'update_messages_table'):
+            # Force refresh of any tables showing this message
+            parent.update_messages_table(self.handler.get_messages())
 
     def handle_message_edited(self, old_message: dict, new_message: dict):
         """Handle when message is edited and OK is clicked"""

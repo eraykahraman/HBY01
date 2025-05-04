@@ -1,7 +1,8 @@
-from PyQt5.QtWidgets import QFileDialog, QMessageBox
+from PyQt5.QtWidgets import QFileDialog, QMessageBox, QDialog
 from PyQt5.QtCore import QObject, pyqtSignal
 from model.dbc_model import DBCModel
 from .dbc_io_handler import DBC_IO_Handler
+from view.changes_summary_dialog import ChangesSummaryDialog
 
 class DBC_IO_Controller(QObject):
     # Signals for notifying the view of changes
@@ -61,19 +62,12 @@ class DBC_IO_Controller(QObject):
         if handler.has_changes():
             changes_summary = handler.get_changes_summary()
             
-            # Create custom message box with export button
-            msg_box = QMessageBox(parent_window)
-            msg_box.setWindowTitle("Changes Summary")
-            msg_box.setText(f"The following changes have been made:\n\n{changes_summary}\n\nDo you want to proceed with the export?")
-            msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            # Use our custom dialog instead of QMessageBox
+            dialog = ChangesSummaryDialog(changes_summary, parent_window)
+            result = dialog.exec_()
             
-            # Add Export Changes button
-            export_button = msg_box.addButton("Export Changes", QMessageBox.ActionRole)
-            
-            reply = msg_box.exec_()
-            
-            # Handle Export Changes button
-            if msg_box.clickedButton() == export_button:
+            # Handle dialog results
+            if result == ChangesSummaryDialog.EXPORT_CHANGES:
                 export_path, _ = QFileDialog.getSaveFileName(
                     parent_window,
                     "Export Changes Summary",
@@ -95,7 +89,7 @@ class DBC_IO_Controller(QObject):
                         QMessageBox.critical(parent_window, "Error", f"Failed to export changes summary: {str(e)}")
                 return False, None, "Export cancelled to export changes instead"
                 
-            if reply == QMessageBox.No:
+            if result == QDialog.Rejected:
                 return False, None, "Export cancelled"
         
         target_file, _ = QFileDialog.getSaveFileName(

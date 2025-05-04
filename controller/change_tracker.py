@@ -36,6 +36,36 @@ class ChangeTracker:
             }
             self._changes.append(change_entry)
             
+    def add_signal_receivers_change(self, message_name: str, signal_updates: list):
+        """
+        Add changes to signal receivers in a message
+        
+        Args:
+            message_name: Name of the message containing the signals
+            signal_updates: List of dictionaries with signal_name, old_receivers, and new_receivers
+        """
+        if not signal_updates:
+            return
+            
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        for update in signal_updates:
+            signal_name = update['signal_name']
+            old_receivers = update['old_receivers']
+            new_receivers = update['new_receivers']
+            
+            # Format the changes
+            old_display = 'None' if not old_receivers else str(old_receivers)
+            new_display = 'None' if not new_receivers else str(new_receivers)
+            
+            change_entry = {
+                'timestamp': timestamp,
+                'message': message_name,
+                'signal': signal_name,
+                'changes': [f"receivers: {old_display} → {new_display}"]
+            }
+            self._changes.append(change_entry)
+            
     def add_signal_deletion(self, message_name: str, signal_name: str):
         """Add a signal deletion to the tracker"""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
