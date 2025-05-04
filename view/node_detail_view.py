@@ -213,7 +213,7 @@ class NodeDetailView(QDialog):
         scroll_area.setFrameShape(QFrame.NoFrame)
         
         table = QTableWidget()
-        columns = ["Name", "ID", "Length", "Signals Count", "Cycle Time", "Send Type", "Comment"]
+        columns = ["Name", "ID", "Length", "Signals Count", "Receivers", "Cycle Time", "Send Type", "Comment"]
         table.setColumnCount(len(columns))
         table.setHorizontalHeaderLabels(columns)
         
@@ -241,40 +241,61 @@ class NodeDetailView(QDialog):
             "ID": 100,
             "Length": 80,
             "Signals Count": 100,
+            "Receivers": 150,
             "Cycle Time": 100,
             "Send Type": 100,
             "Comment": 300
         }
         
+        # Apply widths
         for i, col in enumerate(columns):
             table.setColumnWidth(i, column_widths.get(col, 100))
         
-        # Add messages
+        # Populate table
         table.setRowCount(len(messages))
         
-        for row, msg in enumerate(messages):
-            # Create items for each column
-            name_item = QTableWidgetItem(msg['name'])
-            id_item = QTableWidgetItem(f"0x{msg['frame_id']:X}")
-            length_item = QTableWidgetItem(str(msg['length']))
-            signals_count_item = QTableWidgetItem(str(len(msg['signals'])))
-            
-            cycle_time = msg.get('cycle_time')
-            cycle_time_item = QTableWidgetItem(f"{cycle_time} ms" if cycle_time is not None else "")
-            
-            send_type_item = QTableWidgetItem(msg.get('send_type', ''))
-            comment_item = QTableWidgetItem(msg.get('comment', ''))
-            
-            # Add items to the table
+        for row, message in enumerate(messages):
+            # Set message name
+            name_item = QTableWidgetItem(message['name'])
             table.setItem(row, 0, name_item)
+            
+            # Set message ID (hex format)
+            id_item = QTableWidgetItem(f"0x{message['frame_id']:X}")
             table.setItem(row, 1, id_item)
+            
+            # Set length
+            length_item = QTableWidgetItem(str(message['length']))
             table.setItem(row, 2, length_item)
+            
+            # Set signals count
+            signals_count_item = QTableWidgetItem(str(len(message['signals'])))
             table.setItem(row, 3, signals_count_item)
-            table.setItem(row, 4, cycle_time_item)
-            table.setItem(row, 5, send_type_item)
-            table.setItem(row, 6, comment_item)
+            
+            # Extract receivers from all signals in this message
+            all_receivers = set()
+            for signal in message.get('signals', []):
+                if 'receivers' in signal and signal['receivers']:
+                    all_receivers.update(signal['receivers'])
+            receivers_text = ', '.join(sorted(all_receivers)) if all_receivers else ""
+            receivers_item = QTableWidgetItem(receivers_text)
+            table.setItem(row, 4, receivers_item)
+            
+            # Set cycle time
+            cycle_time = message.get('cycle_time')
+            cycle_time_item = QTableWidgetItem(str(cycle_time) if cycle_time is not None else "")
+            table.setItem(row, 5, cycle_time_item)
+            
+            # Set send type
+            send_type = message.get('send_type', '')
+            send_type_item = QTableWidgetItem(str(send_type) if send_type else "")
+            table.setItem(row, 6, send_type_item)
+            
+            # Set comment
+            comment = message.get('comment', '')
+            comment_item = QTableWidgetItem(str(comment) if comment else "")
+            table.setItem(row, 7, comment_item)
         
-        # Connect double-click handler to open message details
+        # Set double-click handler for message details
         table.itemDoubleClicked.connect(lambda item: self.show_message_details(messages[item.row()]))
         
         scroll_area.setWidget(table)

@@ -351,7 +351,7 @@ class DBCDisplayView(QWidget):
     def setup_messages_table(self):
         """Setup the messages table structure"""
         columns = [
-            "Name", "ID", "Length", "Signals Count", "Extended", "Frame Format", "Senders", "CAN FD", 
+            "Name", "ID", "Length", "Signals Count", "Extended", "Frame Format", "Senders", "Receivers", "CAN FD", 
             "Bus", "Cycle Time", "Send Type", "Comment", "Header ID", "Header Byte Order",
             "Unused Bit Pattern", "Is Multiplexed", "Contained Messages Count",
             "PGN", "Priority", "Source Address", "Destination Address", "Protocol"
@@ -379,6 +379,7 @@ class DBCDisplayView(QWidget):
             "Extended": 80,  # Yes/No field
             "Frame Format": 120,  # Added for frame format
             "Senders": 150,  # Wider for multiple sender names
+            "Receivers": 150,  # Wider for multiple receiver names
             "CAN FD": 80,   # Yes/No field
             "Bus": 100,     # Bus name
             "Cycle Time": 100,  # Cycle time in ms
@@ -662,6 +663,13 @@ class DBCDisplayView(QWidget):
                 senders = []
             senders_text = ', '.join(filter(None, senders))
             
+            # Extract receivers from all signals in this message
+            all_receivers = set()
+            for signal in msg.get('signals', []):
+                if 'receivers' in signal and signal['receivers']:
+                    all_receivers.update(signal['receivers'])
+            receivers_text = ', '.join(sorted(all_receivers)) if all_receivers else ""
+            
             # Create items for each column in the correct order
             items = [
                 name_item,                    # Name
@@ -671,6 +679,7 @@ class DBCDisplayView(QWidget):
                 create_bool_item(msg.get('is_extended_frame', False)),  # Extended - Fixed key name
                 create_text_item(msg.get('frame_format', '')),  # Frame Format
                 create_text_item(senders_text),  # Senders
+                create_text_item(receivers_text),  # Receivers (NEW)
                 create_bool_item(msg.get('is_fd', False)),  # CAN FD
                 create_text_item(msg.get('bus', '')),  # Bus
                 create_numeric_item(msg.get('cycle_time', '')),  # Cycle Time

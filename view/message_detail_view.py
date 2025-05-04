@@ -137,6 +137,13 @@ class MessageDetailView(QDialog):
             protocol = "CAN FD"
         elif j1939_specifics:
             protocol = "J1939"
+            
+        # Extract receivers from all signals in this message
+        all_receivers = set()
+        for signal in self.message_data.get('signals', []):
+            if 'receivers' in signal and signal['receivers']:
+                all_receivers.update(signal['receivers'])
+        receivers_text = ', '.join(sorted(all_receivers)) if all_receivers else "None"
         
         # Define all properties with their values
         properties = [
@@ -149,9 +156,10 @@ class MessageDetailView(QDialog):
             ("Signals Count", str(len(self.message_data['signals']))),
             ("Comment", self.message_data['comment'] if self.message_data['comment'] else "No comment"),
             
-            # Senders
-            ("Senders", None),  # Header
+            # Senders and Receivers
+            ("Senders and Receivers", None),  # Header
             ("Senders List", ", ".join(self.message_data['senders']) if self.message_data['senders'] else "None"),
+            ("Receivers List", receivers_text),
             
             # Frame Format
             ("Frame Format", None),  # Header
