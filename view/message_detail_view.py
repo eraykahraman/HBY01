@@ -155,6 +155,7 @@ class MessageDetailView(QDialog):
             
             # Frame Format
             ("Frame Format", None),  # Header
+            ("Frame Format Type", self.message_data.get('frame_format', 'Not specified')),
             ("Extended Frame", format_value(self.message_data.get('is_extended_frame', False))),
             ("CAN FD", format_value(self.message_data.get('is_fd', False))),
             ("Bus Name", format_value(self.message_data.get('bus_name'))),
@@ -182,6 +183,10 @@ class MessageDetailView(QDialog):
         # Add available send types only if they exist
         if self.message_data.get('send_type_choices'):
             properties.append(("Available Send Types", self.format_send_type_choices()))
+            
+        # Add available frame format choices if they exist
+        if self.message_data.get('frame_format_choices'):
+            properties.append(("Available Frame Formats", self.format_frame_format_choices()))
             
         # Multiplexing
         properties.extend([
@@ -630,3 +635,20 @@ class MessageDetailView(QDialog):
         else:
             # Otherwise, convert to string
             return str(send_type_choices)
+
+    def format_frame_format_choices(self):
+        """Format the frame format choices for display in the details table"""
+        frame_format_choices = self.message_data.get('frame_format_choices')
+        if not frame_format_choices:
+            return "Not specified"
+            
+        # Format based on data type
+        if isinstance(frame_format_choices, dict):
+            # If it's a dictionary, format as "key: value"
+            return ", ".join([f"{k}: {v}" for k, v in frame_format_choices.items()])
+        elif isinstance(frame_format_choices, list):
+            # If it's a list, just join with commas
+            return ", ".join([str(v) for v in frame_format_choices])
+        else:
+            # Otherwise, convert to string
+            return str(frame_format_choices)

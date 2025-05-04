@@ -285,12 +285,22 @@ class DBC_IO_Handler(QObject):
         try:
             # Extract send type choices if available
             send_type_choices = None
+            frame_format_choices = None
             if hasattr(self.database, 'dbc') and hasattr(self.database.dbc, 'attribute_definitions'):
+                # Extract send type choices
                 send_type_def = self.database.dbc.attribute_definitions.get('GenMsgSendType')
                 if send_type_def and hasattr(send_type_def, 'choices'):
                     send_type_choices = send_type_def.choices
                     print("Send Type Enum Values:")
                     for value in send_type_def.choices:
+                        print(f"- {value}")
+                
+                # Extract frame format choices
+                frame_format_def = self.database.dbc.attribute_definitions.get('VFrameFormat')
+                if frame_format_def and hasattr(frame_format_def, 'choices'):
+                    frame_format_choices = frame_format_def.choices
+                    print("Frame Format Enum Values:")
+                    for value in frame_format_def.choices:
                         print(f"- {value}")
             
             for msg in self.database.messages:
@@ -353,8 +363,27 @@ class DBC_IO_Handler(QObject):
                     "is_extended_frame": getattr(msg, 'is_extended_frame', False),
                     "is_fd": getattr(msg, 'is_fd', False),
                     "bus_name": getattr(msg, 'bus_name', None),
-                    "send_type_choices": send_type_choices
+                    "send_type_choices": send_type_choices,
+                    "frame_format_choices": frame_format_choices
                 }
+                
+                # Extract frame format attribute if it exists in message.dbc.attributes
+                if hasattr(msg, 'dbc') and hasattr(msg.dbc, 'attributes'):
+                    if 'VFrameFormat' in msg.dbc.attributes:
+                        frame_format_attr = msg.dbc.attributes['VFrameFormat']
+                        if hasattr(frame_format_attr, 'value') and frame_format_choices:
+                            # If it's an index into choices list
+                            if isinstance(frame_format_choices, list) and isinstance(frame_format_attr.value, int):
+                                if 0 <= frame_format_attr.value < len(frame_format_choices):
+                                    message_info['frame_format'] = frame_format_choices[frame_format_attr.value]
+                            # If it's a key into choices dict
+                            elif isinstance(frame_format_choices, dict) and frame_format_attr.value in frame_format_choices:
+                                message_info['frame_format'] = frame_format_choices[frame_format_attr.value]
+                            else:
+                                message_info['frame_format'] = str(frame_format_attr.value)
+                        else:
+                            message_info['frame_format'] = str(frame_format_attr)
+                
                 messages.append(message_info)
         except Exception as e:
             print(f"Error parsing message: {str(e)}")
