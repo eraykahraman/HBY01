@@ -465,6 +465,7 @@ class MessageDetailView(QDialog):
         edit_dialog.senders_edited.connect(self.handle_senders_edited)
         edit_dialog.send_type_edited.connect(self.handle_send_type_edited)
         edit_dialog.frame_format_edited.connect(self.handle_frame_format_edited)
+        edit_dialog.cycle_time_edited.connect(self.handle_cycle_time_edited)
         
         edit_dialog.exec_()
 
@@ -630,6 +631,29 @@ class MessageDetailView(QDialog):
             
         # Update local data
         self.message_data['frame_format'] = new_frame_format
+        
+        # Emit signal with old and new message data
+        self.handle_message_edited(old_message, self.message_data)
+
+    def handle_cycle_time_edited(self, new_cycle_time: float):
+        """Handle when cycle time is edited"""
+        if new_cycle_time == self.message_data.get('cycle_time', 0):
+            return  # No change
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+        
+        old_message = self.message_data.copy()
+        success, error = self.handler.edit_controller.edit_message_cycle_time(
+            self.message_data['name'],
+            new_cycle_time
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data
+        self.message_data['cycle_time'] = new_cycle_time
         
         # Emit signal with old and new message data
         self.handle_message_edited(old_message, self.message_data)

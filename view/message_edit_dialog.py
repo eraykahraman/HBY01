@@ -11,6 +11,7 @@ class MessageEditDialog(QDialog):
     senders_edited = pyqtSignal(list)  # new_senders
     send_type_edited = pyqtSignal(str)  # new_send_type
     frame_format_edited = pyqtSignal(str)  # new_frame_format
+    cycle_time_edited = pyqtSignal(object)  # new_cycle_time (int or None)
 
     def __init__(self, current_name, message_data, handler, parent=None):
         super().__init__(parent)
@@ -194,6 +195,16 @@ class MessageEditDialog(QDialog):
                 self.frame_format_combo.setCurrentText(current_frame_format)
                 
         form_layout.addRow("Frame Format:", self.frame_format_combo)
+
+        # Cycle Time
+        self.cycle_time_edit = QLineEdit()
+        current_cycle_time = self.message_data.get('cycle_time')
+        if current_cycle_time is not None:
+            self.cycle_time_edit.setText(str(current_cycle_time))
+        # Add placeholder and tooltip
+        self.cycle_time_edit.setPlaceholderText("Enter cycle time in ms")
+        self.cycle_time_edit.setToolTip("Enter cycle time in milliseconds (leave blank for no cycle time)")
+        form_layout.addRow("Cycle Time (ms):", self.cycle_time_edit)
 
         layout.addLayout(form_layout)
 
@@ -456,6 +467,27 @@ class MessageEditDialog(QDialog):
         # Emit frame_format_edited signal if changed
         if new_frame_format != self.message_data.get('frame_format', ""):
             self.frame_format_edited.emit(new_frame_format)
+
+        # Get the cycle time value
+        cycle_time_text = self.cycle_time_edit.text().strip()
+        new_cycle_time = None
+        
+        # Only try to parse if text was entered
+        if cycle_time_text:
+            try:
+                new_cycle_time = int(cycle_time_text)
+                # Ensure cycle time is positive
+                if new_cycle_time < 0:
+                    QMessageBox.warning(self, "Validation Error", "Cycle time cannot be negative.")
+                    return
+            except ValueError:
+                QMessageBox.warning(self, "Validation Error", "Cycle time must be a valid integer.")
+                return
+        
+        # Emit cycle_time_edited signal if changed
+        current_cycle_time = self.message_data.get('cycle_time')
+        if new_cycle_time != current_cycle_time:
+            self.cycle_time_edited.emit(new_cycle_time)
 
         # Emit senders signal if changed
         if set(selected_senders) != set(self.message_data.get('senders', [])):

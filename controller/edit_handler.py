@@ -1,8 +1,9 @@
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, TYPE_CHECKING
 import cantools
 from cantools.database import Database
 from copy import deepcopy
 from cantools.database.can.attribute import Attribute
+import os
 
 class EditHandler:
     def __init__(self, database: Database):
@@ -1011,4 +1012,159 @@ class EditHandler:
             print(f"[DEBUG] Exception while updating frame_format: {str(e)}")
             import traceback
             traceback.print_exc()
-            return False, f"Error updating frame_format: {str(e)}" 
+            return False, f"Error updating frame_format: {str(e)}"
+
+    def edit_message_cycle_time(self, message_name: str, new_cycle_time: Optional[int]) -> tuple[bool, str]:
+        """
+        Edit the cycle time of a message.
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message
+        message = None
+        for idx, msg in enumerate(self.database.messages):
+            if msg.name == message_name:
+                message = msg
+                message_idx = idx
+                break
+                
+        if not message:
+            return False, f"Message '{message_name}' not found."
+            
+        # Debug: Print detailed info about message and its class
+        print(f"[DEBUG] Editing cycle_time for message '{message_name}'")
+        print(f"[DEBUG] Current cycle_time: {getattr(message, 'cycle_time', None)}")
+        print(f"[DEBUG] Message type: {type(message)}")
+        print(f"[DEBUG] Message dir: {dir(message)}")
+        
+        try:
+            # Validate input
+            if new_cycle_time is not None and not isinstance(new_cycle_time, int):
+                try:
+                    new_cycle_time = int(new_cycle_time)
+                except (ValueError, TypeError):
+                    return False, f"Cycle time must be an integer (milliseconds) or None"
+            
+            # Try to inspect the class structure
+            msg_class = message.__class__
+            print(f"[DEBUG] Message class: {msg_class}")
+            
+            # Let's get the constructor signature
+            import inspect
+            if hasattr(msg_class, '__init__'):
+                try:
+                    sig = inspect.signature(msg_class.__init__)
+                    print(f"[DEBUG] Constructor signature: {sig}")
+                    print(f"[DEBUG] Constructor parameters: {sig.parameters}")
+                except Exception as e:
+                    print(f"[DEBUG] Could not get constructor signature: {str(e)}")
+            
+            # If message was created properly and has required attributes, let's create a new one
+            success = False
+            
+            # Try different approaches to update the cycle_time
+            
+            # Approach 1: Try direct attribute setting first (simplest)
+            try:
+                # First try direct attribute setting
+                original_cycle_time = getattr(message, 'cycle_time', None)
+                print(f"[DEBUG] Original cycle_time: {original_cycle_time}")
+                setattr(message, 'cycle_time', new_cycle_time)
+                print(f"[DEBUG] After setattr cycle_time: {getattr(message, 'cycle_time', None)}")
+                if getattr(message, 'cycle_time', None) == new_cycle_time:
+                    print("[DEBUG] Direct attribute setting succeeded!")
+                    success = True
+                else:
+                    print("[DEBUG] Direct attribute setting failed - value didn't change")
+            except Exception as e:
+                print(f"[DEBUG] Error during direct attribute setting: {str(e)}")
+            
+            # Approach 2: Try to modify the attribute dictionary if available
+            if not success and hasattr(message, '__dict__'):
+                try:
+                    print("[DEBUG] Trying to modify __dict__")
+                    message.__dict__['cycle_time'] = new_cycle_time
+                    if getattr(message, 'cycle_time', None) == new_cycle_time:
+                        print("[DEBUG] __dict__ modification succeeded!")
+                        success = True
+                    else:
+                        print("[DEBUG] __dict__ modification failed - value didn't change")
+                except Exception as e:
+                    print(f"[DEBUG] Error modifying __dict__: {str(e)}")
+            
+            # Approach 3: Try to directly modify the specific cycle time attribute in DBC
+            if not success:
+                try:
+                    from cantools.database.can.attribute import Attribute
+                    print("[DEBUG] Trying direct DBC attribute modification")
+                    
+                    # Try to find GenMsgCycleTime definition
+                    definition = None
+                    if hasattr(self.database, 'dbc') and hasattr(self.database.dbc, 'attribute_definitions'):
+                        definition = self.database.dbc.attribute_definitions.get('GenMsgCycleTime')
+                        print(f"[DEBUG] Found GenMsgCycleTime definition: {definition}")
+                    
+                    # Now set the attribute
+                    if hasattr(message, 'dbc') and hasattr(message.dbc, 'attributes'):
+                        print("[DEBUG] Setting GenMsgCycleTime attribute")
+                        if message.dbc.attributes is None:
+                            message.dbc.attributes = {}
+                        
+                        try:
+                            # Try with a proper Attribute object
+                            try:
+                                # First try with constructor that takes value as kwarg
+                                message.dbc.attributes['GenMsgCycleTime'] = Attribute(
+                                    value=new_cycle_time, 
+                                    definition=definition
+                                )
+                            except Exception:
+                                # Fall back to positional args
+                                message.dbc.attributes['GenMsgCycleTime'] = Attribute(definition, new_cycle_time)
+                            
+                            print("[DEBUG] Set GenMsgCycleTime as proper Attribute")
+                            success = True
+                        except Exception as e:
+                            print(f"[DEBUG] Error creating Attribute object: {str(e)}")
+                except Exception as e:
+                    print(f"[DEBUG] Error during DBC attribute modification: {str(e)}")
+            
+            # Approach 4: Try to modify using cantools-specific private attribute
+            if not success and hasattr(message, '_cycle_time'):
+                try:
+                    # Use object.__setattr__ to bypass descriptor
+                    object.__setattr__(message, '_cycle_time', new_cycle_time)
+                    print("[DEBUG] Set _cycle_time using object.__setattr__")
+                    success = True
+                except Exception as e:
+                    print(f"[DEBUG] Error setting _cycle_time: {str(e)}")
+            
+            # Approach 5: Final approach - monkey patch with a descriptor
+            if not success:
+                try:
+                    # Create a dynamic property for this instance only
+                    cycle_time_value = new_cycle_time
+                    
+                    class CycleTimeDescriptor:
+                        def __get__(self, obj, objtype=None):
+                            return cycle_time_value
+                            
+                    # Add descriptor to class
+                    setattr(msg_class, 'cycle_time', CycleTimeDescriptor())
+                    print("[DEBUG] Added CycleTimeDescriptor to class")
+                    success = True
+                except Exception as e:
+                    print(f"[DEBUG] Error adding descriptor: {str(e)}")
+            
+            # Print the result
+            print(f"[DEBUG] After all attempts - cycle_time: {getattr(message, 'cycle_time', None)}")
+            print(f"[DEBUG] Success: {success}")
+                    
+            return success, "" if success else "Could not update cycle_time"
+        except Exception as e:
+            print(f"[DEBUG] Exception while updating cycle_time: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False, f"Error updating cycle_time: {str(e)}" 

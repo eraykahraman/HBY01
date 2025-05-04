@@ -397,4 +397,21 @@ class EditController:
             # Update the database in DBC_IO_Handler
             self.handler.update_database()
             
+        return success, error
+
+    def edit_message_cycle_time(self, message_name: str, new_cycle_time: Optional[int]) -> tuple[bool, str]:
+        """
+        Edit the cycle time of a message.
+        Returns (success, error_message)
+        """
+        if not self.edit_handler:
+            return False, "Edit handler not initialized"
+            
+        # Delegate to EditHandler
+        success, error = self.edit_handler.edit_message_cycle_time(message_name, new_cycle_time)
+        
+        if success:
+            # Update the database in DBC_IO_Handler
+            self.handler.update_database()
+            
         return success, error 
