@@ -351,7 +351,7 @@ class DBCDisplayView(QWidget):
     def setup_messages_table(self):
         """Setup the messages table structure"""
         columns = [
-            "Name", "ID", "Length", "Signals Count", "Extended", "Senders", "CAN FD", 
+            "Name", "ID", "Length", "Signals Count", "Extended", "Frame Format", "Senders", "CAN FD", 
             "Bus", "Cycle Time", "Send Type", "Comment", "Header ID", "Header Byte Order",
             "Unused Bit Pattern", "Is Multiplexed", "Contained Messages Count",
             "PGN", "Priority", "Source Address", "Destination Address", "Protocol"
@@ -377,6 +377,7 @@ class DBCDisplayView(QWidget):
             "Length": 80,    # Fixed size for byte length
             "Signals Count": 100,  # Increased to fit content
             "Extended": 80,  # Yes/No field
+            "Frame Format": 120,  # Added for frame format
             "Senders": 150,  # Wider for multiple sender names
             "CAN FD": 80,   # Yes/No field
             "Bus": 100,     # Bus name
@@ -668,6 +669,7 @@ class DBCDisplayView(QWidget):
                 length_item,                  # Length
                 signals_count_item,           # Signals Count
                 create_bool_item(msg.get('is_extended_frame', False)),  # Extended - Fixed key name
+                create_text_item(msg.get('frame_format', '')),  # Frame Format
                 create_text_item(senders_text),  # Senders
                 create_bool_item(msg.get('is_fd', False)),  # CAN FD
                 create_text_item(msg.get('bus', '')),  # Bus
@@ -1209,6 +1211,12 @@ class DBCDisplayView(QWidget):
             details_item = QTreeWidgetItem()
             details_item.setText(0, f"Length: {msg['length']} bytes")
             msg_item.addChild(details_item)
+            
+            # Add frame format if available
+            if msg.get('frame_format'):
+                frame_format_item = QTreeWidgetItem()
+                frame_format_item.setText(0, f"Frame Format: {msg['frame_format']}")
+                msg_item.addChild(frame_format_item)
             
             if msg['comment']:
                 comment_item = QTreeWidgetItem()
