@@ -464,6 +464,7 @@ class MessageDetailView(QDialog):
         edit_dialog.message_deleted.connect(self.handle_message_deleted)
         edit_dialog.senders_edited.connect(self.handle_senders_edited)
         edit_dialog.send_type_edited.connect(self.handle_send_type_edited)
+        edit_dialog.frame_format_edited.connect(self.handle_frame_format_edited)
         
         edit_dialog.exec_()
 
@@ -606,6 +607,29 @@ class MessageDetailView(QDialog):
             
         # Update local data
         self.message_data['send_type'] = new_send_type
+        
+        # Emit signal with old and new message data
+        self.handle_message_edited(old_message, self.message_data)
+
+    def handle_frame_format_edited(self, new_frame_format: str):
+        """Handle when frame format is edited"""
+        if new_frame_format == self.message_data.get('frame_format', 'Not specified'):
+            return  # No change
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+        
+        old_message = self.message_data.copy()
+        success, error = self.handler.edit_controller.edit_message_frame_format(
+            self.message_data['name'],
+            new_frame_format
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data
+        self.message_data['frame_format'] = new_frame_format
         
         # Emit signal with old and new message data
         self.handle_message_edited(old_message, self.message_data)

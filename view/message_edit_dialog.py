@@ -10,6 +10,7 @@ class MessageEditDialog(QDialog):
     message_deleted = pyqtSignal(str)  # message_name
     senders_edited = pyqtSignal(list)  # new_senders
     send_type_edited = pyqtSignal(str)  # new_send_type
+    frame_format_edited = pyqtSignal(str)  # new_frame_format
 
     def __init__(self, current_name, message_data, handler, parent=None):
         super().__init__(parent)
@@ -160,6 +161,39 @@ class MessageEditDialog(QDialog):
                 self.send_type_combo.setCurrentText(current_send_type)
                 
         form_layout.addRow("Send Type:", self.send_type_combo)
+
+        # Frame Format
+        self.frame_format_combo = QComboBox()
+        
+        # Get frame format choices from message data if available
+        frame_format_choices = self.message_data.get('frame_format_choices')
+        current_frame_format = self.message_data.get('frame_format')
+        
+        if frame_format_choices:
+            # Add items to combo box from defined choices
+            if isinstance(frame_format_choices, dict):
+                # If it's a dictionary, add all values
+                for value in frame_format_choices.values():
+                    self.frame_format_combo.addItem(str(value))
+            elif isinstance(frame_format_choices, list):
+                # If it's a list, add all items
+                for value in frame_format_choices:
+                    self.frame_format_combo.addItem(str(value))
+        elif current_frame_format:
+            # If no choices but we have a current frame format, just add the current one
+            self.frame_format_combo.addItem(str(current_frame_format))
+            
+        # Set current value if it exists
+        if current_frame_format:
+            index = self.frame_format_combo.findText(current_frame_format)
+            if index >= 0:
+                self.frame_format_combo.setCurrentIndex(index)
+            else:
+                # If not in list, add it
+                self.frame_format_combo.addItem(current_frame_format)
+                self.frame_format_combo.setCurrentText(current_frame_format)
+                
+        form_layout.addRow("Frame Format:", self.frame_format_combo)
 
         layout.addLayout(form_layout)
 
@@ -415,6 +449,13 @@ class MessageEditDialog(QDialog):
         # Emit send_type_edited signal if changed
         if new_send_type != self.message_data.get('send_type', ""):
             self.send_type_edited.emit(new_send_type)
+
+        # Get the selected frame format
+        new_frame_format = self.frame_format_combo.currentText()
+        
+        # Emit frame_format_edited signal if changed
+        if new_frame_format != self.message_data.get('frame_format', ""):
+            self.frame_format_edited.emit(new_frame_format)
 
         # Emit senders signal if changed
         if set(selected_senders) != set(self.message_data.get('senders', [])):
