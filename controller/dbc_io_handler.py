@@ -287,62 +287,69 @@ class DBC_IO_Handler(QObject):
             send_type_choices = None
             frame_format_choices = None
             default_frame_format = None
+            default_send_type = None
             if hasattr(self.database, 'dbc') and hasattr(self.database.dbc, 'attribute_definitions'):
                 # Extract send type choices
                 send_type_def = self.database.dbc.attribute_definitions.get('GenMsgSendType')
                 if send_type_def and hasattr(send_type_def, 'choices'):
                     send_type_choices = send_type_def.choices
-                    print("Send Type Enum Values:")
-                    for value in send_type_def.choices:
-                        print(f"- {value}")
-                
+                    
+                    # Get default send type if available
+                    if hasattr(send_type_def, 'default_value'):
+                        default_value = send_type_def.default_value
+                        
+                        if send_type_choices:
+                            # Try to convert string to int if it represents a number
+                            try:
+                                default_value_int = int(default_value)
+                                default_value = default_value_int
+                            except (ValueError, TypeError):
+                                pass
+                                
+                            if isinstance(send_type_choices, list) and isinstance(default_value, int):
+                                if 0 <= default_value < len(send_type_choices):
+                                    default_send_type = send_type_choices[default_value]
+                            elif isinstance(send_type_choices, list) and default_value == "0":
+                                # Special case for "0" string with list choices
+                                default_send_type = send_type_choices[0]
+                            elif isinstance(send_type_choices, dict) and default_value in send_type_choices:
+                                default_send_type = send_type_choices[default_value]
+                            else:
+                                default_send_type = str(default_value)
+                        else:
+                            default_send_type = str(default_value)
+
                 # Extract frame format choices and default
                 frame_format_def = self.database.dbc.attribute_definitions.get('VFrameFormat')
                 if frame_format_def:
                     if hasattr(frame_format_def, 'choices'):
                         frame_format_choices = frame_format_def.choices
-                        print("Frame Format Enum Values:")
-                        for value in frame_format_def.choices:
-                            print(f"- {value}")
                     
                     # Get default frame format
                     if hasattr(frame_format_def, 'default_value'):
                         default_value = frame_format_def.default_value
-                        print(f"Raw default frame format value: {default_value}, type: {type(default_value)}")
-                        print(f"Frame format choices type: {type(frame_format_choices)}")
-                        if isinstance(frame_format_choices, list):
-                            print(f"Frame format choices list: {frame_format_choices}")
-                        elif isinstance(frame_format_choices, dict):
-                            print(f"Frame format choices dict: {frame_format_choices}")
-                            
+                        
                         if frame_format_choices:
                             # Try to convert string to int if it represents a number
                             try:
                                 default_value_int = int(default_value)
-                                print(f"Converted default value '{default_value}' to int: {default_value_int}")
                                 default_value = default_value_int
                             except (ValueError, TypeError):
-                                print(f"Could not convert default value '{default_value}' to int")
+                                pass
                                 
                             if isinstance(frame_format_choices, list) and isinstance(default_value, int):
                                 if 0 <= default_value < len(frame_format_choices):
                                     default_frame_format = frame_format_choices[default_value]
-                                    print(f"Resolved default frame format from list: {default_frame_format}")
                             elif isinstance(frame_format_choices, list) and default_value == "0":
                                 # Special case for "0" string with list choices
                                 default_frame_format = frame_format_choices[0]
-                                print(f"Resolved default frame format from list using string '0': {default_frame_format}")
                             elif isinstance(frame_format_choices, dict) and default_value in frame_format_choices:
                                 default_frame_format = frame_format_choices[default_value]
-                                print(f"Resolved default frame format from dict: {default_frame_format}")
                             else:
                                 default_frame_format = str(default_value)
-                                print(f"Using default value as string: {default_frame_format}")
                         else:
                             default_frame_format = str(default_value)
-                            print(f"No choices available, using default value as string: {default_frame_format}")
-                        print(f"Final default frame format: {default_frame_format}")
-            
+
             for msg in self.database.messages:
                 # Check if message has all required attributes
                 if not hasattr(msg, 'name'):
@@ -419,36 +426,71 @@ class DBC_IO_Handler(QObject):
                             if isinstance(frame_format_choices, list) and isinstance(frame_format_attr.value, int):
                                 if 0 <= frame_format_attr.value < len(frame_format_choices):
                                     message_info['frame_format'] = frame_format_choices[frame_format_attr.value]
-                                    print(f"Applied specific frame format '{message_info['frame_format']}' to message '{msg.name}' (from attribute)")
                             # If it's a key into choices dict
                             elif isinstance(frame_format_choices, dict) and frame_format_attr.value in frame_format_choices:
                                 message_info['frame_format'] = frame_format_choices[frame_format_attr.value]
-                                print(f"Applied specific frame format '{message_info['frame_format']}' to message '{msg.name}' (from attribute)")
                             else:
                                 message_info['frame_format'] = str(frame_format_attr)
-                                print(f"Applied specific frame format '{message_info['frame_format']}' to message '{msg.name}' (as string)")
                         else:
                             message_info['frame_format'] = str(frame_format_attr)
-                            print(f"Applied specific frame format '{message_info['frame_format']}' to message '{msg.name}' (as string)")
                     elif default_frame_format is not None:
                         # Apply default frame format only if not explicitly set
                         message_info['frame_format'] = default_frame_format
-                        print(f"Applied default frame format '{default_frame_format}' to message '{msg.name}'")
                 elif default_frame_format is not None:
                     # Still apply default if msg doesn't have dbc attributes at all
                     message_info['frame_format'] = default_frame_format
-                    print(f"Applied default frame format '{default_frame_format}' to message '{msg.name}' (no dbc attributes)")
+                
+                # Extract send_type attribute if it exists in message.dbc.attributes
+                if hasattr(msg, 'dbc') and hasattr(msg.dbc, 'attributes'):
+                    if 'GenMsgSendType' in msg.dbc.attributes:
+                        send_type_attr = msg.dbc.attributes['GenMsgSendType']
+                        if hasattr(send_type_attr, 'value') and send_type_choices:
+                            # If it's an index into choices list
+                            if isinstance(send_type_choices, list) and isinstance(send_type_attr.value, int):
+                                if 0 <= send_type_attr.value < len(send_type_choices):
+                                    message_info['send_type'] = send_type_choices[send_type_attr.value]
+                            # If it's a key into choices dict
+                            elif isinstance(send_type_choices, dict) and send_type_attr.value in send_type_choices:
+                                message_info['send_type'] = send_type_choices[send_type_attr.value]
+                            else:
+                                message_info['send_type'] = str(send_type_attr)
+                
+                # We need to handle the case where send_type is already set but might be a numeric value
+                # This comprehensive conversion will handle all numeric send_type values
+                if message_info['send_type'] is not None and send_type_choices:
+                    # Convert any numeric send_type value to its string representation
+                    send_type_value = None
+                    
+                    # Handle send_type if it's a string containing a number (e.g., "0", "1", "2")
+                    if isinstance(message_info['send_type'], str) and message_info['send_type'].isdigit():
+                        send_type_value = int(message_info['send_type'])
+                    # Handle send_type if it's already an integer (e.g., 0, 1, 2)
+                    elif isinstance(message_info['send_type'], int):
+                        send_type_value = message_info['send_type']
+                    # Also try to convert non-digit strings that might represent numbers (e.g. "0x2")
+                    elif isinstance(message_info['send_type'], str):
+                        try:
+                            # Try to interpret as an integer in any base
+                            send_type_value = int(message_info['send_type'], 0)
+                        except ValueError:
+                            # Not a valid number, keep as is
+                            pass
+                        
+                    # If we have a numeric value, convert it using the choices
+                    if send_type_value is not None:
+                        if isinstance(send_type_choices, list) and 0 <= send_type_value < len(send_type_choices):
+                            message_info['send_type'] = send_type_choices[send_type_value]
+                        elif isinstance(send_type_choices, dict) and send_type_value in send_type_choices:
+                            message_info['send_type'] = send_type_choices[send_type_value]
+                # Apply default send_type if no send_type is defined for this message
+                elif message_info['send_type'] is None and default_send_type is not None:
+                    message_info['send_type'] = default_send_type
                     
                 messages.append(message_info)
         except Exception as e:
             print(f"Error parsing message: {str(e)}")
             # Return empty list on error
             return []
-            
-        # Debug: Print all message frame formats
-        print("Message Frame Formats:")
-        for msg in messages:
-            print(f"Message: {msg['name']}, Frame Format: {msg.get('frame_format', 'None')}")
             
         return messages
 

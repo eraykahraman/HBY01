@@ -639,29 +639,17 @@ class EditHandler:
         if not message:
             return False, f"Message '{message_name}' not found."
             
-        # Debug: Print initial state
-        print(f"[DEBUG] Editing send_type for message '{message_name}'")
-        print(f"[DEBUG] Current send_type: {getattr(message, 'send_type', None)}")
-        print(f"[DEBUG] Has message.dbc: {hasattr(message, 'dbc')}")
-        
         try:
-            print(f"[DEBUG] Attempting to update to new send_type: {new_send_type}")
-            
             # Make sure message.dbc exists
             if not hasattr(message, 'dbc') or message.dbc is None:
-                print("[DEBUG] message.dbc doesn't exist, can't create it without DbcSpecifics class")
-                print("[DEBUG] Trying to set _send_type attribute directly")
                 try:
                     object.__setattr__(message, '_send_type', new_send_type)
-                    print("[DEBUG] Direct _send_type setting succeeded")
                     return True, ""
                 except Exception as e:
-                    print(f"[DEBUG] Direct _send_type setting failed: {str(e)}")
                     return False, "Cannot set send type - dbc attribute not available"
             
             # Make sure message.dbc.attributes is initialized
             if not hasattr(message.dbc, 'attributes') or message.dbc.attributes is None:
-                print("[DEBUG] Creating new attributes dictionary")
                 message.dbc.attributes = {}
                 
             # Check if the database has attribute definitions
@@ -669,86 +657,63 @@ class EditHandler:
                 # Get the attribute definition
                 if 'GenMsgSendType' in self.database.dbc.attribute_definitions:
                     definition = self.database.dbc.attribute_definitions['GenMsgSendType']
-                    print(f"[DEBUG] Found GenMsgSendType definition: {definition}")
-                    print(f"[DEBUG] Definition type: {type(definition)}")
-                    print(f"[DEBUG] Definition dir: {dir(definition)}")
                     
                     # Check if definition has _choices attribute
                     if hasattr(definition, '_choices') and definition._choices:
-                        print(f"[DEBUG] Definition has _choices: {definition._choices}")
                         choices = definition._choices
                         
                         # Handle list of choices
                         if isinstance(choices, list):
-                            print("[DEBUG] Choices is a list")
-                            
                             # Try to find the new_send_type in the choices list
                             if new_send_type in choices:
                                 # Find the index for this choice
                                 choice_index = choices.index(new_send_type)
-                                print(f"[DEBUG] Found '{new_send_type}' at index {choice_index}")
                                 
                                 # Try to create the attribute
                                 try:
-                                    print(f"[DEBUG] Setting GenMsgSendType attribute with index {choice_index}")
                                     attr_sig = str(Attribute.__init__.__code__.co_varnames)
-                                    print(f"[DEBUG] Attribute constructor signature: {attr_sig}")
                                     
                                     # Try different ways to create the attribute
                                     if 'value' in attr_sig and 'definition' in attr_sig:
-                                        print("[DEBUG] Using value and definition parameters")
                                         message.dbc.attributes['GenMsgSendType'] = Attribute(
                                             value=choice_index,
                                             definition=definition
                                         )
                                     elif len(attr_sig.split(',')) >= 3:  # At least self, arg1, arg2
-                                        print("[DEBUG] Using positional parameters: definition, choice_index")
                                         message.dbc.attributes['GenMsgSendType'] = Attribute(definition, choice_index)
-                                    else:
-                                        print("[DEBUG] Couldn't determine constructor parameters")
-                                except Exception as e:
-                                    print(f"[DEBUG] Error creating attribute: {str(e)}")
+                                except Exception:
+                                    pass
                             else:
                                 # Try case-insensitive matching
                                 matched = False
                                 for i, value in enumerate(choices):
                                     if isinstance(value, str) and value.lower() == new_send_type.lower():
                                         choice_index = i
-                                        print(f"[DEBUG] Found case-insensitive match '{value}' at index {choice_index}")
                                         try:
                                             message.dbc.attributes['GenMsgSendType'] = Attribute(definition, choice_index)
                                             matched = True
                                             break
-                                        except Exception as e:
-                                            print(f"[DEBUG] Error setting attribute: {str(e)}")
-                                
-                                if not matched:
-                                    print(f"[DEBUG] Value '{new_send_type}' not found in choices list")
+                                        except Exception:
+                                            pass
                         
                         # Handle dictionary of choices
                         elif isinstance(choices, dict):
-                            print("[DEBUG] Choices is a dictionary")
                             # Try to find the new_send_type in the choices values
                             if new_send_type in choices.values():
                                 # Find the key for this choice value
                                 for key, value in choices.items():
                                     if value == new_send_type:
                                         choice_key = key
-                                        print(f"[DEBUG] Found '{new_send_type}' with key {choice_key}")
                                         break
                                 
                                 # Try to create the attribute
                                 try:
-                                    print(f"[DEBUG] Setting GenMsgSendType attribute with choice_key {choice_key}")
                                     message.dbc.attributes['GenMsgSendType'] = Attribute(definition, choice_key)
-                                except Exception as e:
-                                    print(f"[DEBUG] Error creating attribute: {str(e)}")
-                            else:
-                                print(f"[DEBUG] Value '{new_send_type}' not found in choices dict")
+                                except Exception:
+                                    pass
                     
                     # Check if the definition has choices property
                     elif hasattr(definition, 'choices') and definition.choices:
-                        print(f"[DEBUG] Definition has choices property: {definition.choices}")
                         choices = definition.choices
                         
                         # Handle based on type
@@ -757,8 +722,8 @@ class EditHandler:
                                 choice_index = choices.index(new_send_type)
                                 try:
                                     message.dbc.attributes['GenMsgSendType'] = Attribute(definition, choice_index)
-                                except Exception as e:
-                                    print(f"[DEBUG] Error setting attribute: {str(e)}")
+                                except Exception:
+                                    pass
                         elif isinstance(choices, dict):
                             if new_send_type in choices.values():
                                 for key, value in choices.items():
@@ -766,53 +731,32 @@ class EditHandler:
                                         try:
                                             message.dbc.attributes['GenMsgSendType'] = Attribute(definition, key)
                                             break
-                                        except Exception as e:
-                                            print(f"[DEBUG] Error setting attribute: {str(e)}")
-                    
-                    # Fall back to direct approach if no choices found
-                    else:
-                        print("[DEBUG] Definition doesn't have usable choices")
+                                        except Exception:
+                                            pass
                     
                     # Update _send_type for UI updates
                     try:
-                        print("[DEBUG] Setting _send_type attribute directly")
                         object.__setattr__(message, '_send_type', new_send_type)
-                        print("[DEBUG] Direct _send_type setting succeeded")
-                    except Exception as e:
-                        print(f"[DEBUG] Direct _send_type setting failed: {str(e)}")
-                    
-                    # Print final state
-                    print(f"[DEBUG] After update - send_type: {getattr(message, 'send_type', None)}")
-                    print(f"[DEBUG] message.dbc.attributes contains GenMsgSendType: {'GenMsgSendType' in message.dbc.attributes}")
-                    if 'GenMsgSendType' in message.dbc.attributes:
-                        print(f"[DEBUG] GenMsgSendType attribute: {message.dbc.attributes['GenMsgSendType']}")
+                    except Exception:
+                        pass
                     
                     return True, ""
                 else:
-                    print("[DEBUG] No GenMsgSendType definition found in the database")
-                    
                     # Still try to update _send_type for UI display
                     try:
                         object.__setattr__(message, '_send_type', new_send_type)
-                        print("[DEBUG] Direct _send_type setting succeeded")
                         return True, ""
-                    except Exception as e:
-                        print(f"[DEBUG] Direct _send_type setting failed: {str(e)}")
+                    except Exception:
                         return False, "Cannot set send type - attribute not found"
             else:
-                print("[DEBUG] Database does not have attribute definitions")
-                
                 # Still try to update _send_type for UI display
                 try:
                     object.__setattr__(message, '_send_type', new_send_type)
-                    print("[DEBUG] Direct _send_type setting succeeded")
                     return True, ""
-                except Exception as e:
-                    print(f"[DEBUG] Direct _send_type setting failed: {str(e)}")
+                except Exception:
                     return False, "Cannot set send type - definitions not available"
                 
         except Exception as e:
-            print(f"[DEBUG] Exception while updating send_type: {str(e)}")
             import traceback
             traceback.print_exc()
             return False, f"Error updating send_type: {str(e)}"
@@ -835,29 +779,17 @@ class EditHandler:
         if not message:
             return False, f"Message '{message_name}' not found."
             
-        # Debug: Print initial state
-        print(f"[DEBUG] Editing frame_format for message '{message_name}'")
-        print(f"[DEBUG] Current frame_format: {getattr(message, 'frame_format', None)}")
-        print(f"[DEBUG] Has message.dbc: {hasattr(message, 'dbc')}")
-        
         try:
-            print(f"[DEBUG] Attempting to update to new frame_format: {new_frame_format}")
-            
             # Make sure message.dbc exists
             if not hasattr(message, 'dbc') or message.dbc is None:
-                print("[DEBUG] message.dbc doesn't exist, can't create it without DbcSpecifics class")
-                print("[DEBUG] Trying to set _frame_format attribute directly")
                 try:
                     object.__setattr__(message, '_frame_format', new_frame_format)
-                    print("[DEBUG] Direct _frame_format setting succeeded")
                     return True, ""
                 except Exception as e:
-                    print(f"[DEBUG] Direct _frame_format setting failed: {str(e)}")
                     return False, "Cannot set frame format - dbc attribute not available"
             
             # Make sure message.dbc.attributes is initialized
             if not hasattr(message.dbc, 'attributes') or message.dbc.attributes is None:
-                print("[DEBUG] Creating new attributes dictionary")
                 message.dbc.attributes = {}
                 
             # Check if the database has attribute definitions
@@ -865,86 +797,63 @@ class EditHandler:
                 # Get the attribute definition
                 if 'VFrameFormat' in self.database.dbc.attribute_definitions:
                     definition = self.database.dbc.attribute_definitions['VFrameFormat']
-                    print(f"[DEBUG] Found VFrameFormat definition: {definition}")
-                    print(f"[DEBUG] Definition type: {type(definition)}")
-                    print(f"[DEBUG] Definition dir: {dir(definition)}")
                     
                     # Check if definition has _choices attribute
                     if hasattr(definition, '_choices') and definition._choices:
-                        print(f"[DEBUG] Definition has _choices: {definition._choices}")
                         choices = definition._choices
                         
                         # Handle list of choices
                         if isinstance(choices, list):
-                            print("[DEBUG] Choices is a list")
-                            
                             # Try to find the new_frame_format in the choices list
                             if new_frame_format in choices:
                                 # Find the index for this choice
                                 choice_index = choices.index(new_frame_format)
-                                print(f"[DEBUG] Found '{new_frame_format}' at index {choice_index}")
                                 
                                 # Try to create the attribute
                                 try:
-                                    print(f"[DEBUG] Setting VFrameFormat attribute with index {choice_index}")
                                     attr_sig = str(Attribute.__init__.__code__.co_varnames)
-                                    print(f"[DEBUG] Attribute constructor signature: {attr_sig}")
                                     
                                     # Try different ways to create the attribute
                                     if 'value' in attr_sig and 'definition' in attr_sig:
-                                        print("[DEBUG] Using value and definition parameters")
                                         message.dbc.attributes['VFrameFormat'] = Attribute(
                                             value=choice_index,
                                             definition=definition
                                         )
                                     elif len(attr_sig.split(',')) >= 3:  # At least self, arg1, arg2
-                                        print("[DEBUG] Using positional parameters: definition, choice_index")
                                         message.dbc.attributes['VFrameFormat'] = Attribute(definition, choice_index)
-                                    else:
-                                        print("[DEBUG] Couldn't determine constructor parameters")
                                 except Exception as e:
-                                    print(f"[DEBUG] Error creating attribute: {str(e)}")
+                                    pass
                             else:
                                 # Try case-insensitive matching
                                 matched = False
                                 for i, value in enumerate(choices):
                                     if isinstance(value, str) and value.lower() == new_frame_format.lower():
                                         choice_index = i
-                                        print(f"[DEBUG] Found case-insensitive match '{value}' at index {choice_index}")
                                         try:
                                             message.dbc.attributes['VFrameFormat'] = Attribute(definition, choice_index)
                                             matched = True
                                             break
                                         except Exception as e:
-                                            print(f"[DEBUG] Error setting attribute: {str(e)}")
-                                
-                                if not matched:
-                                    print(f"[DEBUG] Value '{new_frame_format}' not found in choices list")
+                                            pass
                         
                         # Handle dictionary of choices
                         elif isinstance(choices, dict):
-                            print("[DEBUG] Choices is a dictionary")
                             # Try to find the new_frame_format in the choices values
                             if new_frame_format in choices.values():
                                 # Find the key for this choice value
                                 for key, value in choices.items():
                                     if value == new_frame_format:
                                         choice_key = key
-                                        print(f"[DEBUG] Found '{new_frame_format}' with key {choice_key}")
                                         break
                                 
                                 # Try to create the attribute
                                 try:
-                                    print(f"[DEBUG] Setting VFrameFormat attribute with choice_key {choice_key}")
                                     message.dbc.attributes['VFrameFormat'] = Attribute(definition, choice_key)
                                 except Exception as e:
-                                    print(f"[DEBUG] Error creating attribute: {str(e)}")
-                            else:
-                                print(f"[DEBUG] Value '{new_frame_format}' not found in choices dict")
+                                    pass
                     
                     # Check if the definition has choices property
                     elif hasattr(definition, 'choices') and definition.choices:
-                        print(f"[DEBUG] Definition has choices property: {definition.choices}")
                         choices = definition.choices
                         
                         # Handle based on type
@@ -954,7 +863,7 @@ class EditHandler:
                                 try:
                                     message.dbc.attributes['VFrameFormat'] = Attribute(definition, choice_index)
                                 except Exception as e:
-                                    print(f"[DEBUG] Error setting attribute: {str(e)}")
+                                    pass
                         elif isinstance(choices, dict):
                             if new_frame_format in choices.values():
                                 for key, value in choices.items():
@@ -963,52 +872,31 @@ class EditHandler:
                                             message.dbc.attributes['VFrameFormat'] = Attribute(definition, key)
                                             break
                                         except Exception as e:
-                                            print(f"[DEBUG] Error setting attribute: {str(e)}")
-                    
-                    # Fall back to direct approach if no choices found
-                    else:
-                        print("[DEBUG] Definition doesn't have usable choices")
+                                            pass
                     
                     # Update _frame_format for UI updates
                     try:
-                        print("[DEBUG] Setting _frame_format attribute directly")
                         object.__setattr__(message, '_frame_format', new_frame_format)
-                        print("[DEBUG] Direct _frame_format setting succeeded")
-                    except Exception as e:
-                        print(f"[DEBUG] Direct _frame_format setting failed: {str(e)}")
-                    
-                    # Print final state
-                    print(f"[DEBUG] After update - frame_format: {getattr(message, 'frame_format', None)}")
-                    print(f"[DEBUG] message.dbc.attributes contains VFrameFormat: {'VFrameFormat' in message.dbc.attributes}")
-                    if 'VFrameFormat' in message.dbc.attributes:
-                        print(f"[DEBUG] VFrameFormat attribute: {message.dbc.attributes['VFrameFormat']}")
+                    except Exception:
+                        pass
                     
                     return True, ""
                 else:
-                    print("[DEBUG] No VFrameFormat definition found in the database")
-                    
                     # Still try to update _frame_format for UI display
                     try:
                         object.__setattr__(message, '_frame_format', new_frame_format)
-                        print("[DEBUG] Direct _frame_format setting succeeded")
                         return True, ""
-                    except Exception as e:
-                        print(f"[DEBUG] Direct _frame_format setting failed: {str(e)}")
+                    except Exception:
                         return False, "Cannot set frame format - attribute not found"
             else:
-                print("[DEBUG] Database does not have attribute definitions")
-                
                 # Still try to update _frame_format for UI display
                 try:
                     object.__setattr__(message, '_frame_format', new_frame_format)
-                    print("[DEBUG] Direct _frame_format setting succeeded")
                     return True, ""
-                except Exception as e:
-                    print(f"[DEBUG] Direct _frame_format setting failed: {str(e)}")
+                except Exception:
                     return False, "Cannot set frame format - definitions not available"
                 
         except Exception as e:
-            print(f"[DEBUG] Exception while updating frame_format: {str(e)}")
             import traceback
             traceback.print_exc()
             return False, f"Error updating frame_format: {str(e)}" 
