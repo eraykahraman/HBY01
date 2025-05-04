@@ -722,7 +722,7 @@ class EditHandler:
                                 choice_index = choices.index(new_send_type)
                                 try:
                                     message.dbc.attributes['GenMsgSendType'] = Attribute(definition, choice_index)
-                                except Exception:
+                                except Exception as e:
                                     pass
                         elif isinstance(choices, dict):
                             if new_send_type in choices.values():
@@ -731,7 +731,7 @@ class EditHandler:
                                         try:
                                             message.dbc.attributes['GenMsgSendType'] = Attribute(definition, key)
                                             break
-                                        except Exception:
+                                        except Exception as e:
                                             pass
                     
                     # Update _send_type for UI updates
@@ -899,4 +899,66 @@ class EditHandler:
         except Exception as e:
             import traceback
             traceback.print_exc()
-            return False, f"Error updating frame_format: {str(e)}" 
+            return False, f"Error updating frame_format: {str(e)}"
+
+    def edit_message_cycle_time(self, message_name: str, new_cycle_time: int) -> tuple[bool, str]:
+        """
+        Edit the cycle time of a message (in milliseconds).
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message
+        message = None
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                message = msg
+                break
+                
+        if not message:
+            return False, f"Message '{message_name}' not found."
+            
+        # Validate cycle time
+        if new_cycle_time is not None and new_cycle_time < 0:
+            return False, "Cycle time cannot be negative"
+            
+        try:
+            # Use object.__setattr__ for direct attribute setting
+            try:
+                object.__setattr__(message, 'cycle_time', new_cycle_time)
+            except Exception:
+                # If that fails, try setting a _cycle_time attribute
+                object.__setattr__(message, '_cycle_time', new_cycle_time)
+            
+            # Make sure message.dbc exists and add the attribute there as well
+            if hasattr(message, 'dbc') and message.dbc is not None:
+                # Make sure message.dbc.attributes is initialized
+                if not hasattr(message.dbc, 'attributes') or message.dbc.attributes is None:
+                    message.dbc.attributes = {}
+                    
+                # Try to set attribute via Attribute class if definitions exist
+                if hasattr(self.database, 'dbc') and hasattr(self.database.dbc, 'attribute_definitions'):
+                    if 'GenMsgCycleTime' in self.database.dbc.attribute_definitions:
+                        definition = self.database.dbc.attribute_definitions['GenMsgCycleTime']
+                        try:
+                            attr_sig = str(Attribute.__init__.__code__.co_varnames)
+                            
+                            # Try different ways to create the attribute
+                            if 'value' in attr_sig and 'definition' in attr_sig:
+                                message.dbc.attributes['GenMsgCycleTime'] = Attribute(
+                                    value=new_cycle_time,
+                                    definition=definition
+                                )
+                            elif len(attr_sig.split(',')) >= 3:  # At least self, arg1, arg2
+                                message.dbc.attributes['GenMsgCycleTime'] = Attribute(definition, new_cycle_time)
+                        except Exception:
+                            # If we can't add to attributes, at least the direct property is set
+                            pass
+                    
+            return True, ""
+                
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return False, f"Error updating cycle_time: {str(e)}" 
