@@ -134,6 +134,7 @@ class DBC_IO_Handler(QObject):
                         signal.maximum = default_max
                         
         except Exception as e:
+            # Keep this error logging as it's important
             print(f"Warning: Error validating database signals: {str(e)}")
         
     def get_file_info(self) -> Dict[str, Any]:
@@ -624,6 +625,7 @@ class DBC_IO_Handler(QObject):
                     }
                     all_signals.append(signal_info)
         except Exception as e:
+            # Keep this error logging as it's important for troubleshooting
             print(f"Error parsing signals: {str(e)}")
             return []
             

@@ -500,9 +500,6 @@ class EditHandler:
         if not self.database:
             return False, "Database not initialized"
             
-        # Debug: Print signal data for inspection
-        print(f"Adding signal with data: {signal_data}")
-            
         # Validate required fields
         required_fields = ['name', 'start', 'length', 'byte_order', 'is_signed']
         for field in required_fields:
@@ -548,9 +545,6 @@ class EditHandler:
             byte_order = signal_data['byte_order']
             is_signed = bool(signal_data['is_signed'])  # Ensure boolean
             
-            # Extract optional parameters with safe defaults and debug
-            print(f"Signal numeric values - Scale: {signal_data.get('scale')}, Offset: {signal_data.get('offset')}, Min: {signal_data.get('minimum')}, Max: {signal_data.get('maximum')}")
-                
             # Initialize with safe default values
             scale = 1.0
             offset = 0.0
@@ -571,18 +565,14 @@ class EditHandler:
             try:
                 if 'scale' in signal_data and signal_data['scale'] is not None and signal_data['scale'] != '':
                     scale = float(signal_data['scale'])
-                print(f"Using scale: {scale}")
             except (ValueError, TypeError) as e:
-                print(f"Error converting scale: {e}")
                 return False, f"Invalid scale value: {signal_data.get('scale')}. It must be a valid number."
                 
             # Safely convert offset
             try:
                 if 'offset' in signal_data and signal_data['offset'] is not None and signal_data['offset'] != '':
                     offset = float(signal_data['offset'])
-                print(f"Using offset: {offset}")
             except (ValueError, TypeError) as e:
-                print(f"Error converting offset: {e}")
                 return False, f"Invalid offset value: {signal_data.get('offset')}. It must be a valid number."
             
             # Safely handle minimum (using explicit default if None)
@@ -592,10 +582,9 @@ class EditHandler:
                         minimum = 0.0
                     elif signal_data['minimum'] != '':
                         minimum = float(signal_data['minimum'])
-                print(f"Using minimum: {minimum}")
             except (ValueError, TypeError) as e:
-                print(f"Error converting minimum: {e}")
                 # Use the default, don't use None
+                pass
                 
             # Safely handle maximum (using explicit default if None)
             try:
@@ -604,10 +593,9 @@ class EditHandler:
                         maximum = 0.0
                     elif signal_data['maximum'] != '':
                         maximum = float(signal_data['maximum'])
-                print(f"Using maximum: {maximum}")
             except (ValueError, TypeError) as e:
-                print(f"Error converting maximum: {e}")
                 # Use the default, don't use None
+                pass
                 
             # Extract other optional parameters
             unit = str(signal_data.get('unit', ''))
@@ -621,15 +609,12 @@ class EditHandler:
                     try:
                         multiplexer_id = int(signal_data['multiplexer_id'])
                     except (ValueError, TypeError):
-                        print(f"Invalid multiplexer_id: {signal_data['multiplexer_id']}")
                         # Don't fail, just don't set it
+                        pass
             
             is_float = bool(signal_data.get('is_float', False))
             choices = signal_data.get('choices', {})
             receivers = signal_data.get('receivers', [])
-            
-            # Debug the values going into the constructor
-            print(f"Creating signal with: name={name}, start={start}, length={length}, byte_order={byte_order}, is_signed={is_signed}, scale={scale}, offset={offset}, minimum={minimum}, maximum={maximum}")
             
             # Create new signal - Fix the constructor parameters
             new_signal = Signal(
@@ -668,7 +653,6 @@ class EditHandler:
                 
             # Add signal to message
             message.signals.append(new_signal)
-            print(f"Successfully added signal {name} to message {message_name}")
             return True, ""
         except Exception as e:
             import traceback

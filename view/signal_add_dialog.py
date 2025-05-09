@@ -299,7 +299,6 @@ class SignalAddDialog(QDialog):
             
         # Check if name starts with a number - this is already here but making it explicit
         if name[0].isdigit():
-            print(f"Invalid signal name '{name}': cannot start with a number")
             return False
             
         # Check for valid characters (letters, numbers, and underscores only)
@@ -323,14 +322,13 @@ class SignalAddDialog(QDialog):
                 # Check for duplicates across all signals
                 for signal in all_signals:
                     if signal['name'].lower() == name.lower():  # Case-insensitive check
-                        print(f"Found duplicate signal '{name}' in message {signal.get('message_name', 'unknown')}")
                         return True
                         
                 # No duplicates found
                 return False
             except Exception as e:
-                print(f"Error checking for duplicate signal names: {str(e)}")
                 # Fall back to checking current message only
+                pass
         
         # If handler.get_signals() is not available, fall back to checking just current message
         for signal in self.message_data['signals']:
