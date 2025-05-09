@@ -254,6 +254,7 @@ class DBC_IO_Handler(QObject):
                 - length (int): The message length in bytes
                 - comment (Optional[str]): The comment associated with the message
                 - senders (List[str]): List of node names that can send this message
+                - receivers (List[str]): List of node names that receive this message (derived from signal receivers)
                 - signals (List[Dict]): List of signals in the message, each containing:
                     - name (str): Signal name
                     - start (int): Start bit
@@ -357,10 +358,22 @@ class DBC_IO_Handler(QObject):
                     
                 # Parse signals
                 signals = []
+                # Collect all unique receivers across all signals in this message
+                all_receivers = set()
+                
                 for signal in getattr(msg, 'signals', []):
                     if not hasattr(signal, 'name'):
                         continue
                         
+                    # Get signal receivers
+                    signal_receivers = [
+                        node.name if hasattr(node, 'name') else str(node)
+                        for node in getattr(signal, 'receivers', [])
+                    ]
+                    
+                    # Add to the set of all receivers for this message
+                    all_receivers.update(signal_receivers)
+                    
                     signal_info = {
                         "name": signal.name,
                         "start": getattr(signal, 'start', 0),
@@ -373,10 +386,7 @@ class DBC_IO_Handler(QObject):
                         "maximum": float(getattr(signal, 'maximum', 0)) if hasattr(signal, 'maximum') else None,
                         "unit": getattr(signal, 'unit', None),
                         "comment": getattr(signal, 'comment', None),
-                        "receivers": [
-                            node.name if hasattr(node, 'name') else str(node)
-                            for node in getattr(signal, 'receivers', [])
-                        ]
+                        "receivers": signal_receivers
                     }
                     signals.append(signal_info)
                 
@@ -400,6 +410,7 @@ class DBC_IO_Handler(QObject):
                         node.name if hasattr(node, 'name') else str(node)
                         for node in getattr(msg, 'senders', [])
                     ],
+                    "receivers": sorted(list(all_receivers)),  # Add sorted list of all unique receivers
                     "signals": signals,
                     "contained_messages": contained_messages,
                     "header_id": getattr(msg, 'header_id', None),

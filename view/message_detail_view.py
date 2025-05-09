@@ -153,6 +153,10 @@ class MessageDetailView(QDialog):
             ("Senders", None),  # Header
             ("Senders List", ", ".join(self.message_data['senders']) if self.message_data['senders'] else "None"),
             
+            # Receivers
+            ("Receivers", None),  # Header
+            ("Receivers List", ", ".join(self.message_data.get('receivers', [])) if self.message_data.get('receivers', []) else "None"),
+            
             # Frame Format
             ("Frame Format", None),  # Header
             ("Frame Format Type", self.message_data.get('frame_format', 'Not specified')),

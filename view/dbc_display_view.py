@@ -351,7 +351,7 @@ class DBCDisplayView(QWidget):
     def setup_messages_table(self):
         """Setup the messages table structure"""
         columns = [
-            "Name", "ID", "Length", "Signals Count", "Extended", "Frame Format", "Senders", "CAN FD", 
+            "Name", "ID", "Length", "Signals Count", "Extended", "Frame Format", "Senders", "Receivers", "CAN FD", 
             "Bus", "Cycle Time", "Send Type", "Comment", "Header ID", "Header Byte Order",
             "Unused Bit Pattern", "Is Multiplexed", "Contained Messages Count",
             "PGN", "Priority", "Source Address", "Destination Address", "Protocol"
@@ -379,6 +379,7 @@ class DBCDisplayView(QWidget):
             "Extended": 80,  # Yes/No field
             "Frame Format": 120,  # Added for frame format
             "Senders": 150,  # Wider for multiple sender names
+            "Receivers": 150,  # Wider for multiple receiver names
             "CAN FD": 80,   # Yes/No field
             "Bus": 100,     # Bus name
             "Cycle Time": 100,  # Cycle time in ms
@@ -662,15 +663,24 @@ class DBCDisplayView(QWidget):
                 senders = []
             senders_text = ', '.join(filter(None, senders))
             
+            # Handle receivers - should be a list
+            receivers = msg.get('receivers', [])
+            if isinstance(receivers, str):
+                receivers = [receivers]
+            elif not isinstance(receivers, list):
+                receivers = []
+            receivers_text = ', '.join(filter(None, receivers))
+            
             # Create items for each column in the correct order
             items = [
                 name_item,                    # Name
                 frame_id_item,                # ID
                 length_item,                  # Length
                 signals_count_item,           # Signals Count
-                create_bool_item(msg.get('is_extended_frame', False)),  # Extended - Fixed key name
+                create_bool_item(msg.get('is_extended_frame', False)),  # Extended
                 create_text_item(msg.get('frame_format', '')),  # Frame Format
                 create_text_item(senders_text),  # Senders
+                create_text_item(receivers_text),  # Receivers
                 create_bool_item(msg.get('is_fd', False)),  # CAN FD
                 create_text_item(msg.get('bus', '')),  # Bus
                 create_numeric_item(msg.get('cycle_time', '')),  # Cycle Time
@@ -1227,6 +1237,12 @@ class DBCDisplayView(QWidget):
                 senders_item = QTreeWidgetItem()
                 senders_item.setText(0, f"Senders: {', '.join(msg['senders'])}")
                 msg_item.addChild(senders_item)
+                
+            # Add receivers if available
+            if msg.get('receivers'):
+                receivers_item = QTreeWidgetItem()
+                receivers_item.setText(0, f"Receivers: {', '.join(msg['receivers'])}")
+                msg_item.addChild(receivers_item)
             
             # Add signals group under message
             if msg['signals']:
