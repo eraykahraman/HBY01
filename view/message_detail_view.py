@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                             QPushButton, QScrollArea, QWidget, QTableWidget,
                             QTableWidgetItem, QHeaderView, QFrame, QSizePolicy,
-                            QTabWidget, QMessageBox)
+                            QTabWidget, QMessageBox, QStyle)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
 from .signal_layout_view import SignalLayoutView
@@ -272,6 +272,15 @@ class MessageDetailView(QDialog):
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Add "Add Signal" button at the top
+        button_layout = QHBoxLayout()
+        add_signal_button = QPushButton("Add Signal")
+        add_signal_button.setIcon(self.style().standardIcon(QStyle.SP_FileDialogNewFolder))
+        add_signal_button.clicked.connect(self.open_add_signal_dialog)
+        button_layout.addWidget(add_signal_button)
+        button_layout.addStretch()
+        layout.addLayout(button_layout)
         
         # Create tab widget for organizing signals by receivers
         signals_tab_widget = QTabWidget()
@@ -726,3 +735,17 @@ class MessageDetailView(QDialog):
         else:
             # Otherwise, convert to string
             return str(frame_format_choices)
+
+    def open_add_signal_dialog(self):
+        """Open the dialog to add a new signal to this message"""
+        from .signal_add_dialog import SignalAddDialog
+        
+        dialog = SignalAddDialog(self.message_data, self.handler, self)
+        dialog.signal_added.connect(self.handle_signal_added)
+        dialog.exec_()
+        
+    def handle_signal_added(self, signal):
+        """Handle when a new signal is added to the message"""
+        # We'll implement the controller connection later
+        # For now, just refresh the UI to show the new signal
+        QMessageBox.information(self, "Signal Added", f"Signal '{signal['name']}' has been added.\nController implementation will be added later.")
