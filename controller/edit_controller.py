@@ -477,4 +477,31 @@ class EditController:
             if hasattr(self.handler, 'change_tracker'):
                 self.handler.change_tracker.add_signal_addition(message_name, signal_data['name'])
             
+        return success, error
+        
+    def edit_node_name(self, old_node_name: str, new_node_name: str) -> tuple[bool, str]:
+        """
+        Edit the name of a node.
+        
+        Args:
+            old_node_name (str): The current name of the node
+            new_node_name (str): The new name to assign to the node
+            
+        Returns:
+            tuple[bool, str]: (success, error_message)
+        """
+        if not self.edit_handler:
+            return False, "Edit handler not initialized"
+            
+        # Delegate to EditHandler
+        success, error = self.edit_handler.edit_node_name(old_node_name, new_node_name)
+        
+        if success:
+            # Update the database in DBC_IO_Handler
+            self.handler.update_database()
+            
+            # Track the change in the change tracker if available
+            if hasattr(self.handler, 'change_tracker'):
+                self.handler.change_tracker.add_node_name_change(old_node_name, new_node_name)
+            
         return success, error 

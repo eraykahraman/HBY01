@@ -48,13 +48,35 @@ class ChangeTracker:
         self._changes.append(change_entry)
         
     def add_signal_addition(self, message_name: str, signal_name: str):
-        """Add a signal addition to the tracker"""
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        """
+        Track the addition of a signal to a message
+        
+        Args:
+            message_name (str): Name of the message the signal was added to
+            signal_name (str): Name of the added signal
+        """
+        timestamp = self._get_timestamp()
         change_entry = {
             'timestamp': timestamp,
             'message': message_name,
             'signal': signal_name,
             'changes': ['Signal added']
+        }
+        self._changes.append(change_entry)
+        
+    def add_node_name_change(self, old_name: str, new_name: str):
+        """
+        Track the change of a node name
+        
+        Args:
+            old_name (str): Previous node name
+            new_name (str): New node name
+        """
+        timestamp = self._get_timestamp()
+        change_entry = {
+            'timestamp': timestamp,
+            'changes': [f"Node name: {old_name} → {new_name}"],
+            'type': 'node'  # Add type to distinguish from other changes
         }
         self._changes.append(change_entry)
 
@@ -111,6 +133,9 @@ class ChangeTracker:
             if change.get('type') == 'message':
                 # Message changes
                 summary += f"[{change['timestamp']}] Message: {change['message']}\n"
+            elif change.get('type') == 'node':
+                # Node changes
+                summary += f"[{change['timestamp']}] Node change\n"
             else:
                 # Signal changes
                 summary += f"[{change['timestamp']}] Message: {change['message']}, Signal: {change['signal']}\n"
@@ -131,3 +156,7 @@ class ChangeTracker:
     def has_changes(self) -> bool:
         """Check if there are any tracked changes"""
         return len(self._changes) > 0 
+
+    def _get_timestamp(self) -> str:
+        """Get a formatted timestamp for changes"""
+        return datetime.now().strftime("%Y-%m-%d %H:%M:%S") 

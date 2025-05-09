@@ -1026,8 +1026,39 @@ class DBCDisplayView(QWidget):
         
         # Show node detail view
         node_detail = NodeDetailView(node_data, node_messages, node_signals, self)
+        node_detail.node_edited.connect(self.on_node_edited)
         node_detail.show()
         
+    def on_node_edited(self, old_name, new_name):
+        """Handle when a node is edited in the node detail view"""
+        # Force refresh the tree view to show updated node name
+        self.refresh_tree()
+        
+        # Refresh the nodes table if it's visible
+        if self.nodes_table.isVisible():
+            nodes = self.current_handler.get_nodes()
+            self.update_nodes_table(nodes)
+
+    def refresh_tree(self):
+        """Refresh the tree view with current data from handler"""
+        if not self.current_handler:
+            return
+            
+        # Save the current expansion state of root items
+        expansion_state = {}
+        for i in range(self.tree_widget.topLevelItemCount()):
+            root_item = self.tree_widget.topLevelItem(i)
+            expansion_state[root_item.text(0)] = root_item.isExpanded()
+            
+        # Update the tree with current data
+        self.update_display(self.current_handler)
+        
+        # Restore expansion state
+        for i in range(self.tree_widget.topLevelItemCount()):
+            root_item = self.tree_widget.topLevelItem(i)
+            if root_item.text(0) in expansion_state:
+                root_item.setExpanded(expansion_state[root_item.text(0)])
+
     def on_node_double_clicked(self, item):
         """Handle double-click on a node in the nodes table"""
         if not self.current_handler:

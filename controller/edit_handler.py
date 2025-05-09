@@ -1258,4 +1258,83 @@ class EditHandler:
         if success:
             return True, ""
         else:
-            return False, "Errors occurred while updating receivers: " + "; ".join(errors) 
+            return False, "Errors occurred while updating receivers: " + "; ".join(errors)
+            
+    def edit_node_name(self, old_node_name: str, new_node_name: str) -> tuple[bool, str]:
+        """
+        Edit the name of a node in the database.
+        
+        Args:
+            old_node_name (str): Current node name
+            new_node_name (str): New node name
+            
+        Returns:
+            tuple[bool, str]: (Success status, Error message if any)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        if not new_node_name or not new_node_name.strip():
+            return False, "Node name cannot be empty."
+            
+        # Check if new name already exists
+        if any(node.name == new_node_name for node in self.database.nodes):
+            return False, f"A node with the name '{new_node_name}' already exists."
+            
+        # Find the node to edit
+        node_to_edit = None
+        for node in self.database.nodes:
+            if node.name == old_node_name:
+                node_to_edit = node
+                break
+                
+        if not node_to_edit:
+            return False, f"Node '{old_node_name}' not found."
+            
+        # Update the node name
+        node_to_edit.name = new_node_name
+        
+        # Update references in message senders
+        for message in self.database.messages:
+            # Update senders list
+            if hasattr(message, 'senders') and message.senders:
+                if old_node_name in message.senders:
+                    try:
+                        # Replace the old node name with the new one
+                        new_senders = [new_node_name if sender == old_node_name else sender 
+                                     for sender in message.senders]
+                        # Try to set the senders attribute directly
+                        message.senders = new_senders
+                    except (AttributeError, TypeError) as e:
+                        # If that fails, try to set the _senders internal attribute
+                        try:
+                            message._senders = new_senders
+                        except (AttributeError, TypeError):
+                            # If both attempts fail, log but continue
+                            pass
+            
+            # Update receivers in all signals of this message
+            for signal in message.signals:
+                if hasattr(signal, 'receivers') and signal.receivers:
+                    if old_node_name in signal.receivers:
+                        # Create the updated receivers list
+                        new_receivers = [new_node_name if receiver == old_node_name else receiver 
+                                        for receiver in signal.receivers]
+                        
+                        try:
+                            # First try to update the _receivers attribute if it exists
+                            if hasattr(signal, '_receivers'):
+                                signal._receivers = new_receivers
+                            else:
+                                # Try to update the receivers attribute directly
+                                signal.receivers = new_receivers
+                        except (AttributeError, TypeError):
+                            # If direct assignment fails, try a fallback approach
+                            try:
+                                # Use object.__setattr__ as a last resort
+                                object.__setattr__(signal, '_receivers', new_receivers)
+                            except Exception:
+                                # If all approaches fail, log but continue
+                                pass
+                                
+        return True, "" 

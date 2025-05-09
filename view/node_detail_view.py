@@ -1,13 +1,16 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                             QPushButton, QScrollArea, QWidget, QTableWidget,
                             QTableWidgetItem, QHeaderView, QFrame, QSizePolicy,
-                            QStackedWidget, QTabWidget)
-from PyQt5.QtCore import Qt
+                            QStackedWidget, QTabWidget, QMessageBox)
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
 from .signal_detail_view import SignalDetailView
 from .message_detail_view import MessageDetailView
+from .node_edit_dialog import NodeEditDialog
 
 class NodeDetailView(QDialog):
+    node_edited = pyqtSignal(str, str)  # old_name, new_name
+    
     def __init__(self, node_data, node_messages, node_signals, parent=None):
         super().__init__(parent)
         self.node_data = node_data
@@ -34,9 +37,9 @@ class NodeDetailView(QDialog):
         header_layout = QHBoxLayout(header_frame)
         header_layout.setContentsMargins(10, 10, 10, 10)
         
-        node_name_label = QLabel(self.node_data['name'])
-        node_name_label.setFont(QFont("Arial", 14, QFont.Bold))
-        header_layout.addWidget(node_name_label)
+        self.node_name_label = QLabel(self.node_data['name'])
+        self.node_name_label.setFont(QFont("Arial", 14, QFont.Bold))
+        header_layout.addWidget(self.node_name_label)
         
         # Add node statistics
         tx_messages_count = len(self.node_messages['tx_messages'])
@@ -49,6 +52,13 @@ class NodeDetailView(QDialog):
         header_layout.addWidget(stats_label)
         
         header_layout.addStretch()
+        
+        # Add Edit button
+        edit_button = QPushButton("Edit")
+        edit_button.setToolTip("Edit node name")
+        edit_button.setMinimumWidth(80)
+        edit_button.clicked.connect(self.open_edit_dialog)
+        header_layout.addWidget(edit_button)
         
         main_layout.addWidget(header_frame)
         
@@ -387,4 +397,43 @@ class NodeDetailView(QDialog):
                 break
             parent = parent.parent() if hasattr(parent, 'parent') else None
         signal_detail = SignalDetailView(signal, handler, self)
-        signal_detail.show() 
+        signal_detail.show()
+        
+    def open_edit_dialog(self):
+        """Open dialog to edit node name"""
+        edit_dialog = NodeEditDialog(self.node_data['name'], self)
+        edit_dialog.name_edited.connect(self.handle_name_edited)
+        edit_dialog.exec_()
+        
+    def handle_name_edited(self, new_name):
+        """Handle when node name is edited"""
+        if new_name == self.node_data['name']:
+            return  # No change
+            
+        # Find handler from parent chain (assume parent is DBCDisplayView)
+        handler = None
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'current_handler'):
+                handler = parent.current_handler
+                break
+            parent = parent.parent() if hasattr(parent, 'parent') else None
+            
+        if not handler or not handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+            
+        old_name = self.node_data['name']
+        success, error = handler.edit_controller.edit_node_name(old_name, new_name)
+        
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data and UI
+        self.node_data['name'] = new_name
+        self.node_name_label.setText(new_name)
+        self.setWindowTitle(f"Node Details: {new_name}")
+        
+        # Emit signal for parent views to update
+        self.node_edited.emit(old_name, new_name) 
