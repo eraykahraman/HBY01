@@ -46,6 +46,17 @@ class ChangeTracker:
             'changes': ['Signal deleted']
         }
         self._changes.append(change_entry)
+        
+    def add_signal_addition(self, message_name: str, signal_name: str):
+        """Add a signal addition to the tracker"""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        change_entry = {
+            'timestamp': timestamp,
+            'message': message_name,
+            'signal': signal_name,
+            'changes': ['Signal added']
+        }
+        self._changes.append(change_entry)
 
     def add_message_change(self, old_message: dict, new_message: dict):
         """Add a message change to the tracker"""

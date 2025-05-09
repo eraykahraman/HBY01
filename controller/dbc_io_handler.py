@@ -82,6 +82,9 @@ class DBC_IO_Handler(QObject):
         Update the in-memory data structures after database changes
         """
         if self.is_loaded and self.database:
+            # Fix any None values in signals to prevent parsing errors
+            self._validate_database_signals()
+            
             # Update the model's database
             self.model.dbc_files[self.file_path] = self.database
             # Update local data structures
@@ -92,6 +95,46 @@ class DBC_IO_Handler(QObject):
             self.nodes_changed.emit(self.nodes)
             self.messages_changed.emit(self.messages)
             self.signals_changed.emit(self.signals)
+        
+    def _validate_database_signals(self):
+        """
+        Validate and fix any None values in signals that might cause parsing errors
+        """
+        if not self.database or not hasattr(self.database, 'messages'):
+            return
+            
+        try:
+            for message in self.database.messages:
+                if not hasattr(message, 'signals'):
+                    continue
+                    
+                for signal in message.signals:
+                    # Ensure scale is never None
+                    if signal.scale is None:
+                        signal.scale = 1.0
+                        
+                    # Ensure offset is never None
+                    if signal.offset is None:
+                        signal.offset = 0.0
+                        
+                    # Calculate default min/max based on length and signedness
+                    if signal.is_signed:
+                        default_min = -(2 ** (signal.length - 1))
+                        default_max = (2 ** (signal.length - 1)) - 1
+                    else:
+                        default_min = 0.0
+                        default_max = (2 ** signal.length) - 1
+                        
+                    # Ensure minimum is never None
+                    if signal.minimum is None:
+                        signal.minimum = default_min
+                        
+                    # Ensure maximum is never None
+                    if signal.maximum is None:
+                        signal.maximum = default_max
+                        
+        except Exception as e:
+            print(f"Warning: Error validating database signals: {str(e)}")
         
     def get_file_info(self) -> Dict[str, Any]:
         """

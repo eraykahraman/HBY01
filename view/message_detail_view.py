@@ -746,6 +746,37 @@ class MessageDetailView(QDialog):
         
     def handle_signal_added(self, signal):
         """Handle when a new signal is added to the message"""
-        # We'll implement the controller connection later
-        # For now, just refresh the UI to show the new signal
-        QMessageBox.information(self, "Signal Added", f"Signal '{signal['name']}' has been added.\nController implementation will be added later.")
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for adding signal.")
+            return
+            
+        # Try to add the signal to the message
+        success, error = self.handler.edit_controller.add_signal(
+            self.message_data['name'],
+            signal
+        )
+        
+        if not success:
+            QMessageBox.critical(self, "Add Signal Error", error)
+            return
+            
+        # Update the local message data to include the new signal
+        self.message_data['signals'].append(signal)
+        
+        # Refresh the UI to show the new signal
+        QMessageBox.information(self, "Signal Added", f"Signal '{signal['name']}' has been added successfully.")
+        
+        # Refresh the signal tabs
+        # Find the tab widget
+        for i in range(self.layout().count()):
+            widget = self.layout().itemAt(i).widget()
+            if isinstance(widget, QTabWidget):
+                # Find the "Signals" tab
+                for j in range(widget.count()):
+                    if widget.tabText(j).startswith("Signals"):
+                        # Replace the tab with a new one
+                        signals_tab = self.create_signals_table()
+                        widget.removeTab(j)
+                        widget.insertTab(j, signals_tab, f"Signals ({len(self.message_data['signals'])})")
+                        break
+                break

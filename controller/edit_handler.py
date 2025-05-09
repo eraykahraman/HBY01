@@ -3,6 +3,42 @@ import cantools
 from cantools.database import Database
 from copy import deepcopy
 from cantools.database.can.attribute import Attribute
+from cantools.database.can.signal import Signal
+
+# Monkey patch the Signal class to handle None values properly during serialization
+original_signal_init = Signal.__init__
+
+def patched_signal_init(self, *args, **kwargs):
+    # Call the original __init__
+    original_signal_init(self, *args, **kwargs)
+    
+    # Ensure minimum and maximum are always floats, never None
+    if self.minimum is None:
+        if self.is_signed:
+            self.minimum = -(2 ** (self.length - 1))
+        else:
+            self.minimum = 0.0
+            
+    if self.maximum is None:
+        if self.is_signed:
+            self.maximum = (2 ** (self.length - 1)) - 1
+        else:
+            self.maximum = (2 ** self.length) - 1
+
+# Apply the monkey patch
+Signal.__init__ = patched_signal_init
+
+# Also patch Signal's __repr__ and __str__ methods to handle None values
+original_signal_repr = Signal.__repr__
+
+def patched_signal_repr(self):
+    try:
+        return original_signal_repr(self)
+    except Exception as e:
+        # Create a safe representation if the original fails
+        return f"Signal(name='{self.name}', start={self.start}, length={self.length})"
+
+Signal.__repr__ = patched_signal_repr
 
 class EditHandler:
     def __init__(self, database: Database):
@@ -402,27 +438,242 @@ class EditHandler:
     def delete_signal(self, message_name: str, signal_name: str) -> tuple[bool, str]:
         """
         Delete a signal from a message.
-        Args:
-            message_name: Name of the message containing the signal
-            signal_name: Name of the signal to delete
+        Returns (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
             
+        # Find the message
+        message = None
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                message = msg
+                break
+                
+        if not message:
+            return False, f"Message '{message_name}' not found."
+            
+        # Find the signal to delete
+        signal_to_delete = None
+        for signal in message.signals:
+            if signal.name == signal_name:
+                signal_to_delete = signal
+                break
+                
+        if not signal_to_delete:
+            return False, f"Signal '{signal_name}' not found in message '{message_name}'."
+            
+        # Remove the signal from the message
+        message.signals.remove(signal_to_delete)
+        return True, ""
+
+    def add_signal(self, message_name: str, signal_data: dict) -> tuple[bool, str]:
+        """
+        Add a new signal to a message.
+        
+        Args:
+            message_name (str): Name of the message to add the signal to
+            signal_data (dict): Dictionary containing the signal data
+                Required keys:
+                - name (str): Signal name
+                - start (int): Start bit
+                - length (int): Signal length in bits
+                - byte_order (str): 'little_endian' or 'big_endian'
+                - is_signed (bool): Whether the signal is signed
+                
+                Optional keys:
+                - scale (float): Scale factor
+                - offset (float): Signal offset
+                - minimum (float): Minimum value
+                - maximum (float): Maximum value
+                - unit (str): Signal unit
+                - receivers (list): List of receiver node names
+                - comment (str): Signal comment
+                - is_multiplexer (bool): Whether the signal is a multiplexer
+                - multiplexer_id (int): Multiplexer identifier
+                - is_float (bool): Whether the signal is a float value
+                - choices (dict): Value to name mapping dictionary
+        
         Returns:
             tuple[bool, str]: (success, error_message)
         """
         if not self.database:
             return False, "Database not initialized"
             
+        # Debug: Print signal data for inspection
+        print(f"Adding signal with data: {signal_data}")
+            
+        # Validate required fields
+        required_fields = ['name', 'start', 'length', 'byte_order', 'is_signed']
+        for field in required_fields:
+            if field not in signal_data:
+                return False, f"Missing required field: {field}"
+                
         # Find the message
+        message = None
         for msg in self.database.messages:
             if msg.name == message_name:
-                # Find and remove the signal
-                for i, signal in enumerate(msg.signals):
-                    if signal.name == signal_name:
-                        # Remove the signal
-                        del msg.signals[i]
-                        return True, ""
-                return False, f"Signal '{signal_name}' not found in message '{message_name}'."
-        return False, f"Message '{message_name}' not found."
+                message = msg
+                break
+                
+        if not message:
+            return False, f"Message '{message_name}' not found."
+            
+        # Check if the signal name already exists in any message
+        for msg in self.database.messages:
+            for signal in msg.signals:
+                if signal.name == signal_data['name']:
+                    return False, f"Signal name '{signal_data['name']}' already exists in message '{msg.name}'."
+        
+        # Check if the signal would overlap with existing signals
+        new_signal_end_bit = signal_data['start'] + signal_data['length'] - 1
+        for signal in message.signals:
+            signal_start_bit = signal.start
+            signal_end_bit = signal.start + signal.length - 1
+            
+            # Check for overlap
+            if (signal_data['start'] <= signal_end_bit and new_signal_end_bit >= signal_start_bit):
+                return False, f"Signal would overlap with existing signal '{signal.name}'"
+                
+        # Check if signal exceeds message length
+        if new_signal_end_bit >= message.length * 8:
+            return False, f"Signal would exceed message length of {message.length * 8} bits."
+            
+        # Create new signal
+        try:
+            # Extract required parameters
+            name = signal_data['name']
+            start = int(signal_data['start'])  # Ensure integer
+            length = int(signal_data['length'])  # Ensure integer
+            byte_order = signal_data['byte_order']
+            is_signed = bool(signal_data['is_signed'])  # Ensure boolean
+            
+            # Extract optional parameters with safe defaults and debug
+            print(f"Signal numeric values - Scale: {signal_data.get('scale')}, Offset: {signal_data.get('offset')}, Min: {signal_data.get('minimum')}, Max: {signal_data.get('maximum')}")
+                
+            # Initialize with safe default values
+            scale = 1.0
+            offset = 0.0
+            
+            # For compatibility with the cantools parser, use explicit values instead of None
+            # Default minimum/maximum based on the length and signedness of the signal
+            if is_signed:
+                default_min = -(2 ** (length - 1))
+                default_max = (2 ** (length - 1)) - 1
+            else:
+                default_min = 0.0
+                default_max = (2 ** length) - 1
+                
+            minimum = default_min
+            maximum = default_max
+            
+            # Safely convert scale
+            try:
+                if 'scale' in signal_data and signal_data['scale'] is not None and signal_data['scale'] != '':
+                    scale = float(signal_data['scale'])
+                print(f"Using scale: {scale}")
+            except (ValueError, TypeError) as e:
+                print(f"Error converting scale: {e}")
+                return False, f"Invalid scale value: {signal_data.get('scale')}. It must be a valid number."
+                
+            # Safely convert offset
+            try:
+                if 'offset' in signal_data and signal_data['offset'] is not None and signal_data['offset'] != '':
+                    offset = float(signal_data['offset'])
+                print(f"Using offset: {offset}")
+            except (ValueError, TypeError) as e:
+                print(f"Error converting offset: {e}")
+                return False, f"Invalid offset value: {signal_data.get('offset')}. It must be a valid number."
+            
+            # Safely handle minimum (using explicit default if None)
+            try:
+                if 'minimum' in signal_data and signal_data['minimum'] is not None:
+                    if signal_data['minimum'] == 0 or signal_data['minimum'] == '0':
+                        minimum = 0.0
+                    elif signal_data['minimum'] != '':
+                        minimum = float(signal_data['minimum'])
+                print(f"Using minimum: {minimum}")
+            except (ValueError, TypeError) as e:
+                print(f"Error converting minimum: {e}")
+                # Use the default, don't use None
+                
+            # Safely handle maximum (using explicit default if None)
+            try:
+                if 'maximum' in signal_data and signal_data['maximum'] is not None:
+                    if signal_data['maximum'] == 0 or signal_data['maximum'] == '0':
+                        maximum = 0.0
+                    elif signal_data['maximum'] != '':
+                        maximum = float(signal_data['maximum'])
+                print(f"Using maximum: {maximum}")
+            except (ValueError, TypeError) as e:
+                print(f"Error converting maximum: {e}")
+                # Use the default, don't use None
+                
+            # Extract other optional parameters
+            unit = str(signal_data.get('unit', ''))
+            comment = str(signal_data.get('comment', ''))
+            is_multiplexer = bool(signal_data.get('is_multiplexer', False))
+            
+            # Handle multiplexer_id (ensure it's an integer if present)
+            multiplexer_id = None
+            if 'multiplexer_id' in signal_data and signal_data['multiplexer_id'] is not None:
+                if signal_data['multiplexer_id'] != -1:  # -1 means not multiplexed
+                    try:
+                        multiplexer_id = int(signal_data['multiplexer_id'])
+                    except (ValueError, TypeError):
+                        print(f"Invalid multiplexer_id: {signal_data['multiplexer_id']}")
+                        # Don't fail, just don't set it
+            
+            is_float = bool(signal_data.get('is_float', False))
+            choices = signal_data.get('choices', {})
+            receivers = signal_data.get('receivers', [])
+            
+            # Debug the values going into the constructor
+            print(f"Creating signal with: name={name}, start={start}, length={length}, byte_order={byte_order}, is_signed={is_signed}, scale={scale}, offset={offset}, minimum={minimum}, maximum={maximum}")
+            
+            # Create new signal - Fix the constructor parameters
+            new_signal = Signal(
+                name=name,
+                start=start,
+                length=length,
+                byte_order=byte_order,
+                is_signed=is_signed,
+                scale=scale,
+                offset=offset,
+                minimum=minimum,
+                maximum=maximum,
+                unit=unit,
+                comment=comment,
+                receivers=receivers,
+                is_multiplexer=is_multiplexer,
+                is_float=is_float
+            )
+            
+            # Set multiplexer_id separately if needed
+            if multiplexer_id is not None:
+                if hasattr(new_signal, 'multiplexer_ids'):
+                    new_signal.multiplexer_ids = [multiplexer_id]
+                    # Set multiplexer signal reference if this is a multiplexed signal
+                    if not is_multiplexer:
+                        # Find multiplexer signal in the message
+                        multiplexer_signal = next((s for s in message.signals if s.is_multiplexer), None)
+                        if multiplexer_signal:
+                            new_signal.multiplexer_signal = multiplexer_signal.name
+                            # Set multiplexer attribute for export
+                            new_signal.multiplexer = str(multiplexer_id)
+            
+            # Add choices if any
+            if choices:
+                new_signal.choices = choices
+                
+            # Add signal to message
+            message.signals.append(new_signal)
+            print(f"Successfully added signal {name} to message {message_name}")
+            return True, ""
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return False, f"Error creating signal: {str(e)}"
 
     def get_diff(self) -> Dict[str, Any]:
         """

@@ -418,17 +418,8 @@ class EditController:
 
     def edit_message_receivers(self, message_name: str, new_receivers: list) -> tuple[bool, str]:
         """
-        Edit the receivers of all signals in a message.
-        
-        Since messages don't directly have receivers but their signals do,
-        this method updates all signals in the message to have the same receivers.
-        
-        Args:
-            message_name (str): Name of the message to update
-            new_receivers (list): List of receiver node names to set for all signals
-            
-        Returns:
-            tuple[bool, str]: (Success status, Error message if any)
+        Edit the receivers of a message
+        Returns (success, error_message)
         """
         if not self.edit_handler:
             return False, "Edit handler not initialized"
@@ -439,5 +430,51 @@ class EditController:
         if success:
             # Update the database in DBC_IO_Handler
             self.handler.update_database()
+            
+        return success, error
+        
+    def add_signal(self, message_name: str, signal_data: dict) -> tuple[bool, str]:
+        """
+        Add a new signal to a message.
+        
+        Args:
+            message_name (str): Name of the message to add the signal to
+            signal_data (dict): Dictionary containing the signal data
+                Required keys:
+                - name (str): Signal name
+                - start (int): Start bit
+                - length (int): Signal length in bits
+                - byte_order (str): 'little_endian' or 'big_endian'
+                - is_signed (bool): Whether the signal is signed
+                
+                Optional keys:
+                - scale (float): Scale factor
+                - offset (float): Signal offset
+                - minimum (float): Minimum value
+                - maximum (float): Maximum value
+                - unit (str): Signal unit
+                - receivers (list): List of receiver node names
+                - comment (str): Signal comment
+                - is_multiplexer (bool): Whether the signal is a multiplexer
+                - multiplexer_id (int): Multiplexer identifier
+                - is_float (bool): Whether the signal is a float value
+                - choices (dict): Value to name mapping dictionary
+        
+        Returns:
+            tuple[bool, str]: (success, error_message)
+        """
+        if not self.edit_handler:
+            return False, "Edit handler not initialized"
+            
+        # Delegate to EditHandler
+        success, error = self.edit_handler.add_signal(message_name, signal_data)
+        
+        if success:
+            # Update the database in DBC_IO_Handler
+            self.handler.update_database()
+            
+            # Track the addition in the change tracker if available
+            if hasattr(self.handler, 'change_tracker'):
+                self.handler.change_tracker.add_signal_addition(message_name, signal_data['name'])
             
         return success, error 
