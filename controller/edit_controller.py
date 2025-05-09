@@ -414,4 +414,30 @@ class EditController:
             # Update the database in DBC_IO_Handler
             self.handler.update_database()
             
+        return success, error
+
+    def edit_message_receivers(self, message_name: str, new_receivers: list) -> tuple[bool, str]:
+        """
+        Edit the receivers of all signals in a message.
+        
+        Since messages don't directly have receivers but their signals do,
+        this method updates all signals in the message to have the same receivers.
+        
+        Args:
+            message_name (str): Name of the message to update
+            new_receivers (list): List of receiver node names to set for all signals
+            
+        Returns:
+            tuple[bool, str]: (Success status, Error message if any)
+        """
+        if not self.edit_handler:
+            return False, "Edit handler not initialized"
+            
+        # Delegate to EditHandler
+        success, error = self.edit_handler.edit_message_receivers(message_name, new_receivers)
+        
+        if success:
+            # Update the database in DBC_IO_Handler
+            self.handler.update_database()
+            
         return success, error 

@@ -9,6 +9,7 @@ class MessageEditDialog(QDialog):
     extended_frame_edited = pyqtSignal(bool)
     message_deleted = pyqtSignal(str)  # message_name
     senders_edited = pyqtSignal(list)  # new_senders
+    receivers_edited = pyqtSignal(list)  # new_receivers
     send_type_edited = pyqtSignal(str)  # new_send_type
     frame_format_edited = pyqtSignal(str)  # new_frame_format
     cycle_time_edited = pyqtSignal(int)  # new_cycle_time in ms
@@ -129,6 +130,22 @@ class MessageEditDialog(QDialog):
             
         senders_layout.addWidget(self.senders_list)
         form_layout.addRow("Senders:", senders_layout)
+
+        # Receivers
+        receivers_layout = QVBoxLayout()
+        self.receivers_list = QListWidget()
+        self.receivers_list.setSelectionMode(QListWidget.MultiSelection)
+        self.receivers_list.setMaximumHeight(100)
+        
+        # Add all available nodes
+        for node in self.available_nodes:
+            item = QListWidgetItem(node)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked if node in self.message_data.get('receivers', []) else Qt.Unchecked)
+            self.receivers_list.addItem(item)
+            
+        receivers_layout.addWidget(self.receivers_list)
+        form_layout.addRow("Receivers:", receivers_layout)
 
         # Send Type
         self.send_type_combo = QComboBox()
@@ -457,6 +474,13 @@ class MessageEditDialog(QDialog):
             if item.checkState() == Qt.Checked:
                 selected_senders.append(item.text())
 
+        # Get selected receivers
+        selected_receivers = []
+        for i in range(self.receivers_list.count()):
+            item = self.receivers_list.item(i)
+            if item.checkState() == Qt.Checked:
+                selected_receivers.append(item.text())
+
         # Enforce sender selection rules
         if not selected_senders:
             QMessageBox.warning(self, "Validation Error", "Please select at least one sender.")
@@ -501,6 +525,10 @@ class MessageEditDialog(QDialog):
         # Emit senders signal if changed
         if set(selected_senders) != set(self.message_data.get('senders', [])):
             self.senders_edited.emit(selected_senders)
+
+        # Emit receivers signal if changed
+        if set(selected_receivers) != set(self.message_data.get('receivers', [])):
+            self.receivers_edited.emit(selected_receivers)
 
         # Emit remaining signals
         if new_name != self.current_name:

@@ -961,4 +961,66 @@ class EditHandler:
         except Exception as e:
             import traceback
             traceback.print_exc()
-            return False, f"Error updating cycle_time: {str(e)}" 
+            return False, f"Error updating cycle_time: {str(e)}"
+
+    def edit_message_receivers(self, message_name: str, new_receivers: list) -> tuple[bool, str]:
+        """
+        Edit the receivers of all signals in a message.
+        
+        Since messages themselves don't directly have receivers but their signals do,
+        this method updates all signals in the message to have the same receivers.
+        
+        Args:
+            message_name (str): Name of the message to update
+            new_receivers (list): List of receiver node names to set for all signals
+            
+        Returns:
+            tuple[bool, str]: (Success status, Error message if any)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+            
+        # Find the message
+        message = None
+        for msg in self.database.messages:
+            if msg.name == message_name:
+                message = msg
+                break
+                
+        if not message:
+            return False, f"Message '{message_name}' not found."
+            
+        # Validate that all receivers exist as nodes
+        existing_nodes = {node.name: node for node in self.database.nodes}
+        invalid_receivers = [r for r in new_receivers if r not in existing_nodes]
+        if invalid_receivers:
+            return False, f"Invalid receiver nodes: {', '.join(invalid_receivers)}"
+            
+        # Process all signals in the message
+        success = True
+        errors = []
+        
+        if not message.signals:
+            return False, "Message has no signals to update receivers for."
+            
+        for signal in message.signals:
+            try:
+                # Use the same approach as in edit_signal_receivers
+                try:
+                    # Only update the _receivers attribute if present
+                    signal._receivers = [str(name) for name in new_receivers]
+                except Exception as e1:
+                    # If we can't set _receivers, try setting receivers directly
+                    try:
+                        signal.receivers = [str(name) for name in new_receivers]
+                    except Exception as e2:
+                        success = False
+                        errors.append(f"Error updating receivers for signal '{signal.name}': {str(e2)}")
+            except Exception as e:
+                success = False
+                errors.append(f"Error updating receivers for signal '{signal.name}': {str(e)}")
+        
+        if success:
+            return True, ""
+        else:
+            return False, "Errors occurred while updating receivers: " + "; ".join(errors) 

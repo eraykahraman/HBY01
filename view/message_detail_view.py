@@ -467,6 +467,7 @@ class MessageDetailView(QDialog):
         edit_dialog.extended_frame_edited.connect(self.handle_extended_frame_edited)
         edit_dialog.message_deleted.connect(self.handle_message_deleted)
         edit_dialog.senders_edited.connect(self.handle_senders_edited)
+        edit_dialog.receivers_edited.connect(self.handle_receivers_edited)
         edit_dialog.send_type_edited.connect(self.handle_send_type_edited)
         edit_dialog.frame_format_edited.connect(self.handle_frame_format_edited)
         edit_dialog.cycle_time_edited.connect(self.handle_cycle_time_edited)
@@ -591,6 +592,27 @@ class MessageDetailView(QDialog):
             
         # Update local data
         self.message_data['senders'] = new_senders
+        
+        # Emit signal with old and new message data
+        self.handle_message_edited(old_message, self.message_data)
+
+    def handle_receivers_edited(self, new_receivers: list):
+        """Handle when receivers are edited"""
+        if not self.handler or not self.handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+            
+        old_message = self.message_data.copy()
+        success, error = self.handler.edit_controller.edit_message_receivers(
+            self.message_data['name'],
+            new_receivers
+        )
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+            
+        # Update local data
+        self.message_data['receivers'] = new_receivers
         
         # Emit signal with old and new message data
         self.handle_message_edited(old_message, self.message_data)
