@@ -2,6 +2,7 @@ from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QLineEdit, QFormLayout, QMessageBox)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
+import re
 
 class NodeEditDialog(QDialog):
     """Dialog for editing a node"""
@@ -34,6 +35,17 @@ class NodeEditDialog(QDialog):
         self.name_edit.setFont(QFont("Arial", 10))
         form_layout.addRow("Node Name:", self.name_edit)
         
+        # Add validation rules label
+        rules_label = QLabel(
+            "Name rules:\n"
+            "• Must start with a letter\n"
+            "• Can contain letters, numbers, underscore, and dot\n"
+            "• Cannot exceed 64 characters\n"
+            "• Cannot be 'vector', 'multiplexer', or 'multiplexed'"
+        )
+        rules_label.setStyleSheet("color: gray; font-size: 9pt;")
+        form_layout.addRow(rules_label)
+        
         main_layout.addLayout(form_layout)
         
         # Buttons layout
@@ -51,25 +63,41 @@ class NodeEditDialog(QDialog):
         self.save_button = QPushButton("Save")
         self.save_button.setFixedWidth(100)
         self.save_button.setDefault(True)
-        self.save_button.clicked.connect(self.validate_and_save)
+        self.save_button.clicked.connect(self.validate_and_accept)
         button_layout.addWidget(self.save_button)
         
         main_layout.addLayout(button_layout)
         
-    def validate_and_save(self):
-        """Validate inputs and save changes"""
+    def validate_and_accept(self):
+        """Validate the name and accept if valid"""
         new_name = self.name_edit.text().strip()
-        
-        # Validate name
-        if not new_name:
-            QMessageBox.warning(self, "Validation Error", "Node name cannot be empty.")
+        is_valid, error_message = self.validate_name(new_name)
+        if not is_valid:
+            QMessageBox.warning(self, "Invalid Name", error_message)
             return
-            
-        # Check if name actually changed
         if new_name == self.node_name:
             self.accept()  # Just close dialog if no changes made
             return
-            
-        # Emit signal with new name
         self.name_edited.emit(new_name)
-        self.accept() 
+        self.accept()
+
+    def validate_name(self, name: str) -> tuple[bool, str]:
+        """
+        Validate the node name
+        Args:
+            name (str): The name to validate
+        Returns:
+            tuple[bool, str]: (is_valid, error_message)
+        """
+        if not name or not name.strip():
+            return False, "Node name cannot be empty."
+        name = name.strip()
+        if name[0].isdigit():
+            return False, "Node name cannot start with a number."
+        if not re.match(r'^[a-zA-Z][a-zA-Z0-9_.]*$', name):
+            return False, "Node name can only contain letters, numbers, underscore, and dot. Must start with a letter."
+        if len(name) > 64:
+            return False, "Node name cannot exceed 64 characters."
+        if name.lower() in ["vector", "multiplexer", "multiplexed"]:
+            return False, "Node name cannot be 'vector', 'multiplexer', or 'multiplexed'."
+        return True, "" 
