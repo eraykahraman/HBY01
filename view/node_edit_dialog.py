@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QPushButton, QLineEdit, QFormLayout, QMessageBox)
+                             QPushButton, QLineEdit, QFormLayout, QMessageBox, QTextEdit)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
 import re
@@ -7,10 +7,12 @@ import re
 class NodeEditDialog(QDialog):
     """Dialog for editing a node"""
     name_edited = pyqtSignal(str)  # Signal emitted when node name is edited
+    comment_edited = pyqtSignal(str)  # Signal emitted when node comment is edited
     
-    def __init__(self, node_name, parent=None):
+    def __init__(self, node_name, node_comment=None, parent=None):
         super().__init__(parent)
         self.node_name = node_name
+        self.node_comment = node_comment or ""
         self.setup_ui()
         
     def setup_ui(self):
@@ -34,6 +36,13 @@ class NodeEditDialog(QDialog):
         self.name_edit.setPlaceholderText("Enter node name")
         self.name_edit.setFont(QFont("Arial", 10))
         form_layout.addRow("Node Name:", self.name_edit)
+        
+        # Comment edit field
+        self.comment_edit = QTextEdit(self.node_comment)
+        self.comment_edit.setPlaceholderText("Enter node comment (optional)")
+        self.comment_edit.setFont(QFont("Arial", 10))
+        self.comment_edit.setFixedHeight(60)
+        form_layout.addRow("Comment:", self.comment_edit)
         
         # Add validation rules label
         rules_label = QLabel(
@@ -71,14 +80,20 @@ class NodeEditDialog(QDialog):
     def validate_and_accept(self):
         """Validate the name and accept if valid"""
         new_name = self.name_edit.text().strip()
+        new_comment = self.comment_edit.toPlainText().strip()
         is_valid, error_message = self.validate_name(new_name)
         if not is_valid:
             QMessageBox.warning(self, "Invalid Name", error_message)
             return
-        if new_name == self.node_name:
+        if new_name == self.node_name and new_comment == (self.node_comment or ""):
             self.accept()  # Just close dialog if no changes made
             return
         self.name_edited.emit(new_name)
+        if new_comment != (self.node_comment or ""):
+            if len(new_comment) > 256:
+                QMessageBox.warning(self, "Invalid Comment", "Comment cannot exceed 256 characters.")
+                return
+            self.comment_edited.emit(new_comment)
         self.accept()
 
     def validate_name(self, name: str) -> tuple[bool, str]:

@@ -10,6 +10,7 @@ from .node_edit_dialog import NodeEditDialog
 
 class NodeDetailView(QDialog):
     node_edited = pyqtSignal(str, str)  # old_name, new_name
+    node_comment_edited = pyqtSignal(str)  # node_name
     
     def __init__(self, node_data, node_messages, node_signals, parent=None):
         super().__init__(parent)
@@ -401,8 +402,9 @@ class NodeDetailView(QDialog):
         
     def open_edit_dialog(self):
         """Open dialog to edit node name"""
-        edit_dialog = NodeEditDialog(self.node_data['name'], self)
+        edit_dialog = NodeEditDialog(self.node_data['name'], self.node_data.get('comment', ''), self)
         edit_dialog.name_edited.connect(self.handle_name_edited)
+        edit_dialog.comment_edited.connect(self.handle_comment_edited)
         edit_dialog.exec_()
         
     def handle_name_edited(self, new_name):
@@ -436,4 +438,32 @@ class NodeDetailView(QDialog):
         self.setWindowTitle(f"Node Details: {new_name}")
         
         # Emit signal for parent views to update
-        self.node_edited.emit(old_name, new_name) 
+        self.node_edited.emit(old_name, new_name)
+        
+    def handle_comment_edited(self, new_comment):
+        # Find handler from parent chain (assume parent is DBCDisplayView)
+        handler = None
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'current_handler'):
+                handler = parent.current_handler
+                break
+            parent = parent.parent() if hasattr(parent, 'parent') else None
+        if not handler or not handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+        node_name = self.node_data['name']
+        old_comment = self.node_data.get('comment', '')
+        success, error = handler.edit_controller.edit_node_comment(node_name, new_comment)
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+        # Update local data and UI
+        self.node_data['comment'] = new_comment
+        self.refresh_details_tab()
+        # Emit signal for parent views to update nodes table
+        self.node_comment_edited.emit(self.node_data['name'])
+
+    def refresh_details_tab(self):
+        # Optionally implement this to refresh the details tab if comment is shown
+        pass 

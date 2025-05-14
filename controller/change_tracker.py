@@ -131,22 +131,16 @@ class ChangeTracker:
         summary = "Changes made in this session:\n\n"
         for change in self._changes:
             if change.get('type') == 'message':
-                # Message changes
                 summary += f"[{change['timestamp']}] Message: {change['message']}\n"
             elif change.get('type') == 'node':
-                # Node changes
                 summary += f"[{change['timestamp']}] Node change\n"
+            elif change.get('type') == 'node_comment':
+                summary += f"[{change['timestamp']}] Node: {change['node']}\n"
             else:
-                # Signal changes
                 summary += f"[{change['timestamp']}] Message: {change['message']}, Signal: {change['signal']}\n"
-            
             for detail in change['changes']:
-                if detail in ['Signal deleted', 'Message deleted']:
-                    summary += f"  • {detail}\n"
-                else:
-                    summary += f"  • {detail}\n"
+                summary += f"  • {detail}\n"
             summary += "\n"
-        
         return summary
     
     def clear_changes(self):
@@ -160,3 +154,20 @@ class ChangeTracker:
     def _get_timestamp(self) -> str:
         """Get a formatted timestamp for changes"""
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S") 
+
+    def add_node_comment_change(self, node_name: str, old_comment: str, new_comment: str):
+        """
+        Track the change of a node comment
+        Args:
+            node_name (str): Node name
+            old_comment (str): Previous comment
+            new_comment (str): New comment
+        """
+        timestamp = self._get_timestamp()
+        change_entry = {
+            'timestamp': timestamp,
+            'node': node_name,
+            'changes': [f"Node comment: '{old_comment}' → '{new_comment}'"],
+            'type': 'node_comment'
+        }
+        self._changes.append(change_entry) 

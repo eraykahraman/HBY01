@@ -504,4 +504,28 @@ class EditController:
             if hasattr(self.handler, 'change_tracker'):
                 self.handler.change_tracker.add_node_name_change(old_node_name, new_node_name)
             
+        return success, error
+
+    def edit_node_comment(self, node_name: str, new_comment: str) -> tuple[bool, str]:
+        """
+        Edit the comment of a node.
+        Args:
+            node_name (str): The name of the node
+            new_comment (str): The new comment to assign
+        Returns:
+            tuple[bool, str]: (success, error_message)
+        """
+        if not self.edit_handler:
+            return False, "Edit handler not initialized"
+        # Get old comment for change tracking
+        old_comment = None
+        for node in self.handler.database.nodes:
+            if hasattr(node, 'name') and node.name == node_name:
+                old_comment = getattr(node, 'comment', '')
+                break
+        success, error = self.edit_handler.edit_node_comment(node_name, new_comment)
+        if success:
+            self.handler.update_database()
+            if hasattr(self.handler, 'change_tracker'):
+                self.handler.change_tracker.add_node_comment_change(node_name, old_comment, new_comment)
         return success, error 

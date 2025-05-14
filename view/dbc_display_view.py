@@ -1027,14 +1027,21 @@ class DBCDisplayView(QWidget):
         # Show node detail view
         node_detail = NodeDetailView(node_data, node_messages, node_signals, self)
         node_detail.node_edited.connect(self.on_node_edited)
+        node_detail.node_comment_edited.connect(self.on_node_comment_edited)
         node_detail.show()
-        
+
     def on_node_edited(self, old_name, new_name):
         """Handle when a node is edited in the node detail view"""
         # Force refresh the tree view to show updated node name
         self.refresh_tree()
         
         # Refresh the nodes table if it's visible
+        if self.nodes_table.isVisible():
+            nodes = self.current_handler.get_nodes()
+            self.update_nodes_table(nodes)
+
+    def on_node_comment_edited(self, node_name):
+        """Handle when a node's comment is edited in the node detail view"""
         if self.nodes_table.isVisible():
             nodes = self.current_handler.get_nodes()
             self.update_nodes_table(nodes)

@@ -1337,4 +1337,26 @@ class EditHandler:
                                 # If all approaches fail, log but continue
                                 pass
                                 
+        return True, ""
+
+    def edit_node_comment(self, node_name: str, new_comment: str) -> tuple[bool, str]:
+        """
+        Edit the comment of a node in the database.
+        Args:
+            node_name (str): Name of the node
+            new_comment (str): New comment to set
+        Returns:
+            tuple[bool, str]: (Success status, Error message if any)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+        # Find the node to edit
+        node_to_edit = None
+        for node in self.database.nodes:
+            if hasattr(node, 'name') and node.name == node_name:
+                node_to_edit = node
+                break
+        if not node_to_edit:
+            return False, f"Node '{node_name}' not found."
+        node_to_edit.comment = new_comment
         return True, "" 
