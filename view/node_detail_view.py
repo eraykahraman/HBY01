@@ -563,7 +563,34 @@ class NodeDetailView(QDialog):
                 break
             parent = parent.parent() if hasattr(parent, 'parent') else None
         signal_detail = SignalDetailView(signal, handler, self)
+        signal_detail.signal_deleted.connect(self.handle_signal_deleted)
         signal_detail.show()
+        
+    def handle_signal_deleted(self, message_name, signal_name):
+        # Find handler from parent chain (assume parent is DBCDisplayView)
+        handler = None
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'current_handler'):
+                handler = parent.current_handler
+                break
+            parent = parent.parent() if hasattr(parent, 'parent') else None
+        if not handler:
+            return
+        # Refresh node signals and messages
+        self.node_signals = handler.get_node_signals(self.node_name)
+        self.node_messages = handler.get_node_messages(self.node_name)
+        # Update the signals tab
+        for i in range(self.layout().count()):
+            widget = self.layout().itemAt(i).widget()
+            if isinstance(widget, QTabWidget):
+                for j in range(widget.count()):
+                    if widget.tabText(j).startswith("Signals"):
+                        signals_tab = self.create_signals_tab()
+                        widget.removeTab(j)
+                        widget.insertTab(j, signals_tab, f"Signals")
+                        break
+                break
         
     def open_edit_dialog(self):
         """Open dialog to edit node name"""
