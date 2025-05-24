@@ -142,6 +142,8 @@ class ChangeTracker:
                 summary += f"[{change['timestamp']}] Message: {change['message']} (Node: {change['node']})\n"
             elif change.get('type') == 'node_addition':
                 summary += f"[{change['timestamp']}] Node: {change['node']}\n"
+            elif change.get('type') == 'node_deletion':
+                summary += f"[{change['timestamp']}] Node: {change['node']}\n"
             else:
                 # Handle signal changes
                 if 'message' in change and 'signal' in change:

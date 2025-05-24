@@ -593,6 +593,12 @@ class EditController:
             self.handler.update_database()
             if hasattr(self.handler, 'change_tracker'):
                 self.handler.change_tracker.add_node_deletion(node_name)
+                # Ensure deleted_messages is a list
+                if not deleted_messages:
+                    deleted_messages = []
+                # Ensure deleted_signals is a dict
+                if not deleted_signals:
+                    deleted_signals = {}
                 for msg_name in deleted_messages:
                     self.handler.change_tracker.add_message_deletion(msg_name)
                     for sig_name in deleted_signals.get(msg_name, []):

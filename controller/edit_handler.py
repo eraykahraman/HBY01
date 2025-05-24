@@ -1552,8 +1552,14 @@ class EditHandler:
         for msg in self.database.messages:
             for signal in msg.signals:
                 if node_name in getattr(signal, 'receivers', []):
-                    signal.receivers = [r for r in signal.receivers if r != node_name]
-                if hasattr(signal, '_receivers') and node_name in signal._receivers:
+                    try:
+                        # Try in-place update if possible
+                        signal.receivers[:] = [r for r in signal.receivers if r != node_name]
+                    except Exception:
+                        # Fallback: update _receivers if available
+                        if hasattr(signal, '_receivers'):
+                            signal._receivers = [r for r in signal._receivers if r != node_name]
+                elif hasattr(signal, '_receivers') and node_name in signal._receivers:
                     signal._receivers = [r for r in signal._receivers if r != node_name]
 
         return True, "", deleted_messages, deleted_signals
