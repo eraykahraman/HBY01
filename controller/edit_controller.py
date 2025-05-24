@@ -556,4 +556,22 @@ class EditController:
             self.handler.update_database()
             if hasattr(self.handler, 'change_tracker'):
                 self.handler.change_tracker.add_node_address_change(node_name, old_address, new_address)
+        return success, error
+
+    def add_message(self, node_name: str, message_data: dict) -> tuple[bool, str]:
+        """
+        Add a new message to the database for the given node.
+        Args:
+            node_name (str): Name of the node to add the message to
+            message_data (dict): Dictionary containing the message data
+        Returns:
+            tuple[bool, str]: (success, error_message)
+        """
+        if not self.edit_handler:
+            return False, "Edit handler not initialized"
+        success, error = self.edit_handler.add_message(node_name, message_data)
+        if success:
+            self.handler.update_database()
+            if hasattr(self.handler, 'change_tracker'):
+                self.handler.change_tracker.add_message_addition(node_name, message_data['name'])
         return success, error 

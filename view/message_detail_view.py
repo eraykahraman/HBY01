@@ -182,7 +182,12 @@ class MessageDetailView(QDialog):
             properties.append(("Send Type", "N/A"))
             
         # Add Cycle Time
-        properties.append(("Cycle Time", f"{self.message_data.get('cycle_time')} ms" if self.message_data.get('cycle_time') is not None else "Not specified"))
+        cycle_time = self.message_data.get('cycle_time')
+        if cycle_time is None and hasattr(self.message_data, 'dbc') and hasattr(self.message_data.dbc, 'attributes'):
+            attr = self.message_data.dbc.attributes.get('GenMsgCycleTime')
+            if attr is not None and hasattr(attr, 'value'):
+                cycle_time = attr.value
+        properties.append(("Cycle Time", f"{cycle_time} ms" if cycle_time is not None else "Not specified"))
         
         # Add available send types only if they exist
         if self.message_data.get('send_type_choices'):

@@ -3,7 +3,7 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont, QIntValidator
 
 class CreateMessageDialog(QDialog):
-    message_created = pyqtSignal(str, int, bool, str, int, str, int, list)  # name, id, is_extended, frame_format, length, send_type, cycle_time, receivers
+    message_created = pyqtSignal(str, int, bool, str, int, str, int, list, str)  # name, id, is_extended, frame_format, length, send_type, cycle_time, receivers, comment
 
     def __init__(self, handler=None, parent=None, frame_format_choices=None, send_type_choices=None, current_send_type=None, cycle_time=None):
         super().__init__(parent)
@@ -132,6 +132,12 @@ class CreateMessageDialog(QDialog):
             cycle_time_layout.addWidget(ms_label)
             form_layout.addRow("Cycle Time:", cycle_time_layout)
 
+        # Comment field
+        self.comment_edit = QLineEdit()
+        self.comment_edit.setPlaceholderText("Enter comment (optional)")
+        self.comment_edit.setFont(QFont("Arial", 10))
+        form_layout.addRow("Comment:", self.comment_edit)
+
         # Receivers
         receivers_layout = QVBoxLayout()
         self.receivers_list = QListWidget()
@@ -248,11 +254,22 @@ class CreateMessageDialog(QDialog):
             if cycle_time_text:
                 try:
                     cycle_time_value = int(cycle_time_text)
-                    if cycle_time_value <= 0:
-                        raise ValueError
                 except ValueError:
-                    QMessageBox.warning(self, "Invalid Cycle Time", "Cycle time must be a positive integer (ms).")
-                    return
+                    cycle_time_value = None
+        # If blank, use attribute definition default if available
+        if cycle_time_value is None and self.handler and hasattr(self.handler, 'get_attribute_definitions'):
+            attr_defs = self.handler.get_attribute_definitions() if callable(self.handler.get_attribute_definitions) else getattr(self.handler, 'attribute_definitions', None)
+            if attr_defs and 'GenMsgCycleTime' in attr_defs:
+                default = getattr(attr_defs['GenMsgCycleTime'], 'default_value', None)
+                if default is not None:
+                    try:
+                        cycle_time_value = int(default)
+                    except Exception:
+                        cycle_time_value = 0
+            else:
+                cycle_time_value = 0
+        elif cycle_time_value is None:
+            cycle_time_value = 0
         # Collect selected receivers
         receivers = []
         if self.receivers_list is not None:
@@ -260,7 +277,8 @@ class CreateMessageDialog(QDialog):
                 item = self.receivers_list.item(i)
                 if item.checkState() == 2:  # Qt.Checked
                     receivers.append(item.text())
-        self.message_created.emit(name, frame_id, is_extended, frame_format, length_value, send_type, cycle_time_value, receivers)
+        comment = self.comment_edit.text().strip()
+        self.message_created.emit(name, frame_id, is_extended, frame_format, length_value, send_type, cycle_time_value, receivers, comment)
         self.accept()
 
     def validate_name(self, name: str) -> tuple[bool, str]:

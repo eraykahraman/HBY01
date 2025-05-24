@@ -672,6 +672,13 @@ class DBCDisplayView(QWidget):
             receivers_text = ', '.join(filter(None, receivers))
             
             # Create items for each column in the correct order
+            # Updated cycle time logic
+            cycle_time = msg.get('cycle_time', None)
+            if cycle_time is None and hasattr(msg, 'dbc') and hasattr(msg.dbc, 'attributes'):
+                attr = msg.dbc.attributes.get('GenMsgCycleTime')
+                if attr is not None and hasattr(attr, 'value'):
+                    cycle_time = attr.value
+            
             items = [
                 name_item,                    # Name
                 frame_id_item,                # ID
@@ -683,7 +690,7 @@ class DBCDisplayView(QWidget):
                 create_text_item(receivers_text),  # Receivers
                 create_bool_item(msg.get('is_fd', False)),  # CAN FD
                 create_text_item(msg.get('bus', '')),  # Bus
-                create_numeric_item(msg.get('cycle_time', '')),  # Cycle Time
+                create_numeric_item(cycle_time, f"{cycle_time} ms" if cycle_time is not None else ""),  # Cycle Time
                 create_text_item(msg.get('send_type', '')),  # Send Type
                 create_text_item(msg.get('comment', '')),  # Comment
                 create_text_item(msg.get('header_id', '')),  # Header ID

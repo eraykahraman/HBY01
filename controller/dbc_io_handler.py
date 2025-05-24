@@ -522,6 +522,12 @@ class DBC_IO_Handler(QObject):
                     # frame_format will be set below
                 }
                 
+                # Patch: Always extract cycle_time from DBC attribute if not set
+                if (message_info['cycle_time'] is None or message_info['cycle_time'] == "") and hasattr(msg, 'dbc') and hasattr(msg.dbc, 'attributes'):
+                    attr = msg.dbc.attributes.get('GenMsgCycleTime')
+                    if attr is not None and hasattr(attr, 'value'):
+                        message_info['cycle_time'] = attr.value
+                
                 # Extract frame format attribute if it exists in message.dbc.attributes
                 has_frame_format = False
                 if hasattr(msg, 'dbc') and hasattr(msg.dbc, 'attributes'):

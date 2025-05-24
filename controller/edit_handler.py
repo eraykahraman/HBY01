@@ -1,9 +1,10 @@
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 import cantools
 from cantools.database import Database
 from copy import deepcopy
 from cantools.database.can.attribute import Attribute
 from cantools.database.can.signal import Signal
+from cantools.database.can.message import Message
 
 # Monkey patch the Signal class to handle None values properly during serialization
 original_signal_init = Signal.__init__
@@ -1420,4 +1421,99 @@ class EditHandler:
         except ValueError:
             return False, "Invalid address format. Must be a valid hex number (e.g., '0xFE')"
         except Exception as e:
-            return False, f"Error updating node address: {str(e)}" 
+            return False, f"Error updating node address: {str(e)}"
+
+    def add_message(self, node_name: str, message_data: dict) -> tuple[bool, str]:
+        """
+        Add a new message to the database for the given node.
+        Args:
+            node_name (str): Name of the node to add the message to
+            message_data (dict): Dictionary containing the message data
+        Returns:
+            tuple[bool, str]: (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+        # Validate required fields
+        required_fields = ['name', 'frame_id', 'length']
+        for field in required_fields:
+            if field not in message_data:
+                return False, f"Missing required field: {field}"
+        # Check for duplicate message name
+        for msg in self.database.messages:
+            if msg.name == message_data['name']:
+                return False, f"Message name '{message_data['name']}' already exists."
+        # Create the message with only supported constructor arguments
+        new_message = Message(
+            name=message_data['name'],
+            frame_id=message_data['frame_id'],
+            length=message_data['length'],
+            signals=message_data.get('signals', []),
+            senders=message_data.get('senders', []),
+            is_extended_frame=message_data.get('is_extended_frame', False),
+            comment=message_data.get('comment', '')
+        )
+
+        # Ensure dbc attribute is initialized
+        if not hasattr(new_message, 'dbc') or new_message.dbc is None:
+            new_message.dbc = type('DBC', (), {'attributes': {}})()
+
+        # Set DBC attributes using Attribute objects if definitions exist
+        if hasattr(self.database, 'dbc') and hasattr(self.database.dbc, 'attribute_definitions'):
+            attr_defs = self.database.dbc.attribute_definitions
+            # Send Type
+            if 'GenMsgSendType' in attr_defs and message_data.get('send_type') is not None:
+                send_type_value = message_data.get('send_type')
+                send_type_def = attr_defs['GenMsgSendType']
+                # Find the correct enum key/index for the string value
+                enum_value = None
+                if hasattr(send_type_def, 'choices'):
+                    choices = send_type_def.choices
+                    if isinstance(choices, dict):
+                        # choices: {int: str}
+                        for k, v in choices.items():
+                            if v == send_type_value:
+                                enum_value = k
+                                break
+                    elif isinstance(choices, list):
+                        # choices: [str, ...]
+                        if send_type_value in choices:
+                            enum_value = choices.index(send_type_value)
+                # Fallback: use the string if not found
+                if enum_value is None:
+                    enum_value = send_type_value
+                new_message.dbc.attributes['GenMsgSendType'] = Attribute(
+                    value=enum_value,
+                    definition=send_type_def
+                )
+            # Frame Format
+            if 'VFrameFormat' in attr_defs and message_data.get('frame_format') is not None:
+                frame_format_value = message_data.get('frame_format')
+                frame_format_def = attr_defs['VFrameFormat']
+                enum_value = None
+                if hasattr(frame_format_def, 'choices'):
+                    choices = frame_format_def.choices
+                    if isinstance(choices, dict):
+                        for k, v in choices.items():
+                            if v == frame_format_value:
+                                enum_value = k
+                                break
+                    elif isinstance(choices, list):
+                        if frame_format_value in choices:
+                            enum_value = choices.index(frame_format_value)
+                if enum_value is None:
+                    enum_value = frame_format_value
+                new_message.dbc.attributes['VFrameFormat'] = Attribute(
+                    value=enum_value,
+                    definition=frame_format_def
+                )
+            # Cycle Time
+            if 'GenMsgCycleTime' in attr_defs and message_data.get('cycle_time') is not None:
+                new_message.dbc.attributes['GenMsgCycleTime'] = Attribute(
+                    value=message_data.get('cycle_time'),
+                    definition=attr_defs['GenMsgCycleTime']
+                )
+     
+
+        self.database.messages.append(new_message)
+        return True, "" 

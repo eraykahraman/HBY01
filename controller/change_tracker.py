@@ -195,4 +195,21 @@ class ChangeTracker:
             'changes': [f"Node address: {old_address} → {new_address}"],
             'type': 'node_address'
         }
+        self._changes.append(change_entry)
+
+    def add_message_addition(self, node_name: str, message_name: str):
+        """
+        Track the addition of a message to a node
+        Args:
+            node_name (str): Name of the node
+            message_name (str): Name of the added message
+        """
+        timestamp = self._get_timestamp()
+        change_entry = {
+            'timestamp': timestamp,
+            'node': node_name,
+            'message': message_name,
+            'changes': ['Message added'],
+            'type': 'message_addition'
+        }
         self._changes.append(change_entry) 

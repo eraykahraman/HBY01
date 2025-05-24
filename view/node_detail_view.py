@@ -290,7 +290,12 @@ class NodeDetailView(QDialog):
             length_item = QTableWidgetItem(str(msg['length']))
             signals_count_item = QTableWidgetItem(str(len(msg['signals'])))
             
+            # Updated cycle time logic
             cycle_time = msg.get('cycle_time')
+            if cycle_time is None and hasattr(msg, 'dbc') and hasattr(msg.dbc, 'attributes'):
+                attr = msg.dbc.attributes.get('GenMsgCycleTime')
+                if attr is not None and hasattr(attr, 'value'):
+                    cycle_time = attr.value
             cycle_time_item = QTableWidgetItem(f"{cycle_time} ms" if cycle_time is not None else "")
             
             send_type_item = QTableWidgetItem(msg.get('send_type', ''))
@@ -547,4 +552,50 @@ class NodeDetailView(QDialog):
         current_send_type = first_msg.get('send_type') if first_msg and 'send_type' in first_msg else None
         cycle_time = first_msg.get('cycle_time') if first_msg and 'cycle_time' in first_msg else None
         dialog = CreateMessageDialog(handler, self, frame_format_choices=frame_format_choices, send_type_choices=send_type_choices, current_send_type=current_send_type, cycle_time=cycle_time)
-        dialog.exec_() 
+        dialog.message_created.connect(self.handle_message_created)
+        dialog.exec_()
+
+    def handle_message_created(self, name, frame_id, is_extended, frame_format, length, send_type, cycle_time, receivers, comment):
+        # Find handler from parent chain (assume parent is DBCDisplayView)
+        handler = None
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'current_handler'):
+                handler = parent.current_handler
+                break
+            parent = parent.parent() if hasattr(parent, 'parent') else None
+        if not handler or not handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for adding message.")
+            return
+        # Prepare message data dict with sender set to the current node
+        message_data = {
+            'name': name,
+            'frame_id': frame_id,
+            'is_extended_frame': is_extended,
+            'frame_format': frame_format,
+            'length': length,
+            'send_type': send_type,
+            'cycle_time': cycle_time,
+            'receivers': receivers,
+            'signals': [],
+            'comment': comment,
+            'senders': [self.node_name],  # Set sender to the current node
+        }
+        success, error = handler.edit_controller.add_message(self.node_name, message_data)
+        if not success:
+            QMessageBox.critical(self, "Add Message Error", error)
+            return
+        QMessageBox.information(self, "Message Added", f"Message '{name}' has been added successfully.")
+        # Find the tab widget and update the messages tab
+        for i in range(self.layout().count()):
+            widget = self.layout().itemAt(i).widget()
+            if isinstance(widget, QTabWidget):
+                # Find the "Messages" tab
+                for j in range(widget.count()):
+                    if widget.tabText(j).startswith("Messages"):
+                        # Replace the tab with a new one
+                        messages_tab = self.create_messages_tab()
+                        widget.removeTab(j)
+                        widget.insertTab(j, messages_tab, f"Messages")
+                        break
+                break 
