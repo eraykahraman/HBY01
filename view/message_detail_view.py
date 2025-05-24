@@ -464,7 +464,72 @@ class MessageDetailView(QDialog):
             parent = parent.parent() if hasattr(parent, 'parent') else None
         
         signal_detail = SignalDetailView(signal_copy, handler, self)
+        signal_detail.signal_edited.connect(self.handle_signal_edited)
+        signal_detail.signal_deleted.connect(self.handle_signal_deleted)
         signal_detail.show()
+
+    def handle_signal_edited(self, old_signal, new_signal):
+        """Handle when a signal is edited"""
+        # Update the local message data
+        for i, signal in enumerate(self.message_data['signals']):
+            if signal['name'] == old_signal['name']:
+                self.message_data['signals'][i] = new_signal
+                break
+        
+        # Find the tab widget
+        for i in range(self.layout().count()):
+            widget = self.layout().itemAt(i).widget()
+            if isinstance(widget, QTabWidget):
+                # Find the "Signals" tab
+                for j in range(widget.count()):
+                    if widget.tabText(j).startswith("Signals"):
+                        # Replace the tab with a new one
+                        signals_tab = self.create_signals_table()
+                        widget.removeTab(j)
+                        widget.insertTab(j, signals_tab, f"Signals ({len(self.message_data['signals'])})")
+                        # Keep the current tab active
+                        widget.setCurrentIndex(j)
+                        break
+                
+                # Update the signal layout tab
+                for j in range(widget.count()):
+                    if widget.tabText(j) == "Signal Layout":
+                        # Replace the signal layout tab with a new one
+                        signal_layout_tab = self.create_signal_layout_tab()
+                        widget.removeTab(j)
+                        widget.insertTab(j, signal_layout_tab, "Signal Layout")
+                        break
+                break
+
+    def handle_signal_deleted(self, message_name, signal_name):
+        """Handle when a signal is deleted"""
+        # Remove the signal from local message data
+        self.message_data['signals'] = [s for s in self.message_data['signals'] if s['name'] != signal_name]
+        
+        # Find the tab widget
+        for i in range(self.layout().count()):
+            widget = self.layout().itemAt(i).widget()
+            if isinstance(widget, QTabWidget):
+                # Find the "Signals" tab
+                for j in range(widget.count()):
+                    if widget.tabText(j).startswith("Signals"):
+                        # Replace the tab with a new one
+                        signals_tab = self.create_signals_table()
+                        widget.removeTab(j)
+                        widget.insertTab(j, signals_tab, f"Signals ({len(self.message_data['signals'])})")
+                        # Keep the current tab active
+                        widget.setCurrentIndex(j)
+                        break
+                
+                # Update the signal layout tab
+                for j in range(widget.count()):
+                    if widget.tabText(j) == "Signal Layout":
+                        # Replace the signal layout tab with a new one
+                        signal_layout_tab = self.create_signal_layout_tab()
+                        widget.removeTab(j)
+                        widget.insertTab(j, signal_layout_tab, "Signal Layout")
+                        break
+                break
 
     def open_edit_dialog(self):
         """Open the edit dialog for this message"""

@@ -123,6 +123,7 @@ class SignalValuesDialog(QDialog):
 
 class SignalDetailView(QDialog):
     signal_edited = pyqtSignal(dict, dict)  # old_signal, new_signal
+    signal_deleted = pyqtSignal(str, str)  # message_name, signal_name
     
     def __init__(self, signal_data, handler, parent=None):
         super().__init__(parent)
@@ -809,6 +810,9 @@ class SignalDetailView(QDialog):
         # Track the deletion
         if self.handler and hasattr(self.handler, 'change_tracker'):
             self.handler.change_tracker.add_signal_deletion(message_name, signal_name)
+            
+        # Emit signal before closing
+        self.signal_deleted.emit(message_name, signal_name)
             
         # Close the dialog since the signal no longer exists
         self.accept()
