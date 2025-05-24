@@ -11,12 +11,17 @@ from .message_edit_dialog import MessageEditDialog
 class MessageDetailView(QDialog):
     message_edited = pyqtSignal(dict, dict)  # old_message, new_message
     message_deleted = pyqtSignal(str)  # message_name
+    message_added = pyqtSignal(dict)  # new_message
     
     def __init__(self, message_data, handler, parent=None):
         super().__init__(parent)
         self.message_data = message_data.copy()  # Make a copy to track changes
         self.handler = handler
         self.setup_ui()
+        
+        # Emit message_added signal for new messages
+        if self.handler and hasattr(self.handler, 'change_tracker'):
+            self.message_added.emit(self.message_data)
         
     def setup_ui(self):
         """Setup the UI components"""
@@ -836,6 +841,13 @@ class MessageDetailView(QDialog):
             
         # Update the local message data to include the new signal
         self.message_data['signals'].append(signal)
+        
+        # Track the addition
+        if self.handler and hasattr(self.handler, 'change_tracker'):
+            self.handler.change_tracker.add_signal_addition(self.message_data['name'], signal)
+        
+        # Emit signal to notify parent views
+        self.message_added.emit(self.message_data)
         
         # Refresh the UI to show the new signal
         QMessageBox.information(self, "Signal Added", f"Signal '{signal['name']}' has been added successfully.")

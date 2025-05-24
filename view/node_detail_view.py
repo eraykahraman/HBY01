@@ -426,6 +426,7 @@ class NodeDetailView(QDialog):
         message_detail = MessageDetailView(message, handler, self)
         message_detail.message_edited.connect(self.handle_message_edited)
         message_detail.message_deleted.connect(self.handle_message_deleted)
+        message_detail.message_added.connect(self.handle_message_added)
         message_detail.show()
         
     def handle_message_edited(self, old_message, new_message):
@@ -471,6 +472,47 @@ class NodeDetailView(QDialog):
         
     def handle_message_deleted(self, message_name):
         """Handle when a message is deleted"""
+        # Find handler from parent chain (assume parent is DBCDisplayView)
+        handler = None
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'current_handler'):
+                handler = parent.current_handler
+                break
+            parent = parent.parent() if hasattr(parent, 'parent') else None
+            
+        if not handler:
+            return
+            
+        # Get updated node messages and signals
+        self.node_messages = handler.get_node_messages(self.node_name)
+        self.node_signals = handler.get_node_signals(self.node_name)
+        
+        # Find the tab widget
+        for i in range(self.layout().count()):
+            widget = self.layout().itemAt(i).widget()
+            if isinstance(widget, QTabWidget):
+                # Update Messages tab
+                for j in range(widget.count()):
+                    if widget.tabText(j).startswith("Messages"):
+                        # Replace the tab with a new one
+                        messages_tab = self.create_messages_tab()
+                        widget.removeTab(j)
+                        widget.insertTab(j, messages_tab, f"Messages")
+                        break
+                
+                # Update Signals tab
+                for j in range(widget.count()):
+                    if widget.tabText(j).startswith("Signals"):
+                        # Replace the tab with a new one
+                        signals_tab = self.create_signals_tab()
+                        widget.removeTab(j)
+                        widget.insertTab(j, signals_tab, f"Signals")
+                        break
+                break
+        
+    def handle_message_added(self, new_message):
+        """Handle when a new message is added"""
         # Find handler from parent chain (assume parent is DBCDisplayView)
         handler = None
         parent = self.parent()
@@ -684,6 +726,11 @@ class NodeDetailView(QDialog):
             QMessageBox.critical(self, "Add Message Error", error)
             return
         QMessageBox.information(self, "Message Added", f"Message '{name}' has been added successfully.")
+
+        # --- FIX: Refresh node messages and signals from handler ---
+        self.node_messages = handler.get_node_messages(self.node_name)
+        self.node_signals = handler.get_node_signals(self.node_name)
+
         # Find the tab widget and update the messages tab
         for i in range(self.layout().count()):
             widget = self.layout().itemAt(i).widget()
@@ -696,7 +743,14 @@ class NodeDetailView(QDialog):
                         widget.removeTab(j)
                         widget.insertTab(j, messages_tab, f"Messages")
                         break
-                break 
+                # Also update the signals tab, since new message may affect signals
+                for j in range(widget.count()):
+                    if widget.tabText(j).startswith("Signals"):
+                        signals_tab = self.create_signals_tab()
+                        widget.removeTab(j)
+                        widget.insertTab(j, signals_tab, f"Signals")
+                        break
+                break
 
     def on_node_deleted(self, node_name):
         # Refresh the node table in the parent/main view
