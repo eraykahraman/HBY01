@@ -219,6 +219,25 @@ class SignalAddDialog(QDialog):
         
         self.validate_form()
     
+    def get_signal_bits(self, start_bit, length, is_motorola):
+        """
+        Return a set of bit positions occupied by a signal, for both little and big endian (Motorola) DBC numbering.
+        """
+        bits = set()
+        if not is_motorola:
+            # Little endian: linear
+            bits = set(range(start_bit, start_bit + length))
+        else:
+            # Big endian (Motorola): DBC numbering
+            # Each byte is 8 bits, bits are numbered right-to-left within each byte
+            bit = start_bit
+            for i in range(length):
+                byte = bit // 8
+                bit_in_byte = bit % 8
+                bits.add(byte * 8 + (7 - bit_in_byte))
+                bit -= 1
+        return bits
+
     def validate_form(self):
         """Validate all inputs and highlight any issues"""
         valid = True
@@ -253,10 +272,9 @@ class SignalAddDialog(QDialog):
         length = self.length_spin.value()
         is_motorola = self.byte_order_combo.currentIndex() == 1  # 1 = Motorola
         max_message_bits = self.message_data['length'] * 8
-        
-        # Check if signal fits within message
-        end_bit = self.calculate_end_bit(start_bit, length, is_motorola)
-        if end_bit >= max_message_bits:
+        # Check if signal fits within message (for both endianness)
+        new_signal_bits = self.get_signal_bits(start_bit, length, is_motorola)
+        if not new_signal_bits or max(new_signal_bits) >= max_message_bits or min(new_signal_bits) < 0:
             valid = False
             error_messages.append(f"Signal exceeds message length ({max_message_bits} bits)")
             self.highlight_field(self.start_bit_spin, True)
@@ -337,34 +355,16 @@ class SignalAddDialog(QDialog):
                 
         return False
     
-    def calculate_end_bit(self, start_bit, length, is_motorola):
-        """Calculate the end bit position based on start bit, length and byte order"""
-        if not is_motorola:  # Intel (Little Endian)
-            return start_bit + length - 1
-        else:  # Motorola (Big Endian)
-            # For Motorola format, we need special bit position calculation
-            # This is a simplified calculation - actual implementations might vary
-            return start_bit + length - 1
-    
     def is_overlapping_with_existing_signals(self, start_bit, length, is_motorola):
-        """Check if the signal overlaps with existing signals in the message"""
-        # Get the bit range for the new signal
-        new_signal_end_bit = self.calculate_end_bit(start_bit, length, is_motorola)
-        new_signal_bits = set(range(start_bit, new_signal_end_bit + 1))
-        
-        # Check against all existing signals
+        """Check if the signal overlaps with existing signals in the message, for both endianness."""
+        new_signal_bits = self.get_signal_bits(start_bit, length, is_motorola)
         for signal in self.message_data['signals']:
             signal_start = signal['start']
             signal_length = signal['length']
             signal_is_motorola = signal['byte_order'] == 'big_endian'
-            
-            signal_end_bit = self.calculate_end_bit(signal_start, signal_length, signal_is_motorola)
-            signal_bits = set(range(signal_start, signal_end_bit + 1))
-            
-            # Check for intersection
+            signal_bits = self.get_signal_bits(signal_start, signal_length, signal_is_motorola)
             if new_signal_bits.intersection(signal_bits):
                 return True
-        
         return False
     
     def highlight_field(self, field, is_error):
