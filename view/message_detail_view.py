@@ -10,6 +10,7 @@ from .message_edit_dialog import MessageEditDialog
 
 class MessageDetailView(QDialog):
     message_edited = pyqtSignal(dict, dict)  # old_message, new_message
+    message_deleted = pyqtSignal(str)  # message_name
     
     def __init__(self, message_data, handler, parent=None):
         super().__init__(parent)
@@ -650,6 +651,9 @@ class MessageDetailView(QDialog):
         # Track the deletion
         if self.handler and hasattr(self.handler, 'change_tracker'):
             self.handler.change_tracker.add_message_deletion(message_name)
+            
+        # Emit signal before closing
+        self.message_deleted.emit(message_name)
             
         # Close the dialog since the message no longer exists
         self.accept()
