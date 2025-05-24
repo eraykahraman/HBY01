@@ -1516,4 +1516,44 @@ class EditHandler:
      
 
         self.database.messages.append(new_message)
-        return True, "" 
+        return True, ""
+
+    def delete_node(self, node_name: str) -> tuple[bool, str, list, dict]:
+        """
+        Delete a node and all messages sent by it (and their signals).
+        Returns (success, error_message, deleted_messages, deleted_signals)
+        """
+        if not self.database:
+            return False, "Database not initialized", [], {}
+
+        # Find the node
+        node_to_delete = None
+        for node in self.database.nodes:
+            if node.name == node_name:
+                node_to_delete = node
+                break
+        if not node_to_delete:
+            return False, f"Node '{node_name}' not found.", [], {}
+
+        # Remove node from database
+        self.database.nodes.remove(node_to_delete)
+
+        # Find and delete all messages sent by this node
+        deleted_messages = []
+        deleted_signals = {}
+        messages_to_delete = [msg for msg in self.database.messages if node_name in msg.senders]
+        for msg in messages_to_delete:
+            deleted_messages.append(msg.name)
+            # Track signals in this message
+            deleted_signals[msg.name] = [signal.name for signal in msg.signals]
+            self.database.messages.remove(msg)
+
+        # Remove this node as a receiver from all signals in all messages
+        for msg in self.database.messages:
+            for signal in msg.signals:
+                if node_name in getattr(signal, 'receivers', []):
+                    signal.receivers = [r for r in signal.receivers if r != node_name]
+                if hasattr(signal, '_receivers') and node_name in signal._receivers:
+                    signal._receivers = [r for r in signal._receivers if r != node_name]
+
+        return True, "", deleted_messages, deleted_signals 

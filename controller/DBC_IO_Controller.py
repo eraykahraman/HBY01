@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QFileDialog, QMessageBox
+from PyQt5.QtWidgets import QFileDialog, QMessageBox, QDialog, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout
 from PyQt5.QtCore import QObject, pyqtSignal
 from model.dbc_model import DBCModel
 from .dbc_io_handler import DBC_IO_Handler
@@ -60,20 +60,39 @@ class DBC_IO_Controller(QObject):
         # Show changes summary if there are any changes
         if handler.has_changes():
             changes_summary = handler.get_changes_summary()
-            
-            # Create custom message box with export button
-            msg_box = QMessageBox(parent_window)
-            msg_box.setWindowTitle("Changes Summary")
-            msg_box.setText(f"The following changes have been made:\n\n{changes_summary}\n\nDo you want to proceed with the export?")
-            msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-            
-            # Add Export Changes button
-            export_button = msg_box.addButton("Export Changes", QMessageBox.ActionRole)
-            
-            reply = msg_box.exec_()
-            
-            # Handle Export Changes button
-            if msg_box.clickedButton() == export_button:
+
+            # Custom dialog with scrollable QTextEdit
+            dialog = QDialog(parent_window)
+            dialog.setWindowTitle("Changes Summary")
+            dialog.setMinimumSize(600, 400)
+            layout = QVBoxLayout(dialog)
+            text_edit = QTextEdit()
+            text_edit.setReadOnly(True)
+            text_edit.setPlainText(f"The following changes have been made:\n\n{changes_summary}\n\nDo you want to proceed with the export?")
+            layout.addWidget(text_edit)
+            button_layout = QHBoxLayout()
+            yes_button = QPushButton("Yes")
+            no_button = QPushButton("No")
+            export_button = QPushButton("Export Changes")
+            button_layout.addWidget(yes_button)
+            button_layout.addWidget(no_button)
+            button_layout.addWidget(export_button)
+            layout.addLayout(button_layout)
+            result = {'reply': None}
+            def on_yes():
+                result['reply'] = 'yes'
+                dialog.accept()
+            def on_no():
+                result['reply'] = 'no'
+                dialog.reject()
+            def on_export():
+                result['reply'] = 'export'
+                dialog.accept()
+            yes_button.clicked.connect(on_yes)
+            no_button.clicked.connect(on_no)
+            export_button.clicked.connect(on_export)
+            dialog.exec_()
+            if result['reply'] == 'export':
                 export_path, _ = QFileDialog.getSaveFileName(
                     parent_window,
                     "Export Changes Summary",
@@ -84,18 +103,15 @@ class DBC_IO_Controller(QObject):
                     if not export_path.lower().endswith('.txt'):
                         export_path += '.txt'
                     try:
-                        # Use UTF-8 encoding with error handling
+                        import unicodedata
+                        normalized_summary = unicodedata.normalize('NFKD', changes_summary)
                         with open(export_path, 'w', encoding='utf-8', errors='replace') as f:
-                            # Normalize the text to handle special characters
-                            import unicodedata
-                            normalized_summary = unicodedata.normalize('NFKD', changes_summary)
                             f.write(normalized_summary)
                         QMessageBox.information(parent_window, "Success", "Changes summary exported successfully.")
                     except Exception as e:
                         QMessageBox.critical(parent_window, "Error", f"Failed to export changes summary: {str(e)}")
                 return False, None, "Export cancelled to export changes instead"
-                
-            if reply == QMessageBox.No:
+            if result['reply'] == 'no' or result['reply'] is None:
                 return False, None, "Export cancelled"
         
         target_file, _ = QFileDialog.getSaveFileName(

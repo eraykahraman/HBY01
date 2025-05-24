@@ -9,6 +9,7 @@ class NodeEditDialog(QDialog):
     name_edited = pyqtSignal(str)  # Signal emitted when node name is edited
     comment_edited = pyqtSignal(str)  # Signal emitted when node comment is edited
     address_edited = pyqtSignal(str)  # Signal emitted when node address is edited
+    node_deleted = pyqtSignal(str)  # Signal emitted when node is deleted
     
     def __init__(self, node_name, node_comment=None, node_address=None, parent=None):
         super().__init__(parent)
@@ -108,6 +109,12 @@ class NodeEditDialog(QDialog):
         self.save_button.setDefault(True)
         self.save_button.clicked.connect(self.validate_and_accept)
         button_layout.addWidget(self.save_button)
+        
+        # Delete Node button
+        self.delete_button = QPushButton("Delete Node")
+        self.delete_button.setStyleSheet("background-color: #d9534f; color: white;")
+        self.delete_button.clicked.connect(self.confirm_delete_node)
+        button_layout.addWidget(self.delete_button)
         
         main_layout.addLayout(button_layout)
         
@@ -218,4 +225,35 @@ class NodeEditDialog(QDialog):
             return True, ""
             
         except ValueError:
-            return False, "Invalid address format. Must be a valid hex number (e.g., '0xFE')" 
+            return False, "Invalid address format. Must be a valid hex number (e.g., '0xFE')"
+
+    def confirm_delete_node(self):
+        reply = QMessageBox.question(
+            self,
+            "Delete Node",
+            "Are you sure you want to delete this node?\n"
+            "All messages sent by this node and their signals will also be deleted.\n"
+            "This action cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            self.delete_node()
+
+    def delete_node(self):
+        handler = None
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'current_handler'):
+                handler = parent.current_handler
+                break
+            parent = parent.parent() if hasattr(parent, 'parent') else None
+        if not handler or not hasattr(handler, 'edit_controller') or not handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for deleting node.")
+            return
+        success, error = handler.edit_controller.delete_node(self.node_name)
+        if not success:
+            QMessageBox.critical(self, "Delete Error", error)
+            return
+        QMessageBox.information(self, "Node Deleted", f"Node '{self.node_name}' and all its messages/signals have been deleted.")
+        self.node_deleted.emit(self.node_name)
+        self.accept() 

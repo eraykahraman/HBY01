@@ -439,6 +439,7 @@ class NodeDetailView(QDialog):
         edit_dialog.name_edited.connect(self.on_name_edited)
         edit_dialog.comment_edited.connect(self.on_comment_edited)
         edit_dialog.address_edited.connect(self.on_address_edited)
+        edit_dialog.node_deleted.connect(self.on_node_deleted)
         
         # Show dialog
         edit_dialog.exec_()
@@ -599,3 +600,14 @@ class NodeDetailView(QDialog):
                         widget.insertTab(j, messages_tab, f"Messages")
                         break
                 break 
+
+    def on_node_deleted(self, node_name):
+        # Refresh the node table in the parent/main view
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'current_handler') and hasattr(parent, 'update_nodes_table'):
+                nodes = parent.current_handler.get_nodes()
+                parent.update_nodes_table(nodes)
+                break
+            parent = parent.parent() if hasattr(parent, 'parent') else None
+        self.accept()  # Optionally close the detail view if the node is gone 

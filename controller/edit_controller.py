@@ -579,4 +579,22 @@ class EditController:
                     message_data.get('frame_id'),
                     message_data.get('senders', [node_name])[0] if message_data.get('senders') else node_name
                 )
+        return success, error
+
+    def delete_node(self, node_name: str) -> tuple[bool, str]:
+        """
+        Delete a node and all messages/signals sent by it.
+        Returns (success, error_message)
+        """
+        if not self.edit_handler:
+            return False, "Edit handler not initialized"
+        success, error, deleted_messages, deleted_signals = self.edit_handler.delete_node(node_name)
+        if success:
+            self.handler.update_database()
+            if hasattr(self.handler, 'change_tracker'):
+                self.handler.change_tracker.add_node_deletion(node_name)
+                for msg_name in deleted_messages:
+                    self.handler.change_tracker.add_message_deletion(msg_name)
+                    for sig_name in deleted_signals.get(msg_name, []):
+                        self.handler.change_tracker.add_signal_deletion(msg_name, sig_name)
         return success, error 

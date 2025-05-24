@@ -222,4 +222,19 @@ class ChangeTracker:
             'changes': changes,
             'type': 'message_addition'
         }
+        self._changes.append(change_entry)
+
+    def add_node_deletion(self, node_name: str):
+        """
+        Track the deletion of a node.
+        Args:
+            node_name (str): Name of the deleted node
+        """
+        timestamp = self._get_timestamp()
+        change_entry = {
+            'timestamp': timestamp,
+            'node': node_name,
+            'changes': ['Node deleted'],
+            'type': 'node_deletion'
+        }
         self._changes.append(change_entry) 
