@@ -856,4 +856,20 @@ class DBC_IO_Handler(QObject):
         
     def clear_changes(self):
         """Clear tracked changes"""
-        self.change_tracker.clear_changes() 
+        self.change_tracker.clear_changes()
+
+    def add_node(self, node_data: dict):
+        """
+        Add a new node using the edit controller and update nodes list.
+        Args:
+            node_data (dict): Node data from dialog
+        Returns:
+            tuple[bool, str]: (success, error_message)
+        """
+        if not self.edit_controller:
+            return False, "Edit controller not initialized"
+        success, error = self.edit_controller.add_node(node_data)
+        if success:
+            self.nodes = self.parse_nodes()
+            self.nodes_changed.emit(self.nodes)
+        return success, error 

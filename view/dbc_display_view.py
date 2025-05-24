@@ -11,6 +11,7 @@ from view.signal_detail_view import SignalDetailView
 from view.message_detail_view import MessageDetailView
 from view.node_detail_view import NodeDetailView
 from view.bus_load_dialog import BusLoadDialog
+from view.node_creation_dialog import NodeCreationDialog
 from decimal import Decimal
 
 class NumericTableWidgetItem(QTableWidgetItem):
@@ -200,6 +201,9 @@ class DBCDisplayView(QWidget):
             }
         """)
         self.tree_widget.itemClicked.connect(self.on_tree_item_clicked)
+        # Add context menu policy for tree widget
+        self.tree_widget.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.tree_widget.customContextMenuRequested.connect(self.show_tree_context_menu)
         self.main_splitter.addWidget(self.tree_widget)
         
         # Create stacked widget for tables
@@ -1452,4 +1456,40 @@ class DBCDisplayView(QWidget):
     def on_export_clicked(self):
         """Handle export button click"""
         if self.current_handler:
-            self.export_requested.emit(self.current_handler) 
+            self.export_requested.emit(self.current_handler)
+
+    def show_tree_context_menu(self, pos):
+        """Show context menu for tree widget"""
+        item = self.tree_widget.itemAt(pos)
+        if not item:
+            return
+            
+        menu = QMenu(self)
+        
+        # If clicked on Network Nodes root item
+        if item.text(0) == "Network Nodes":
+            add_node_action = QAction("Add Node", self)
+            add_node_action.triggered.connect(self.on_add_node_clicked)
+            menu.addAction(add_node_action)
+            
+        menu.exec_(self.tree_widget.mapToGlobal(pos))
+        
+    def on_add_node_clicked(self):
+        """Handle add node action"""
+        if not self.current_handler:
+            return
+            
+        # Get existing nodes for validation
+        existing_nodes = self.current_handler.get_nodes()
+            
+        # Show node creation dialog
+        dialog = NodeCreationDialog(self, existing_nodes)
+        if dialog.exec_() == QDialog.Accepted:
+            node_data = dialog.get_node_data()
+            
+            # Add the new node
+            self.current_handler.add_node(node_data)
+            
+            # Refresh the display to show the new node
+            self.refresh_tree()
+            self.update_nodes_table(self.current_handler.get_nodes()) 

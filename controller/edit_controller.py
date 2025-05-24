@@ -597,4 +597,21 @@ class EditController:
                     self.handler.change_tracker.add_message_deletion(msg_name)
                     for sig_name in deleted_signals.get(msg_name, []):
                         self.handler.change_tracker.add_signal_deletion(msg_name, sig_name)
+        return success, error
+
+    def add_node(self, node_data: dict) -> tuple[bool, str]:
+        """
+        Add a new node to the database.
+        Args:
+            node_data (dict): Dictionary with node info
+        Returns:
+            tuple[bool, str]: (success, error_message)
+        """
+        if not self.edit_handler:
+            return False, "Edit handler not initialized"
+        success, error = self.edit_handler.add_node(node_data)
+        if success:
+            self.handler.update_database()
+            if hasattr(self.handler, 'change_tracker'):
+                self.handler.change_tracker.add_node_addition(node_data['name'], node_data.get('address'))
         return success, error 

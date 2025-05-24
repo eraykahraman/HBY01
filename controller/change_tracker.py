@@ -140,6 +140,8 @@ class ChangeTracker:
                 summary += f"[{change['timestamp']}] Node: {change['node']}\n"
             elif change.get('type') == 'message_addition':
                 summary += f"[{change['timestamp']}] Message: {change['message']} (Node: {change['node']})\n"
+            elif change.get('type') == 'node_addition':
+                summary += f"[{change['timestamp']}] Node: {change['node']}\n"
             else:
                 # Handle signal changes
                 if 'message' in change and 'signal' in change:
@@ -236,5 +238,25 @@ class ChangeTracker:
             'node': node_name,
             'changes': ['Node deleted'],
             'type': 'node_deletion'
+        }
+        self._changes.append(change_entry)
+
+    def add_node_addition(self, node_name: str, node_address: str = None):
+        """
+        Track the addition of a node.
+        Args:
+            node_name (str): Name of the added node
+            node_address (str): Address of the added node (optional)
+        """
+        timestamp = self._get_timestamp()
+        changes = ['Node added']
+        if node_address:
+            changes.append(f"Address: {node_address}")
+            
+        change_entry = {
+            'timestamp': timestamp,
+            'node': node_name,
+            'changes': changes,
+            'type': 'node_addition'
         }
         self._changes.append(change_entry) 

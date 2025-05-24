@@ -1556,4 +1556,71 @@ class EditHandler:
                 if hasattr(signal, '_receivers') and node_name in signal._receivers:
                     signal._receivers = [r for r in signal._receivers if r != node_name]
 
-        return True, "", deleted_messages, deleted_signals 
+        return True, "", deleted_messages, deleted_signals
+
+    def add_node(self, node_data: dict) -> tuple[bool, str]:
+        """
+        Add a new node to the database.
+        Args:
+            node_data (dict): Dictionary with keys 'name', 'address', 'comment'.
+        Returns:
+            tuple[bool, str]: (success, error_message)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+        name = node_data.get('name', '').strip()
+        address = node_data.get('address', None)
+        comment = node_data.get('comment', '').strip()
+        # Validate name
+        import re
+        if not name:
+            return False, "Node name cannot be empty."
+        if not re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', name):
+            return False, "Node name must start with a letter and contain only letters, numbers, and underscores."
+        # Check for duplicate
+        if any(node.name == name for node in self.database.nodes):
+            return False, f"A node with the name '{name}' already exists."
+        # Create node object (cantools Node)
+        from cantools.database.can.node import Node
+        new_node = Node(name=name, comment=comment)
+        
+        # Initialize dbc attribute and its attributes dictionary
+        new_node.dbc = type('DBC', (), {'attributes': {}})()
+        
+        # Set address if provided
+        if address is not None:
+            try:
+                # Convert hex string to integer if needed
+                if isinstance(address, str) and address.startswith('0x'):
+                    address_value = int(address, 16)
+                else:
+                    address_value = int(address)
+                
+                # Validate address range (0-254 for J1939)
+                if not 0 <= address_value <= 254:
+                    return False, "Node address must be between 0x00 and 0xFE"
+                
+                # Get the attribute definition for NmStationAddress if available
+                definition = None
+                if hasattr(self.database, 'dbc') and hasattr(self.database.dbc, 'attribute_definitions'):
+                    definition = self.database.dbc.attribute_definitions.get('NmStationAddress')
+                
+                # Create the attribute with proper definition if available
+                if definition is not None:
+                    from cantools.database.can.attribute import Attribute
+                    new_node.dbc.attributes['NmStationAddress'] = Attribute(
+                        value=address_value,
+                        definition=definition
+                    )
+                else:
+                    # Fallback: create a simple attribute
+                    new_node.dbc.attributes['NmStationAddress'] = type('Attribute', (), {'value': address_value})()
+                
+            except ValueError:
+                return False, "Invalid address format. Must be a valid hex number (e.g., '0xFE')"
+            except Exception as e:
+                return False, f"Error setting node address: {str(e)}"
+        
+        # Add to database
+        self.database.nodes.append(new_node)
+        return True, "" 
