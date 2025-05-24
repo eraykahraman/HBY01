@@ -895,6 +895,10 @@ class DBCDisplayView(QWidget):
                     self.update_messages_table(node_messages['tx_messages'])
                 else:  # Rx Messages
                     self.update_messages_table(node_messages['rx_messages'])
+                
+                # Make messages table visible and current
+                self.messages_table.setVisible(True)
+                self.tables_stack.setCurrentWidget(self.messages_table)
         else:
             # Check if this is a node item directly under Network Nodes
             parent = item.parent()
