@@ -771,7 +771,6 @@ class MessageDetailView(QDialog):
         # Refresh the UI to show the new signal
         QMessageBox.information(self, "Signal Added", f"Signal '{signal['name']}' has been added successfully.")
         
-        # Refresh the signal tabs
         # Find the tab widget
         for i in range(self.layout().count()):
             widget = self.layout().itemAt(i).widget()
@@ -783,5 +782,16 @@ class MessageDetailView(QDialog):
                         signals_tab = self.create_signals_table()
                         widget.removeTab(j)
                         widget.insertTab(j, signals_tab, f"Signals ({len(self.message_data['signals'])})")
+                        # Keep the current tab active instead of switching to signal layout
+                        widget.setCurrentIndex(j)
+                        break
+                
+                # Update the signal layout tab
+                for j in range(widget.count()):
+                    if widget.tabText(j) == "Signal Layout":
+                        # Replace the signal layout tab with a new one
+                        signal_layout_tab = self.create_signal_layout_tab()
+                        widget.removeTab(j)
+                        widget.insertTab(j, signal_layout_tab, "Signal Layout")
                         break
                 break
