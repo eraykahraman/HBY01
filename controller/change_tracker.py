@@ -138,6 +138,8 @@ class ChangeTracker:
                 summary += f"[{change['timestamp']}] Node: {change['node']}\n"
             elif change.get('type') == 'node_address':
                 summary += f"[{change['timestamp']}] Node: {change['node']}\n"
+            elif change.get('type') == 'message_addition':
+                summary += f"[{change['timestamp']}] Message: {change['message']} (Node: {change['node']})\n"
             else:
                 # Handle signal changes
                 if 'message' in change and 'signal' in change:
@@ -197,19 +199,27 @@ class ChangeTracker:
         }
         self._changes.append(change_entry)
 
-    def add_message_addition(self, node_name: str, message_name: str):
+    def add_message_addition(self, node_name: str, message_name: str, frame_id: int = None, sender_node: str = None):
         """
         Track the addition of a message to a node
         Args:
             node_name (str): Name of the node
             message_name (str): Name of the added message
+            frame_id (int): Frame ID of the message
+            sender_node (str): Name of the sender node
         """
         timestamp = self._get_timestamp()
+        changes = ['Message added']
+        if frame_id is not None:
+            changes.append(f"Frame ID: 0x{frame_id:X}")
+        if sender_node is not None:
+            changes.append(f"Sender: {sender_node}")
+            
         change_entry = {
             'timestamp': timestamp,
             'node': node_name,
             'message': message_name,
-            'changes': ['Message added'],
+            'changes': changes,
             'type': 'message_addition'
         }
         self._changes.append(change_entry) 

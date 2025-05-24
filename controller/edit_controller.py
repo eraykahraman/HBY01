@@ -573,5 +573,10 @@ class EditController:
         if success:
             self.handler.update_database()
             if hasattr(self.handler, 'change_tracker'):
-                self.handler.change_tracker.add_message_addition(node_name, message_data['name'])
+                self.handler.change_tracker.add_message_addition(
+                    node_name, 
+                    message_data['name'],
+                    message_data.get('frame_id'),
+                    message_data.get('senders', [node_name])[0] if message_data.get('senders') else node_name
+                )
         return success, error 
