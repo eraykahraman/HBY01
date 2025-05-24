@@ -1,9 +1,9 @@
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QLineEdit, QPushButton, QHBoxLayout, QLabel, QMessageBox, QCheckBox, QComboBox)
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QLineEdit, QPushButton, QHBoxLayout, QLabel, QMessageBox, QCheckBox, QComboBox, QListWidget, QListWidgetItem)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont, QIntValidator
 
 class CreateMessageDialog(QDialog):
-    message_created = pyqtSignal(str, int, bool, str, int, str, int)  # name, id, is_extended, frame_format, length, send_type, cycle_time
+    message_created = pyqtSignal(str, int, bool, str, int, str, int, list)  # name, id, is_extended, frame_format, length, send_type, cycle_time, receivers
 
     def __init__(self, handler=None, parent=None, frame_format_choices=None, send_type_choices=None, current_send_type=None, cycle_time=None):
         super().__init__(parent)
@@ -132,6 +132,21 @@ class CreateMessageDialog(QDialog):
             cycle_time_layout.addWidget(ms_label)
             form_layout.addRow("Cycle Time:", cycle_time_layout)
 
+        # Receivers
+        receivers_layout = QVBoxLayout()
+        self.receivers_list = QListWidget()
+        self.receivers_list.setSelectionMode(QListWidget.MultiSelection)
+        self.receivers_list.setMaximumHeight(100)
+        # Populate with all available nodes from handler
+        available_nodes = [node['name'] for node in self.handler.get_nodes()] if self.handler and hasattr(self.handler, 'get_nodes') else []
+        for node in available_nodes:
+            item = QListWidgetItem(node)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Unchecked)
+            self.receivers_list.addItem(item)
+        receivers_layout.addWidget(self.receivers_list)
+        form_layout.addRow("Receivers:", receivers_layout)
+
         layout.addLayout(form_layout)
 
         button_layout = QHBoxLayout()
@@ -238,7 +253,14 @@ class CreateMessageDialog(QDialog):
                 except ValueError:
                     QMessageBox.warning(self, "Invalid Cycle Time", "Cycle time must be a positive integer (ms).")
                     return
-        self.message_created.emit(name, frame_id, is_extended, frame_format, length_value, send_type, cycle_time_value)
+        # Collect selected receivers
+        receivers = []
+        if self.receivers_list is not None:
+            for i in range(self.receivers_list.count()):
+                item = self.receivers_list.item(i)
+                if item.checkState() == 2:  # Qt.Checked
+                    receivers.append(item.text())
+        self.message_created.emit(name, frame_id, is_extended, frame_format, length_value, send_type, cycle_time_value, receivers)
         self.accept()
 
     def validate_name(self, name: str) -> tuple[bool, str]:
