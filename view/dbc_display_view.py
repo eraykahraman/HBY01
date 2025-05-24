@@ -899,6 +899,22 @@ class DBCDisplayView(QWidget):
                 # Make messages table visible and current
                 self.messages_table.setVisible(True)
                 self.tables_stack.setCurrentWidget(self.messages_table)
+        # Check if the clicked item is "Tx Signals" or "Rx Signals" under a node
+        elif item.text(0) in ["Tx Signals", "Rx Signals"]:
+            parent_node = item.parent()
+            if parent_node and parent_node.parent() and parent_node.parent().text(0) == "Network Nodes":
+                node_name = parent_node.text(0)
+                node_signals = self.current_handler.get_node_signals(node_name)
+                
+                # Display only Tx or Rx signals based on selection
+                if item.text(0) == "Tx Signals":
+                    self.update_signals_table(node_signals['tx_signals'])
+                else:  # Rx Signals
+                    self.update_signals_table(node_signals['rx_signals'])
+                
+                # Make signals table visible and current
+                self.signals_table.setVisible(True)
+                self.tables_stack.setCurrentWidget(self.signals_table)
         else:
             # Check if this is a node item directly under Network Nodes
             parent = item.parent()
