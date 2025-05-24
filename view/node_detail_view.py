@@ -223,10 +223,27 @@ class NodeDetailView(QDialog):
         
     def create_message_list_tab(self, messages, direction):
         """Create a tab with a list of messages"""
+        container_widget = QWidget()
+        container_layout = QVBoxLayout(container_widget)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(5)
+
+        # Add Message button
+        add_message_button = QPushButton("Add Message")
+        add_message_button.setToolTip("Add a new message for this node")
+        add_message_button.setFixedWidth(120)
+        add_message_button.setFlat(True)
+        # Use a standard add icon from QStyle
+        from PyQt5.QtWidgets import QStyle
+        add_icon = self.style().standardIcon(QStyle.SP_FileDialogNewFolder)
+        add_message_button.setIcon(add_icon)
+        # No logic connected yet
+        container_layout.addWidget(add_message_button, alignment=Qt.AlignLeft)
+
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QFrame.NoFrame)
-        
+
         table = QTableWidget()
         columns = ["Name", "ID", "Length", "Signals Count", "Cycle Time", "Send Type", "Comment"]
         table.setColumnCount(len(columns))
@@ -293,7 +310,8 @@ class NodeDetailView(QDialog):
         table.itemDoubleClicked.connect(lambda item: self.show_message_details(messages[item.row()]))
         
         scroll_area.setWidget(table)
-        return scroll_area
+        container_layout.addWidget(scroll_area)
+        return container_widget
         
     def create_signals_tab(self):
         """Create the signals tab with Tx and Rx signals"""
