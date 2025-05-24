@@ -224,7 +224,7 @@ class DBC_IO_Handler(QObject):
                 Each dictionary contains:
                 - name (str): The name of the node
                 - comment (Optional[str]): The comment associated with the node
-                - address (Optional[int]): Node address from NmStationAddress attribute
+                - address (Optional[str]): Node address from NmStationAddress attribute in hex format (e.g. "0xFE")
                 - attributes (Optional[Dict[str, Any]]): Node attributes
                 - ecu_ext_ref (Optional[str]): ECU external reference
                 - dbc_specifics (Optional[Dict[str, Any]]): DBC-specific node information
@@ -297,10 +297,21 @@ class DBC_IO_Handler(QObject):
                                 if nm_station_address_def and hasattr(nm_station_address_def, 'default_value'):
                                     node_address = nm_station_address_def.default_value
 
+                    # Convert address to hex format if it's a number
+                    if node_address is not None:
+                        try:
+                            # Convert to integer first to handle both string and int inputs
+                            node_address_int = int(node_address)
+                            # Format as hex with 0x prefix
+                            node_address = f"0x{node_address_int:02X}"
+                        except (ValueError, TypeError):
+                            # If conversion fails, keep the original value
+                            pass
+
                     node_info = {
                         "name": node.name,
                         "comment": node.comment if hasattr(node, 'comment') else None,
-                        "address": node_address,  # Use the extracted address
+                        "address": node_address,  # Use the hex formatted address
                         "attributes": getattr(node, 'attributes', None),
                         "ecu_ext_ref": getattr(node, 'ecu_ext_ref', None),
                         "dbc_specifics": getattr(node, 'dbc_specifics', None),
