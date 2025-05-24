@@ -7,6 +7,7 @@ from controller.DBC_IO_Controller import DBC_IO_Controller
 from view.dbc_listview import DBCListView
 from view.dbc_display_view import DBCDisplayView
 from view.dbc_window import DBCWindow
+from view.dbc_comparison_results_view import DBCComparisonResultsView
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -53,6 +54,13 @@ class MainWindow(QMainWindow):
         self.import_button.setFixedWidth(120)
         self.import_button.clicked.connect(self.import_dbc)
         buttons_layout.addWidget(self.import_button)
+        
+        # Create and add the compare button
+        self.compare_button = QPushButton("Compare")
+        self.compare_button.setFixedWidth(120)
+        self.compare_button.setToolTip("Compare loaded DBC files for conflicting signal names")
+        self.compare_button.clicked.connect(self.open_comparison_results_view)
+        buttons_layout.addWidget(self.compare_button)
         
         # Add buttons layout to left panel
         left_layout.addLayout(buttons_layout)
@@ -212,3 +220,11 @@ class MainWindow(QMainWindow):
             )
             # Show shorter version in status bar
             self.statusBar.showMessage("Failed to export DBC file - See error dialog for details") 
+
+    def open_comparison_results_view(self):
+        # Get all handlers
+        handlers = self.dbc_controller.get_all_handlers()
+        # Get file names for display
+        dbc_files = [h.get_file_info()['file_name'] for h in handlers]
+        dialog = DBCComparisonResultsView(dbc_files, self)
+        dialog.exec_() 

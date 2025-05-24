@@ -1,0 +1,98 @@
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QListWidget, QListWidgetItem, QAbstractItemView, QMessageBox, QTextEdit
+from PyQt5.QtCore import Qt
+
+class DBCComparisonResultsView(QDialog):
+    def __init__(self, imported_dbc_files=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Select DBC Files to Compare")
+        self.setMinimumSize(400, 400)
+        self.imported_dbc_files = imported_dbc_files or []
+        self.parent_window = parent
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        self.title_label = QLabel("Select DBC Files to Compare")
+        self.title_label.setStyleSheet("font-weight: bold; font-size: 16px;")
+        layout.addWidget(self.title_label)
+
+        # List of imported DBC files with checkboxes
+        self.dbc_list_widget = QListWidget()
+        self.dbc_list_widget.setSelectionMode(QAbstractItemView.MultiSelection)
+        for dbc_file in self.imported_dbc_files:
+            item = QListWidgetItem(dbc_file)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Unchecked)
+            self.dbc_list_widget.addItem(item)
+        layout.addWidget(self.dbc_list_widget)
+
+        # Results text edit (hidden initially)
+        self.results_text_edit = QTextEdit()
+        self.results_text_edit.setReadOnly(True)
+        self.results_text_edit.setVisible(False)
+        self.results_text_edit.setMinimumWidth(350)
+        layout.addWidget(self.results_text_edit)
+
+        # Buttons
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        self.compare_button = QPushButton("Compare")
+        self.compare_button.setToolTip("Compare selected DBC files")
+        self.compare_button.clicked.connect(self.compare_selected_files)
+        button_layout.addWidget(self.compare_button)
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(self.accept)
+        button_layout.addWidget(close_button)
+        layout.addLayout(button_layout)
+
+    def compare_selected_files(self):
+        selected_files = []
+        for i in range(self.dbc_list_widget.count()):
+            item = self.dbc_list_widget.item(i)
+            if item.checkState() == Qt.Checked:
+                selected_files.append(item.text())
+        if len(selected_files) < 2:
+            QMessageBox.warning(self, "Select DBC Files", "Please select at least two DBC files to compare.")
+            return
+        # Get handlers from parent window
+        handlers = self.parent_window.dbc_controller.get_all_handlers()
+        file_to_signals = {}
+        missing_files = []
+        # Build a mapping from file name to handler for quick lookup
+        handler_map = {handler.get_file_info()['file_name']: handler for handler in handlers}
+        for file_name in selected_files:
+            handler = handler_map.get(file_name)
+            if handler:
+                signals = handler.get_signals()
+                signal_names = set(signal['name'] for signal in signals)
+                file_to_signals[file_name] = signal_names
+            else:
+                missing_files.append(file_name)
+        if missing_files:
+            QMessageBox.warning(self, "Missing Handlers", f"No handler found for the following files:\n" + "\n".join(missing_files))
+        print("Selected files:", selected_files)
+        print("Files with signals:", list(file_to_signals.keys()))
+        # Compare each pair
+        results = []
+        files = list(file_to_signals.keys())
+        for i in range(len(files)):
+            for j in range(i+1, len(files)):
+                f1, f2 = files[i], files[j]
+                common = file_to_signals[f1].intersection(file_to_signals[f2])
+                if common:
+                    results.append(f"Duplications in DBC file {f1} and {f2}:")
+                    for name in sorted(common):
+                        results.append(f"- {name}")
+                    results.append("")
+                else:
+                    results.append(f"No duplications in DBC file {f1} and {f2}.")
+                    results.append("")
+        if not results:
+            results.append("Selected DBC files:")
+            for f in selected_files:
+                results.append(f"- {f}")
+            results.append("")
+            results.append("No duplicates found.")
+        print("\n".join(results))
+        self.results_text_edit.setPlainText("\n".join(results))
+        self.results_text_edit.setVisible(True) 
