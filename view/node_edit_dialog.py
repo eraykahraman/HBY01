@@ -40,10 +40,36 @@ class NodeEditDialog(QDialog):
         form_layout.addRow("Node Name:", self.name_edit)
         
         # Node address edit field
-        self.address_edit = QLineEdit(self.node_address)
+        # Always show '0x' prefix and only allow editing after it
+        initial_address = self.node_address
+        if initial_address and not initial_address.startswith('0x'):
+            initial_address = f"0x{initial_address}"
+        elif not initial_address:
+            initial_address = '0x'
+        self.address_edit = QLineEdit(initial_address)
         self.address_edit.setPlaceholderText("Enter node address (e.g., 0xFE)")
         self.address_edit.setFont(QFont("Arial", 10))
+        # --- Begin: Enable/disable address field based on NmStationAddress definition ---
+        handler = None
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'current_handler'):
+                handler = parent.current_handler
+                break
+            parent = parent.parent() if hasattr(parent, 'parent') else None
+        address_editable = False
+        if handler and hasattr(handler, 'database') and handler.database:
+            db = handler.database
+            if hasattr(db, 'dbc') and hasattr(db.dbc, 'attribute_definitions'):
+                address_editable = 'NmStationAddress' in db.dbc.attribute_definitions
+        self.address_edit.setEnabled(address_editable)
+        # --- End: Enable/disable address field ---
         form_layout.addRow("Node Address:", self.address_edit)
+        
+        # --- Begin: Enforce 0x prefix logic ---
+        self.address_edit.textChanged.connect(self._enforce_0x_prefix)
+        self.address_edit.cursorPositionChanged.connect(self._enforce_cursor_after_prefix)
+        # --- End: Enforce 0x prefix logic ---
         
         # Comment edit field
         self.comment_edit = QTextEdit(self.node_comment)
@@ -85,11 +111,32 @@ class NodeEditDialog(QDialog):
         
         main_layout.addLayout(button_layout)
         
+    def _enforce_0x_prefix(self, text):
+        # Always keep '0x' at the start
+        if not text.startswith('0x'):
+            # Remove any leading '0X' or other prefix, then add '0x'
+            hex_part = text[2:] if text.lower().startswith('0x') else text.lstrip('xX')
+            self.address_edit.blockSignals(True)
+            self.address_edit.setText('0x' + hex_part)
+            self.address_edit.blockSignals(False)
+        elif text == '0x':
+            # Allow empty after prefix
+            pass
+        # Optionally, you can restrict to valid hex digits after '0x' here
+
+    def _enforce_cursor_after_prefix(self, old_pos, new_pos):
+        # Prevent cursor from moving before or into the '0x' prefix
+        if new_pos < 2:
+            self.address_edit.setCursorPosition(2)
+
     def validate_and_accept(self):
         """Validate the inputs and accept if valid"""
         new_name = self.name_edit.text().strip()
         new_comment = self.comment_edit.toPlainText().strip()
         new_address = self.address_edit.text().strip()
+        # Always ensure address starts with '0x'
+        if new_address and not new_address.startswith('0x'):
+            new_address = '0x' + new_address.lstrip('xX')
         
         # Validate name
         is_valid, error_message = self.validate_name(new_name)
