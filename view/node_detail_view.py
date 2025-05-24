@@ -233,11 +233,10 @@ class NodeDetailView(QDialog):
         add_message_button.setToolTip("Add a new message for this node")
         add_message_button.setFixedWidth(120)
         add_message_button.setFlat(True)
-        # Use a standard add icon from QStyle
         from PyQt5.QtWidgets import QStyle
         add_icon = self.style().standardIcon(QStyle.SP_FileDialogNewFolder)
         add_message_button.setIcon(add_icon)
-        # No logic connected yet
+        add_message_button.clicked.connect(self.open_create_message_dialog)
         container_layout.addWidget(add_message_button, alignment=Qt.AlignLeft)
 
         scroll_area = QScrollArea()
@@ -522,3 +521,25 @@ class NodeDetailView(QDialog):
     def refresh_details_tab(self):
         # Optionally implement this to refresh the details tab if comment is shown
         pass 
+
+    def open_create_message_dialog(self):
+        from .create_message_dialog import CreateMessageDialog
+        handler = None
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'current_handler'):
+                handler = parent.current_handler
+                break
+            parent = parent.parent() if hasattr(parent, 'parent') else None
+        # Collect unique frame format choices from all messages
+        frame_format_set = set()
+        for msg in self.node_messages.get('tx_messages', []) + self.node_messages.get('rx_messages', []):
+            choices = msg.get('frame_format_choices')
+            if choices:
+                if isinstance(choices, dict):
+                    frame_format_set.update(choices.values())
+                elif isinstance(choices, list):
+                    frame_format_set.update(choices)
+        frame_format_choices = list(frame_format_set) if frame_format_set else None
+        dialog = CreateMessageDialog(handler, self, frame_format_choices=frame_format_choices)
+        dialog.exec_() 
