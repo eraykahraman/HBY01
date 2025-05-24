@@ -224,12 +224,12 @@ class DBC_IO_Handler(QObject):
                 Each dictionary contains:
                 - name (str): The name of the node
                 - comment (Optional[str]): The comment associated with the node
+                - address (Optional[int]): Node address from NmStationAddress attribute
                 - attributes (Optional[Dict[str, Any]]): Node attributes
                 - ecu_ext_ref (Optional[str]): ECU external reference
                 - dbc_specifics (Optional[Dict[str, Any]]): DBC-specific node information
                 - autosar_specifics (Optional[Dict[str, Any]]): AUTOSAR-specific node information
                 - j1939_specifics (Optional[Dict[str, Any]]): J1939-specific node information
-                - address (Optional[int]): Node address (J1939)
                 - function_name (Optional[str]): Function name (J1939)
                 - manufacturer_code (Optional[int]): Manufacturer code (J1939)
                 - manufacturer_specific_ecu_code (Optional[int]): Manufacturer-specific ECU code (J1939)
@@ -248,23 +248,64 @@ class DBC_IO_Handler(QObject):
             
         nodes = []
         try:
+            # Get attribute definition for NmStationAddress
+            nm_station_address_def = None
+            if hasattr(self.database, 'dbc') and hasattr(self.database.dbc, 'attribute_definitions'):
+                nm_station_address_def = self.database.dbc.attribute_definitions.get('NmStationAddress')
+
             for node in self.database.nodes:
                 # Check if node is a string (node name) or a Node object
                 if isinstance(node, str):
                     node_info = {
                         "name": node,
-                        "comment": None
+                        "comment": None,
+                        "address": None  # Default to None for string nodes
                     }
                 else:
+                    # Get node address from NmStationAddress attribute
+                    node_address = None
+                    if hasattr(node, 'dbc'):
+                        if hasattr(node.dbc, 'attributes'):
+                            if 'NmStationAddress' in node.dbc.attributes:
+                                attr = node.dbc.attributes['NmStationAddress']
+                                if hasattr(attr, 'value'):
+                                    # If we have the attribute definition, use it to properly parse the value
+                                    if nm_station_address_def:
+                                        try:
+                                            # Convert value according to attribute definition type
+                                            if hasattr(nm_station_address_def, 'type'):
+                                                if nm_station_address_def.type == 'INT':
+                                                    node_address = int(attr.value)
+                                                elif nm_station_address_def.type == 'HEX':
+                                                    node_address = int(attr.value, 16)
+                                                else:
+                                                    node_address = attr.value
+                                            else:
+                                                # Default to integer if no type specified
+                                                node_address = int(attr.value)
+                                        except (ValueError, TypeError):
+                                            # If conversion fails, use raw value
+                                            node_address = attr.value
+                                    else:
+                                        # If no definition found, try to convert to int
+                                        try:
+                                            node_address = int(attr.value)
+                                        except (ValueError, TypeError):
+                                            node_address = attr.value
+                            else:
+                                # Try to get default value from attribute definition
+                                if nm_station_address_def and hasattr(nm_station_address_def, 'default_value'):
+                                    node_address = nm_station_address_def.default_value
+
                     node_info = {
                         "name": node.name,
                         "comment": node.comment if hasattr(node, 'comment') else None,
+                        "address": node_address,  # Use the extracted address
                         "attributes": getattr(node, 'attributes', None),
                         "ecu_ext_ref": getattr(node, 'ecu_ext_ref', None),
                         "dbc_specifics": getattr(node, 'dbc_specifics', None),
                         "autosar_specifics": getattr(node, 'autosar_specifics', None),
                         "j1939_specifics": getattr(node, 'j1939_specifics', None),
-                        "address": getattr(node, 'address', None),
                         "function_name": getattr(node, 'function_name', None),
                         "manufacturer_code": getattr(node, 'manufacturer_code', None),
                         "manufacturer_specific_ecu_code": getattr(node, 'manufacturer_specific_ecu_code', None),
