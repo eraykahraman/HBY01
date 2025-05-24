@@ -90,9 +90,24 @@ class NodeCreationDialog(QDialog):
         self.name_input.textChanged.connect(self.validate_name)
         form_layout.addRow("Node Name:", self.name_input)
         
-        # Node address input
-        self.address_input = HexLineEdit()
-        form_layout.addRow("Node Address:", self.address_input)
+        # Check if NmStationAddress is defined in the current DBC
+        handler = None
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'current_handler'):
+                handler = parent.current_handler
+                break
+            parent = parent.parent() if hasattr(parent, 'parent') else None
+        self.show_address = False
+        if handler and hasattr(handler, 'database') and hasattr(handler.database, 'dbc') and hasattr(handler.database.dbc, 'attribute_definitions'):
+            if 'NmStationAddress' in handler.database.dbc.attribute_definitions:
+                self.show_address = True
+        # Node address input (conditionally shown)
+        if self.show_address:
+            self.address_input = HexLineEdit()
+            form_layout.addRow("Node Address:", self.address_input)
+        else:
+            self.address_input = None
         
         # Comment input
         self.comment_input = QLineEdit()
@@ -153,9 +168,20 @@ class NodeCreationDialog(QDialog):
         self.accept()
         
     def get_node_data(self):
-        """Get the entered node data"""
-        return {
+        """Get the entered node data, only include address if NmStationAddress is defined in the DBC."""
+        # Find the handler from parent chain
+        handler = None
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'current_handler'):
+                handler = parent.current_handler
+                break
+            parent = parent.parent() if hasattr(parent, 'parent') else None
+        node_data = {
             'name': self.name_input.text().strip(),
-            'address': self.address_input.get_value(),
             'comment': self.comment_input.text().strip()
-        } 
+        }
+        # Only include address if NmStationAddress is defined and address_input exists
+        if self.address_input is not None:
+            node_data['address'] = self.address_input.get_value()
+        return node_data 
