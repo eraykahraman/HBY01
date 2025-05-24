@@ -531,15 +531,20 @@ class NodeDetailView(QDialog):
                 handler = parent.current_handler
                 break
             parent = parent.parent() if hasattr(parent, 'parent') else None
-        # Collect unique frame format choices from all messages
-        frame_format_set = set()
+        # Use send_type_choices and frame_format_choices from the first available message (Tx or Rx),
+        # or fall back to the first message in the DBC if the node has no messages
+        first_msg = None
         for msg in self.node_messages.get('tx_messages', []) + self.node_messages.get('rx_messages', []):
-            choices = msg.get('frame_format_choices')
-            if choices:
-                if isinstance(choices, dict):
-                    frame_format_set.update(choices.values())
-                elif isinstance(choices, list):
-                    frame_format_set.update(choices)
-        frame_format_choices = list(frame_format_set) if frame_format_set else None
-        dialog = CreateMessageDialog(handler, self, frame_format_choices=frame_format_choices)
+            first_msg = msg
+            break
+        # Fallback: use first message from all DBC messages if node has no messages
+        if not first_msg and handler and hasattr(handler, 'get_messages'):
+            all_msgs = handler.get_messages() if callable(handler.get_messages) else handler.get_messages
+            if all_msgs:
+                first_msg = all_msgs[0]
+        send_type_choices = first_msg.get('send_type_choices') if first_msg else None
+        frame_format_choices = first_msg.get('frame_format_choices') if first_msg else None
+        current_send_type = first_msg.get('send_type') if first_msg and 'send_type' in first_msg else None
+        cycle_time = first_msg.get('cycle_time') if first_msg and 'cycle_time' in first_msg else None
+        dialog = CreateMessageDialog(handler, self, frame_format_choices=frame_format_choices, send_type_choices=send_type_choices, current_send_type=current_send_type, cycle_time=cycle_time)
         dialog.exec_() 

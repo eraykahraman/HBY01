@@ -1,14 +1,17 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QLineEdit, QPushButton, QHBoxLayout, QLabel, QMessageBox, QCheckBox, QComboBox)
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QIntValidator
 
 class CreateMessageDialog(QDialog):
-    message_created = pyqtSignal(str, int, bool, str)  # name, id, is_extended, frame_format
+    message_created = pyqtSignal(str, int, bool, str, int, str, int)  # name, id, is_extended, frame_format, length, send_type, cycle_time
 
-    def __init__(self, handler=None, parent=None, frame_format_choices=None):
+    def __init__(self, handler=None, parent=None, frame_format_choices=None, send_type_choices=None, current_send_type=None, cycle_time=None):
         super().__init__(parent)
         self.handler = handler
         self.frame_format_choices = frame_format_choices
+        self.send_type_choices = send_type_choices
+        self.current_send_type = current_send_type
+        self.cycle_time = cycle_time
         self.setWindowTitle("Create Message")
         self.setMinimumWidth(350)
         self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint | Qt.WindowSystemMenuHint)
@@ -24,7 +27,6 @@ class CreateMessageDialog(QDialog):
             {"priority": "111 (0x7)", "range_start": 0x1C000000, "range_end": 0x1CFFFFFF},
         ]
         self.setup_ui()
-        print("Frame format choices:", self.frame_format_choices)
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -38,6 +40,13 @@ class CreateMessageDialog(QDialog):
         self.name_edit.setPlaceholderText("Enter message name")
         self.name_edit.setFont(QFont("Arial", 10))
         form_layout.addRow("Message Name:", self.name_edit)
+
+        # Message Length field
+        self.length_edit = QLineEdit()
+        self.length_edit.setPlaceholderText("Enter message length in bytes (1-8)")
+        self.length_edit.setFont(QFont("Arial", 10))
+        self.length_edit.setValidator(QIntValidator(1, 8, self))
+        form_layout.addRow("Message Length (bytes):", self.length_edit)
 
         # Extended Frame checkbox
         self.extended_frame_checkbox = QCheckBox()
@@ -88,6 +97,40 @@ class CreateMessageDialog(QDialog):
                 for value in self.frame_format_choices:
                     self.frame_format_combo.addItem(str(value))
         form_layout.addRow("Frame Format:", self.frame_format_combo)
+
+        # Send Type
+        self.send_type_combo = QComboBox()
+        # Populate send type combo box as in MessageEditDialog
+        if self.send_type_choices:
+            if isinstance(self.send_type_choices, dict):
+                for value in self.send_type_choices.values():
+                    self.send_type_combo.addItem(str(value))
+            elif isinstance(self.send_type_choices, list):
+                for value in self.send_type_choices:
+                    self.send_type_combo.addItem(str(value))
+        elif self.current_send_type:
+            self.send_type_combo.addItem(str(self.current_send_type))
+        # Set current value if it exists
+        if self.current_send_type:
+            index = self.send_type_combo.findText(self.current_send_type)
+            if index >= 0:
+                self.send_type_combo.setCurrentIndex(index)
+            else:
+                self.send_type_combo.addItem(self.current_send_type)
+                self.send_type_combo.setCurrentText(self.current_send_type)
+        form_layout.addRow("Send Type:", self.send_type_combo)
+
+        # Cycle Time - only show if it's defined in the DBC file
+        self.cycle_time_edit = None
+        if self.cycle_time is not None:
+            self.cycle_time_edit = QLineEdit()
+            self.cycle_time_edit.setText(str(self.cycle_time))
+            self.cycle_time_edit.setPlaceholderText("Enter cycle time (ms)")
+            cycle_time_layout = QHBoxLayout()
+            cycle_time_layout.addWidget(self.cycle_time_edit)
+            ms_label = QLabel("ms")
+            cycle_time_layout.addWidget(ms_label)
+            form_layout.addRow("Cycle Time:", cycle_time_layout)
 
         layout.addLayout(form_layout)
 
@@ -150,6 +193,15 @@ class CreateMessageDialog(QDialog):
             if name in existing_names:
                 QMessageBox.warning(self, "Duplicate Name", f"A message with the name '{name}' already exists.")
                 return
+        # Message Length validation
+        length_text = self.length_edit.text().strip()
+        try:
+            length_value = int(length_text)
+            if length_value < 1 or length_value > 8:
+                raise ValueError
+        except ValueError:
+            QMessageBox.warning(self, "Invalid Length", "Message length must be an integer between 1 and 8.")
+            return
         # Frame ID validation
         id_text = self.frame_id_edit.text().strip().lower()
         if id_text.startswith('0x'):
@@ -173,7 +225,20 @@ class CreateMessageDialog(QDialog):
                 return
             frame_id = id_value
         frame_format = self.frame_format_combo.currentText()
-        self.message_created.emit(name, frame_id, is_extended, frame_format)
+        send_type = self.send_type_combo.currentText()
+        # Cycle time validation (if field is present)
+        cycle_time_value = None
+        if self.cycle_time_edit is not None:
+            cycle_time_text = self.cycle_time_edit.text().strip()
+            if cycle_time_text:
+                try:
+                    cycle_time_value = int(cycle_time_text)
+                    if cycle_time_value <= 0:
+                        raise ValueError
+                except ValueError:
+                    QMessageBox.warning(self, "Invalid Cycle Time", "Cycle time must be a positive integer (ms).")
+                    return
+        self.message_created.emit(name, frame_id, is_extended, frame_format, length_value, send_type, cycle_time_value)
         self.accept()
 
     def validate_name(self, name: str) -> tuple[bool, str]:
@@ -186,4 +251,14 @@ class CreateMessageDialog(QDialog):
         return True, ""
 
     def reject(self):
-        super().reject() 
+        super().reject()
+
+    def format_send_type_choices(self):
+        if not self.send_type_choices:
+            return "Not specified"
+        if isinstance(self.send_type_choices, dict):
+            return ", ".join([f"{k}: {v}" for k, v in self.send_type_choices.items()])
+        elif isinstance(self.send_type_choices, list):
+            return ", ".join([str(v) for v in self.send_type_choices])
+        else:
+            return str(self.send_type_choices) 
