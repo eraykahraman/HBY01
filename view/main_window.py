@@ -17,6 +17,9 @@ class MainWindow(QMainWindow):
         # Initialize the DBC controller
         self.dbc_controller = DBC_IO_Controller()
         
+        # Track open DBC windows by file path
+        self.open_dbc_windows = {}  # {file_path: DBCWindow}
+        
         # Create central widget and main layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -172,7 +175,19 @@ class MainWindow(QMainWindow):
     def open_dbc_in_new_window(self, handler):
         """Open a DBC file in a new window"""
         window = DBCWindow(handler, self)
+        file_path = handler.get_file_path()
+        self.open_dbc_windows[file_path] = window
+        window.dbc_window_closed.connect(self.on_dbc_window_closed)
         window.show()
+
+    def on_dbc_window_closed(self, file_path):
+        # Remove from open windows dict
+        if file_path in self.open_dbc_windows:
+            del self.open_dbc_windows[file_path]
+        # Remove from controller/handlers if needed
+        self.dbc_controller.remove_dbc(file_path)
+        # Update the UI list
+        self.dbc_list.update_handlers(self.dbc_controller.get_all_handlers())
 
     def on_handler_export(self, handler):
         """

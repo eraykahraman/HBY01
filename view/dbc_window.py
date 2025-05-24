@@ -1,12 +1,14 @@
 from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QMessageBox
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 from view.dbc_display_view import DBCDisplayView
 from controller.dbc_io_handler import DBC_IO_Handler
 
 class DBCWindow(QMainWindow):
+    dbc_window_closed = pyqtSignal(str)  # file_path
     def __init__(self, handler: DBC_IO_Handler, parent=None):
         super().__init__(parent)
         self.handler = handler
+        self.file_path = handler.get_file_path() if hasattr(handler, 'get_file_path') else None
         self.setup_ui()
         
     def setup_ui(self):
@@ -69,3 +71,7 @@ class DBCWindow(QMainWindow):
                         f"Successfully exported DBC file to: {target_file}",
                         QMessageBox.Ok
                     ) 
+    def closeEvent(self, event):
+        if self.file_path:
+            self.dbc_window_closed.emit(self.file_path)
+        super().closeEvent(event) 
