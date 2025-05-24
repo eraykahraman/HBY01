@@ -1359,4 +1359,65 @@ class EditHandler:
         if not node_to_edit:
             return False, f"Node '{node_name}' not found."
         node_to_edit.comment = new_comment
-        return True, "" 
+        return True, ""
+
+    def edit_node_address(self, node_name: str, new_address: str) -> tuple[bool, str]:
+        """
+        Edit the address of a node in the database.
+        Args:
+            node_name (str): Name of the node
+            new_address (str): New address to set (in hex format, e.g. "0xFE")
+        Returns:
+            tuple[bool, str]: (Success status, Error message if any)
+        """
+        if not self.database:
+            return False, "Database not initialized"
+
+        # Find the node to edit
+        node_to_edit = None
+        for node in self.database.nodes:
+            if hasattr(node, 'name') and node.name == node_name:
+                node_to_edit = node
+                break
+
+        if not node_to_edit:
+            return False, f"Node '{node_name}' not found."
+
+        try:
+            # Convert hex string to integer
+            if new_address.startswith('0x'):
+                address_value = int(new_address, 16)
+            else:
+                address_value = int(new_address)
+
+            # Validate address range (0-254 for J1939)
+            if not 0 <= address_value <= 254:
+                return False, "Node address must be between 0x00 and 0xFE"
+
+            # Ensure node has dbc attributes
+            if not hasattr(node_to_edit, 'dbc'):
+                node_to_edit.dbc = type('DBC', (), {'attributes': {}})()
+            if not hasattr(node_to_edit.dbc, 'attributes') or node_to_edit.dbc.attributes is None:
+                node_to_edit.dbc.attributes = {}
+
+            # Get the attribute definition for NmStationAddress
+            definition = None
+            if hasattr(self.database, 'dbc') and hasattr(self.database.dbc, 'attribute_definitions'):
+                definition = self.database.dbc.attribute_definitions.get('NmStationAddress')
+
+            if definition is not None:
+                # Use the proper Attribute class
+                node_to_edit.dbc.attributes['NmStationAddress'] = Attribute(
+                    value=address_value,
+                    definition=definition
+                )
+            else:
+                # Fallback: store as a simple Attribute if definition is missing
+                node_to_edit.dbc.attributes['NmStationAddress'] = Attribute(address_value)
+
+            return True, ""
+
+        except ValueError:
+            return False, "Invalid address format. Must be a valid hex number (e.g., '0xFE')"
+        except Exception as e:
+            return False, f"Error updating node address: {str(e)}" 

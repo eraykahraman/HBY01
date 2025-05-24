@@ -136,8 +136,16 @@ class ChangeTracker:
                 summary += f"[{change['timestamp']}] Node change\n"
             elif change.get('type') == 'node_comment':
                 summary += f"[{change['timestamp']}] Node: {change['node']}\n"
+            elif change.get('type') == 'node_address':
+                summary += f"[{change['timestamp']}] Node: {change['node']}\n"
             else:
-                summary += f"[{change['timestamp']}] Message: {change['message']}, Signal: {change['signal']}\n"
+                # Handle signal changes
+                if 'message' in change and 'signal' in change:
+                    summary += f"[{change['timestamp']}] Message: {change['message']}, Signal: {change['signal']}\n"
+                else:
+                    # Fallback for any other type of change
+                    summary += f"[{change['timestamp']}] Change\n"
+                    
             for detail in change['changes']:
                 summary += f"  • {detail}\n"
             summary += "\n"
@@ -169,5 +177,22 @@ class ChangeTracker:
             'node': node_name,
             'changes': [f"Node comment: '{old_comment}' → '{new_comment}'"],
             'type': 'node_comment'
+        }
+        self._changes.append(change_entry)
+
+    def add_node_address_change(self, node_name: str, old_address: str, new_address: str):
+        """
+        Track the change of a node address
+        Args:
+            node_name (str): Node name
+            old_address (str): Previous address
+            new_address (str): New address
+        """
+        timestamp = self._get_timestamp()
+        change_entry = {
+            'timestamp': timestamp,
+            'node': node_name,
+            'changes': [f"Node address: {old_address} → {new_address}"],
+            'type': 'node_address'
         }
         self._changes.append(change_entry) 

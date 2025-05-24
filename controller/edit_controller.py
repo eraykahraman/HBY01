@@ -528,4 +528,32 @@ class EditController:
             self.handler.update_database()
             if hasattr(self.handler, 'change_tracker'):
                 self.handler.change_tracker.add_node_comment_change(node_name, old_comment, new_comment)
+        return success, error
+
+    def edit_node_address(self, node_name: str, new_address: str) -> tuple[bool, str]:
+        """
+        Edit the address of a node.
+        Args:
+            node_name (str): The name of the node
+            new_address (str): The new address to assign (in hex format, e.g. "0xFE")
+        Returns:
+            tuple[bool, str]: (success, error_message)
+        """
+        if not self.edit_handler:
+            return False, "Edit handler not initialized"
+
+        # Get old address for change tracking
+        old_address = None
+        for node in self.handler.database.nodes:
+            if hasattr(node, 'name') and node.name == node_name:
+                if hasattr(node, 'dbc') and hasattr(node.dbc, 'attributes'):
+                    if 'NmStationAddress' in node.dbc.attributes:
+                        old_address = node.dbc.attributes['NmStationAddress'].value
+                break
+
+        success, error = self.edit_handler.edit_node_address(node_name, new_address)
+        if success:
+            self.handler.update_database()
+            if hasattr(self.handler, 'change_tracker'):
+                self.handler.change_tracker.add_node_address_change(node_name, old_address, new_address)
         return success, error 

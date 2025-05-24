@@ -8,11 +8,13 @@ class NodeEditDialog(QDialog):
     """Dialog for editing a node"""
     name_edited = pyqtSignal(str)  # Signal emitted when node name is edited
     comment_edited = pyqtSignal(str)  # Signal emitted when node comment is edited
+    address_edited = pyqtSignal(str)  # Signal emitted when node address is edited
     
-    def __init__(self, node_name, node_comment=None, parent=None):
+    def __init__(self, node_name, node_comment=None, node_address=None, parent=None):
         super().__init__(parent)
         self.node_name = node_name
         self.node_comment = node_comment or ""
+        self.node_address = node_address or ""
         self.setup_ui()
         
     def setup_ui(self):
@@ -36,6 +38,12 @@ class NodeEditDialog(QDialog):
         self.name_edit.setPlaceholderText("Enter node name")
         self.name_edit.setFont(QFont("Arial", 10))
         form_layout.addRow("Node Name:", self.name_edit)
+        
+        # Node address edit field
+        self.address_edit = QLineEdit(self.node_address)
+        self.address_edit.setPlaceholderText("Enter node address (e.g., 0xFE)")
+        self.address_edit.setFont(QFont("Arial", 10))
+        form_layout.addRow("Node Address:", self.address_edit)
         
         # Comment edit field
         self.comment_edit = QTextEdit(self.node_comment)
@@ -78,22 +86,43 @@ class NodeEditDialog(QDialog):
         main_layout.addLayout(button_layout)
         
     def validate_and_accept(self):
-        """Validate the name and accept if valid"""
+        """Validate the inputs and accept if valid"""
         new_name = self.name_edit.text().strip()
         new_comment = self.comment_edit.toPlainText().strip()
+        new_address = self.address_edit.text().strip()
+        
+        # Validate name
         is_valid, error_message = self.validate_name(new_name)
         if not is_valid:
             QMessageBox.warning(self, "Invalid Name", error_message)
             return
-        if new_name == self.node_name and new_comment == (self.node_comment or ""):
+            
+        # Validate address
+        is_valid, error_message = self.validate_address(new_address)
+        if not is_valid:
+            QMessageBox.warning(self, "Invalid Address", error_message)
+            return
+            
+        # Check if any changes were made
+        if (new_name == self.node_name and 
+            new_comment == (self.node_comment or "") and 
+            new_address == (self.node_address or "")):
             self.accept()  # Just close dialog if no changes made
             return
-        self.name_edited.emit(new_name)
+            
+        # Emit signals for changes
+        if new_name != self.node_name:
+            self.name_edited.emit(new_name)
+            
         if new_comment != (self.node_comment or ""):
             if len(new_comment) > 256:
                 QMessageBox.warning(self, "Invalid Comment", "Comment cannot exceed 256 characters.")
                 return
             self.comment_edited.emit(new_comment)
+            
+        if new_address != (self.node_address or ""):
+            self.address_edited.emit(new_address)
+            
         self.accept()
 
     def validate_name(self, name: str) -> tuple[bool, str]:
@@ -115,4 +144,31 @@ class NodeEditDialog(QDialog):
             return False, "Node name cannot exceed 64 characters."
         if name.lower() in ["vector", "multiplexer", "multiplexed"]:
             return False, "Node name cannot be 'vector', 'multiplexer', or 'multiplexed'."
-        return True, "" 
+        return True, ""
+        
+    def validate_address(self, address: str) -> tuple[bool, str]:
+        """
+        Validate the node address
+        Args:
+            address (str): The address to validate (in hex format, e.g. "0xFE")
+        Returns:
+            tuple[bool, str]: (is_valid, error_message)
+        """
+        if not address:  # Empty address is valid (means no address)
+            return True, ""
+            
+        try:
+            # Convert hex string to integer
+            if address.startswith('0x'):
+                value = int(address, 16)
+            else:
+                value = int(address)
+                
+            # Validate range (0-254 for J1939)
+            if not 0 <= value <= 254:
+                return False, "Node address must be between 0x00 and 0xFE"
+                
+            return True, ""
+            
+        except ValueError:
+            return False, "Invalid address format. Must be a valid hex number (e.g., '0xFE')" 

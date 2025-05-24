@@ -1,7 +1,8 @@
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                             QPushButton, QScrollArea, QWidget, QTableWidget,
                             QTableWidgetItem, QHeaderView, QFrame, QSizePolicy,
-                            QStackedWidget, QTabWidget, QMessageBox)
+                            QStackedWidget, QTabWidget, QMessageBox, QGroupBox,
+                            QFormLayout)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
 from .signal_detail_view import SignalDetailView
@@ -17,12 +18,15 @@ class NodeDetailView(QDialog):
         self.node_data = node_data
         self.node_messages = node_messages  # Contains tx_messages and rx_messages
         self.node_signals = node_signals    # Contains tx_signals and rx_signals
+        self.node_name = node_data['name']
+        self.node_comment = node_data.get('comment', '')
+        self.node_address = node_data.get('address', '')
         self.setup_ui()
         
     def setup_ui(self):
         """Setup the UI components"""
         # Set window properties
-        self.setWindowTitle(f"Node Details: {self.node_data['name']}")
+        self.setWindowTitle(f"Node Details: {self.node_name}")
         self.setMinimumSize(800, 600)
         self.setWindowFlags(Qt.Window | Qt.WindowCloseButtonHint | Qt.WindowSystemMenuHint)
         
@@ -38,7 +42,7 @@ class NodeDetailView(QDialog):
         header_layout = QHBoxLayout(header_frame)
         header_layout.setContentsMargins(10, 10, 10, 10)
         
-        self.node_name_label = QLabel(self.node_data['name'])
+        self.node_name_label = QLabel(self.node_name)
         self.node_name_label.setFont(QFont("Arial", 14, QFont.Bold))
         header_layout.addWidget(self.node_name_label)
         
@@ -132,8 +136,9 @@ class NodeDetailView(QDialog):
         # Define property groups and their items
         property_groups = [
             ("Basic Properties", [
-                ("Name", self.node_data['name']),
-                ("Comment", format_value(self.node_data.get('comment')))
+                ("Name", self.node_name),
+                ("Comment", format_value(self.node_comment)),
+                ("Address", format_value(self.node_address))
             ]),
             ("Message Statistics", [
                 ("Tx Messages Count", len(self.node_messages['tx_messages'])),
@@ -142,7 +147,6 @@ class NodeDetailView(QDialog):
                 ("Rx Signals Count", len(self.node_signals['rx_signals']))
             ]),
             ("J1939 Properties", [
-                ("Address", format_value(self.node_data.get('address'))),
                 ("Function Name", format_value(self.node_data.get('function_name'))),
                 ("Manufacturer Code", format_value(self.node_data.get('manufacturer_code'))),
                 ("Identity Number", format_value(self.node_data.get('identity_number'))),
@@ -402,14 +406,24 @@ class NodeDetailView(QDialog):
         
     def open_edit_dialog(self):
         """Open dialog to edit node name"""
-        edit_dialog = NodeEditDialog(self.node_data['name'], self.node_data.get('comment', ''), self)
-        edit_dialog.name_edited.connect(self.handle_name_edited)
-        edit_dialog.comment_edited.connect(self.handle_comment_edited)
+        edit_dialog = NodeEditDialog(
+            self.node_name,
+            self.node_comment,
+            self.node_address,
+            self
+        )
+        
+        # Connect signals
+        edit_dialog.name_edited.connect(self.on_name_edited)
+        edit_dialog.comment_edited.connect(self.on_comment_edited)
+        edit_dialog.address_edited.connect(self.on_address_edited)
+        
+        # Show dialog
         edit_dialog.exec_()
         
-    def handle_name_edited(self, new_name):
+    def on_name_edited(self, new_name):
         """Handle when node name is edited"""
-        if new_name == self.node_data['name']:
+        if new_name == self.node_name:
             return  # No change
             
         # Find handler from parent chain (assume parent is DBCDisplayView)
@@ -425,7 +439,7 @@ class NodeDetailView(QDialog):
             QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
             return
             
-        old_name = self.node_data['name']
+        old_name = self.node_name
         success, error = handler.edit_controller.edit_node_name(old_name, new_name)
         
         if not success:
@@ -433,14 +447,14 @@ class NodeDetailView(QDialog):
             return
             
         # Update local data and UI
-        self.node_data['name'] = new_name
+        self.node_name = new_name
         self.node_name_label.setText(new_name)
         self.setWindowTitle(f"Node Details: {new_name}")
         
         # Emit signal for parent views to update
         self.node_edited.emit(old_name, new_name)
         
-    def handle_comment_edited(self, new_comment):
+    def on_comment_edited(self, new_comment):
         # Find handler from parent chain (assume parent is DBCDisplayView)
         handler = None
         parent = self.parent()
@@ -452,17 +466,40 @@ class NodeDetailView(QDialog):
         if not handler or not handler.edit_controller:
             QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
             return
-        node_name = self.node_data['name']
-        old_comment = self.node_data.get('comment', '')
+        node_name = self.node_name
+        old_comment = self.node_comment
         success, error = handler.edit_controller.edit_node_comment(node_name, new_comment)
         if not success:
             QMessageBox.critical(self, "Edit Error", error)
             return
         # Update local data and UI
-        self.node_data['comment'] = new_comment
+        self.node_comment = new_comment
         self.refresh_details_tab()
         # Emit signal for parent views to update nodes table
-        self.node_comment_edited.emit(self.node_data['name'])
+        self.node_comment_edited.emit(self.node_name)
+        
+    def on_address_edited(self, new_address):
+        # Find handler from parent chain (assume parent is DBCDisplayView)
+        handler = None
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'current_handler'):
+                handler = parent.current_handler
+                break
+            parent = parent.parent() if hasattr(parent, 'parent') else None
+        if not handler or not handler.edit_controller:
+            QMessageBox.critical(self, "Error", "Unable to find DBC handler for editing.")
+            return
+        node_name = self.node_name
+        success, error = handler.edit_controller.edit_node_address(node_name, new_address)
+        if not success:
+            QMessageBox.critical(self, "Edit Error", error)
+            return
+        # Update local data and UI
+        self.node_address = new_address
+        self.refresh_details_tab()
+        # Emit signal for parent views to update nodes table
+        self.node_edited.emit(node_name, node_name)
 
     def refresh_details_tab(self):
         # Optionally implement this to refresh the details tab if comment is shown
