@@ -1,49 +1,58 @@
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QListWidget, QListWidgetItem, QAbstractItemView, QMessageBox, QTextEdit
+from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QListWidget, QListWidgetItem, QAbstractItemView, QMessageBox, QTextEdit, QWidget
 from PyQt5.QtCore import Qt
 
-class DBCComparisonResultsView(QDialog):
+class DBCComparisonResultsView(QMainWindow):
     def __init__(self, imported_dbc_files=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Select DBC Files to Compare")
-        self.setMinimumSize(400, 400)
+        self.setMinimumSize(800, 600)
         self.imported_dbc_files = imported_dbc_files or []
         self.parent_window = parent
+        
+        # Create central widget and layout
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        self.layout = QVBoxLayout(central_widget)
+        
         self.setup_ui()
 
     def setup_ui(self):
-        layout = QVBoxLayout(self)
         self.title_label = QLabel("Select DBC Files to Compare")
         self.title_label.setStyleSheet("font-weight: bold; font-size: 16px;")
-        layout.addWidget(self.title_label)
+        self.layout.addWidget(self.title_label)
 
         # List of imported DBC files with checkboxes
         self.dbc_list_widget = QListWidget()
         self.dbc_list_widget.setSelectionMode(QAbstractItemView.MultiSelection)
+        self.dbc_list_widget.setMinimumHeight(200)
         for dbc_file in self.imported_dbc_files:
             item = QListWidgetItem(dbc_file)
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
             item.setCheckState(Qt.Unchecked)
             self.dbc_list_widget.addItem(item)
-        layout.addWidget(self.dbc_list_widget)
+        self.layout.addWidget(self.dbc_list_widget)
 
         # Results text edit (hidden initially)
         self.results_text_edit = QTextEdit()
         self.results_text_edit.setReadOnly(True)
         self.results_text_edit.setVisible(False)
-        self.results_text_edit.setMinimumWidth(350)
-        layout.addWidget(self.results_text_edit)
+        self.results_text_edit.setMinimumWidth(700)
+        self.results_text_edit.setMinimumHeight(300)
+        self.layout.addWidget(self.results_text_edit)
 
         # Buttons
         button_layout = QHBoxLayout()
         button_layout.addStretch()
+        
         self.compare_button = QPushButton("Compare")
         self.compare_button.setToolTip("Compare selected DBC files")
         self.compare_button.clicked.connect(self.compare_selected_files)
         button_layout.addWidget(self.compare_button)
+        
         close_button = QPushButton("Close")
-        close_button.clicked.connect(self.accept)
+        close_button.clicked.connect(self.close)
         button_layout.addWidget(close_button)
-        layout.addLayout(button_layout)
+        self.layout.addLayout(button_layout)
 
     def compare_selected_files(self):
         selected_files = []
@@ -63,9 +72,16 @@ class DBCComparisonResultsView(QDialog):
         for file_name in selected_files:
             handler = handler_map.get(file_name)
             if handler:
-                signals = handler.get_signals()
-                signal_names = set(signal['name'] for signal in signals)
-                file_to_signals[file_name] = signal_names
+                # Build mapping: signal_name -> set of message_names
+                signal_to_messages = {}
+                messages = handler.get_messages() if hasattr(handler, 'get_messages') else []
+                for msg in messages:
+                    for signal in msg.get('signals', []):
+                        name = signal['name']
+                        if name not in signal_to_messages:
+                            signal_to_messages[name] = set()
+                        signal_to_messages[name].add(msg['name'])
+                file_to_signals[file_name] = signal_to_messages
             else:
                 missing_files.append(file_name)
         if missing_files:
@@ -78,11 +94,15 @@ class DBCComparisonResultsView(QDialog):
         for i in range(len(files)):
             for j in range(i+1, len(files)):
                 f1, f2 = files[i], files[j]
-                common = file_to_signals[f1].intersection(file_to_signals[f2])
+                signals1 = set(file_to_signals[f1].keys())
+                signals2 = set(file_to_signals[f2].keys())
+                common = signals1.intersection(signals2)
                 if common:
                     results.append(f"Duplications in DBC file {f1} and {f2}:")
                     for name in sorted(common):
-                        results.append(f"- {name}")
+                        results.append(f"- Signal: {name}")
+                        results.append(f"  {f1}: Message(s): {', '.join(sorted(file_to_signals[f1][name]))}")
+                        results.append(f"  {f2}: Message(s): {', '.join(sorted(file_to_signals[f2][name]))}")
                     results.append("")
                 else:
                     results.append(f"No duplications in DBC file {f1} and {f2}.")

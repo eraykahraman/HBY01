@@ -227,4 +227,4 @@ class MainWindow(QMainWindow):
         # Get file names for display
         dbc_files = [h.get_file_info()['file_name'] for h in handlers]
         dialog = DBCComparisonResultsView(dbc_files, self)
-        dialog.exec_() 
+        dialog.show() 
