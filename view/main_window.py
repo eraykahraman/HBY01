@@ -8,6 +8,7 @@ from view.dbc_listview import DBCListView
 from view.dbc_display_view import DBCDisplayView
 from view.dbc_window import DBCWindow
 from view.dbc_comparison_results_view import DBCComparisonResultsView
+from view.dbc_routing_view import DBCRoutingView
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -61,6 +62,13 @@ class MainWindow(QMainWindow):
         self.compare_button.setToolTip("Compare loaded DBC files for conflicting signal names")
         self.compare_button.clicked.connect(self.open_comparison_results_view)
         buttons_layout.addWidget(self.compare_button)
+
+        # Add Route button next to Compare
+        self.route_button = QPushButton("Route")
+        self.route_button.setFixedWidth(120)
+        self.route_button.setToolTip("Route feature (to be implemented)")
+        self.route_button.clicked.connect(self.open_routing_view)
+        buttons_layout.addWidget(self.route_button)
         
         # Add buttons layout to left panel
         left_layout.addLayout(buttons_layout)
@@ -237,4 +245,12 @@ class MainWindow(QMainWindow):
         # Get file names for display
         dbc_files = [h.get_file_info()['file_name'] for h in handlers]
         dialog = DBCComparisonResultsView(dbc_files, self)
-        dialog.show() 
+        dialog.show()
+
+    def open_routing_view(self):
+        # Get all handlers
+        handlers = self.dbc_controller.get_all_handlers()
+        # Get file names for display
+        dbc_files = [h.get_file_info()['file_name'] for h in handlers]
+        routing_view = DBCRoutingView(dbc_files, self)
+        routing_view.show() 
