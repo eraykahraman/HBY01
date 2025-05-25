@@ -182,11 +182,21 @@ class MainWindow(QMainWindow):
         
     def open_dbc_in_new_window(self, handler):
         """Open a DBC file in a new window"""
-        window = DBCWindow(handler, self)
         file_path = handler.get_file_path()
-        self.open_dbc_windows[file_path] = window
-        window.dbc_window_closed.connect(self.on_dbc_window_closed)
-        window.show()
+        # Check if file is displayed in the main window
+        if (self.dbc_display.current_handler and
+            self.dbc_display.current_handler.get_file_path() == file_path):
+            self.raise_()
+            self.activateWindow()
+        elif file_path in self.open_dbc_windows:
+            window = self.open_dbc_windows[file_path]
+            window.raise_()
+            window.activateWindow()
+        else:
+            window = DBCWindow(handler, self)
+            self.open_dbc_windows[file_path] = window
+            window.dbc_window_closed.connect(self.on_dbc_window_closed)
+            window.show()
 
     def on_dbc_window_closed(self, file_path):
         # Remove from open windows dict
