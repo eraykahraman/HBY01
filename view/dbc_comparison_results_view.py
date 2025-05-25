@@ -44,7 +44,12 @@ class DBCComparisonResultsView(QMainWindow):
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         
-        # Add Check Messages button
+        # Add Check Nodes button
+        self.check_nodes_button = QPushButton("Check Nodes")
+        self.check_nodes_button.setToolTip("Check nodes for selected DBC files")
+        self.check_nodes_button.clicked.connect(self.check_nodes)
+        button_layout.addWidget(self.check_nodes_button)
+        
         self.check_messages_button = QPushButton("Check Messages")
         self.check_messages_button.setToolTip("Check messages for selected DBC files")
         self.check_messages_button.clicked.connect(self.check_messages)
@@ -54,6 +59,12 @@ class DBCComparisonResultsView(QMainWindow):
         self.compare_button.setToolTip("Compare selected DBC files")
         self.compare_button.clicked.connect(self.compare_selected_files)
         button_layout.addWidget(self.compare_button)
+        
+        # Add Export button
+        self.export_button = QPushButton("Export")
+        self.export_button.setToolTip("Export results to a text file")
+        self.export_button.clicked.connect(self.export_results)
+        button_layout.addWidget(self.export_button)
         
         close_button = QPushButton("Close")
         close_button.clicked.connect(self.close)
@@ -171,4 +182,63 @@ class DBCComparisonResultsView(QMainWindow):
                     results.append(f"No duplicate Frame IDs in {f1} and {f2}.")
                     results.append("")
         self.results_text_edit.setPlainText("\n".join(results))
-        self.results_text_edit.setVisible(True) 
+        self.results_text_edit.setVisible(True)
+
+    def check_nodes(self):
+        selected_files = []
+        for i in range(self.dbc_list_widget.count()):
+            item = self.dbc_list_widget.item(i)
+            if item.checkState() == Qt.Checked:
+                selected_files.append(item.text())
+        if len(selected_files) < 2:
+            QMessageBox.warning(self, "Select DBC Files", "Please select at least two DBC files to check nodes.")
+            return
+        # Get handlers from parent window
+        handlers = self.parent_window.dbc_controller.get_all_handlers()
+        handler_map = {handler.get_file_info()['file_name']: handler for handler in handlers}
+        file_to_nodes = {}
+        missing_files = []
+        for file_name in selected_files:
+            handler = handler_map.get(file_name)
+            if handler:
+                nodes = handler.get_nodes() if hasattr(handler, 'get_nodes') else []
+                node_names = set(node['name'] for node in nodes)
+                file_to_nodes[file_name] = node_names
+            else:
+                missing_files.append(file_name)
+        if missing_files:
+            QMessageBox.warning(self, "Missing Handlers", f"No handler found for the following files:\n" + "\n".join(missing_files))
+        results = []
+        files = list(file_to_nodes.keys())
+        for i in range(len(files)):
+            for j in range(i+1, len(files)):
+                f1, f2 = files[i], files[j]
+                nodes1 = file_to_nodes[f1]
+                nodes2 = file_to_nodes[f2]
+                common = nodes1.intersection(nodes2)
+                if common:
+                    results.append(f"Duplicate Nodes in {f1} and {f2}:")
+                    for name in sorted(common):
+                        results.append(f"- {name}")
+                    results.append("")
+                else:
+                    results.append(f"No duplicate Nodes in {f1} and {f2}.")
+                    results.append("")
+        self.results_text_edit.setPlainText("\n".join(results))
+        self.results_text_edit.setVisible(True)
+
+    def export_results(self):
+        from PyQt5.QtWidgets import QFileDialog
+        text = self.results_text_edit.toPlainText()
+        if not text.strip():
+            QMessageBox.warning(self, "Export Error", "There is no result to export.")
+            return
+        options = QFileDialog.Options()
+        file_path, _ = QFileDialog.getSaveFileName(self, "Export Results", "results.txt", "Text Files (*.txt);;All Files (*)", options=options)
+        if file_path:
+            try:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(text)
+                QMessageBox.information(self, "Export Successful", f"Results exported to {file_path}")
+            except Exception as e:
+                QMessageBox.critical(self, "Export Error", f"Failed to export results: {str(e)}") 
