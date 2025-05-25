@@ -1,41 +1,124 @@
-# DBC Master: CAN Database Viewer and Editor
+# DBC Master - CAN Database Management Tool
 
-DBC Master is a desktop application designed for viewing and editing DBC (Database CAN) files used in automotive and industrial CAN bus networks. The application follows the Model-View-Controller (MVC) design pattern to ensure clean code organization and separation of concerns.
+DBC Master is a comprehensive tool for managing and analyzing CAN database (DBC) files. It provides a user-friendly interface for viewing, editing, and analyzing CAN network configurations.
 
-## Features
+## Core Features
 
-### Core Features
-- **DBC File Management:**
-  - Import and load DBC files
-  - Export DBC files to new locations
-  - View multiple DBC files simultaneously in separate windows
-  - Manage loaded DBC files through a list interface
+### 1. DBC File Management
+- Import and load multiple DBC files
+- Export DBC files with change tracking
+- View and manage multiple DBC files simultaneously
+- Open DBC files in separate windows for detailed analysis
 
-### Data Visualization
-- **Hierarchical Data Display:**
-  - Tree view showing the hierarchical structure of nodes, messages, and signals
-  - Detailed tabular views for signals, messages, and network nodes
-  - Customizable column visibility in tables
+### 2. Network Analysis
+- View network topology with gateway nodes
+- Analyze message routing between different CAN networks
+- Check message compatibility and routing paths
+- Visualize network nodes and their connections
 
-- **Detailed Information:**
-  - Signal details (name, start bit, length, scaling, offset, etc.)
-  - Message details (ID, length, signals, senders, etc.)
-  - Node details (name, attributes, transmitted/received messages and signals)
+### 3. Message Management
+- View detailed message information including:
+  - Frame IDs
+  - Message length
+  - Senders and receivers
+  - Cycle time
+  - Send type
+  - Frame format (Standard/Extended)
+  - CAN FD support
+- Edit message properties
+- Track message changes
 
-### Analysis Tools
-- **Bus Load Calculator:**
-  - Calculate the theoretical CAN bus load based on message frequencies
-  - Analyze potential bottlenecks in communication
+### 4. Signal Management
+- View and edit signal properties:
+  - Start bit
+  - Length
+  - Byte order
+  - Signed/Unsigned
+  - Scale and offset
+  - Minimum/Maximum values
+  - Units
+  - Comments
+- Support for multiplexed signals
+- Signal value tables and choices
 
-### User Interface
-- **Multiple Windows:**
-  - Open each DBC file in a separate window for comparison
-  - Main window with list of all opened DBC files
-  
-- **Dynamic UI:**
-  - Resizable split panels
-  - Context menus for additional operations
-  - Double-click to view detailed information
+### 5. Node Management
+- View and manage network nodes
+- Node properties including:
+  - Node name
+  - Comments
+  - Address information
+  - J1939 specific properties
+  - AUTOSAR specific properties
+- Track node message transmission and reception
+
+### 6. Advanced Features
+- Bus load calculation
+- Message comparison between different DBC files
+- Change tracking and history
+- Support for J1939 protocol
+- Support for AUTOSAR
+- Environment variable management
+- Value table management
+
+### 7. User Interface Features
+- Tree-based navigation
+- Tabular data display
+- Context menus for quick actions
+- Multi-window support
+- Status bar for operation feedback
+- Export functionality with change summary
+
+## Technical Details
+
+### Supported Protocols
+- Standard CAN
+- CAN FD
+- J1939
+- AUTOSAR
+
+### File Format Support
+- DBC files
+- Export to text format for change tracking
+
+### Data Management
+- In-memory database handling
+- Change tracking and validation
+- Automatic data structure updates
+- Error handling and validation
+
+## Usage
+
+1. **Importing DBC Files**
+   - Use the "Import DBC" button to load DBC files
+   - Multiple files can be loaded simultaneously
+   - Files can be opened in separate windows
+
+2. **Viewing Network Information**
+   - Use the tree view to navigate through messages, signals, and nodes
+   - Select items to view detailed information in tables
+   - Double-click items to open detailed views
+
+3. **Editing**
+   - Use context menus or double-click to edit items
+   - Changes are tracked and can be reviewed before export
+   - Validation is performed on all edits
+
+4. **Analysis**
+   - Use the "Route" feature to analyze message routing
+   - Use the "Compare" feature to compare DBC files
+   - Use the "Show Topology" feature to visualize the network
+
+5. **Export**
+   - Export modified DBC files
+   - Review changes before export
+   - Export change summaries to text files
+
+## Requirements
+
+- Python 3.x
+- PyQt5
+- cantools library
+- Operating System: Windows/Linux/MacOS
 
 ## Module Architecture
 
@@ -307,4 +390,351 @@ The system includes comprehensive error handling:
 3. Model Layer:
    - In-memory database representation
    - Original database copy for comparison
-   - DBC file export functionality 
+   - DBC file export functionality
+
+## UML Diagrams
+
+### File Management Use Case Diagram
+
+```plantuml
+@startuml File Management Use Cases
+
+skinparam actorStyle awesome
+skinparam defaultFontSize 16
+skinparam usecase {
+    BackgroundColor LightBlue
+    BorderColor DarkBlue
+    FontSize 16
+    FontStyle bold
+}
+skinparam package {
+    BackgroundColor LightGray
+    BorderColor DarkGray
+    FontSize 18
+    FontStyle bold
+}
+
+actor "User" as user
+
+package "File Management" {
+    usecase "Import DBC File" as UC1
+    usecase "Export DBC File" as UC2
+    usecase "Track Changes" as UC3
+    usecase "View Multiple Files" as UC4
+}
+
+user --> UC1
+user --> UC2
+user --> UC4
+UC2 ..> UC3 : <<include>>
+
+@enduml
+```
+
+---
+
+### Network Analysis Use Case Diagram
+
+```plantuml
+@startuml Network Analysis Use Cases
+
+skinparam actorStyle awesome
+skinparam defaultFontSize 16
+skinparam usecase {
+    BackgroundColor LightBlue
+    BorderColor DarkBlue
+    FontSize 16
+    FontStyle bold
+}
+skinparam package {
+    BackgroundColor LightGray
+    BorderColor DarkGray
+    FontSize 18
+    FontStyle bold
+}
+
+actor "User" as user
+
+package "Network Analysis" {
+    usecase "View Network Topology" as UC5
+    usecase "Analyze Message Routing" as UC6
+    usecase "Check Message Compatibility" as UC7
+    usecase "Visualize Network Nodes" as UC8
+}
+
+user --> UC5
+user --> UC6
+user --> UC7
+user --> UC8
+UC6 <.. UC7 : <<extend>>
+
+@enduml
+```
+
+---
+
+### Message Management Use Case Diagram
+
+```plantuml
+@startuml Message Management Use Cases
+
+skinparam actorStyle awesome
+skinparam defaultFontSize 16
+skinparam usecase {
+    BackgroundColor LightBlue
+    BorderColor DarkBlue
+    FontSize 16
+    FontStyle bold
+}
+skinparam package {
+    BackgroundColor LightGray
+    BorderColor DarkGray
+    FontSize 18
+    FontStyle bold
+}
+
+actor "User" as user
+actor "System" as system
+
+package "Message Management" {
+    usecase "View Message Details" as UC9
+    usecase "Edit Message Properties" as UC10
+    usecase "Track Message Changes" as UC11
+}
+
+user --> UC9
+user --> UC10
+system --> UC11
+UC10 ..> UC11 : <<include>>
+UC9 <.. UC11 : <<extend>>
+
+@enduml
+```
+
+---
+
+### Signal Management Use Case Diagram
+
+```plantuml
+@startuml Signal Management Use Cases
+
+skinparam actorStyle awesome
+skinparam defaultFontSize 16
+skinparam usecase {
+    BackgroundColor LightBlue
+    BorderColor DarkBlue
+    FontSize 16
+    FontStyle bold
+}
+skinparam package {
+    BackgroundColor LightGray
+    BorderColor DarkGray
+    FontSize 18
+    FontStyle bold
+}
+
+actor "User" as user
+actor "System" as system
+
+package "Signal Management" {
+    usecase "View Signal Properties" as UC12
+    usecase "Edit Signal Properties" as UC13
+    usecase "Manage Multiplexed Signals" as UC14
+    usecase "Handle Value Tables" as UC15
+    usecase "Track Changes" as UC3
+}
+
+user --> UC12
+user --> UC13
+user --> UC14
+user --> UC15
+system --> UC3
+UC13 ..> UC3 : <<include>>
+UC12 <.. UC14 : <<extend>>
+
+@enduml
+```
+
+---
+
+### Node Management Use Case Diagram
+
+```plantuml
+@startuml Node Management Use Cases
+
+skinparam actorStyle awesome
+skinparam defaultFontSize 16
+skinparam usecase {
+    BackgroundColor LightBlue
+    BorderColor DarkBlue
+    FontSize 16
+    FontStyle bold
+}
+skinparam package {
+    BackgroundColor LightGray
+    BorderColor DarkGray
+    FontSize 18
+    FontStyle bold
+}
+
+actor "User" as user
+actor "System" as system
+
+package "Node Management" {
+    usecase "View Node Details" as UC16
+    usecase "Edit Node Properties" as UC17
+    usecase "Track Node Messages" as UC18
+    usecase "Track Changes" as UC3
+}
+
+user --> UC16
+user --> UC17
+system --> UC18
+UC17 ..> UC3 : <<include>>
+UC16 <.. UC18 : <<extend>>
+
+@enduml
+```
+
+---
+
+### Advanced Features Use Case Diagram
+
+```plantuml
+@startuml Advanced Features Use Cases
+
+skinparam actorStyle awesome
+skinparam defaultFontSize 16
+skinparam usecase {
+    BackgroundColor LightBlue
+    BorderColor DarkBlue
+    FontSize 16
+    FontStyle bold
+}
+skinparam package {
+    BackgroundColor LightGray
+    BorderColor DarkGray
+    FontSize 18
+    FontStyle bold
+}
+
+actor "User" as user
+
+package "Advanced Features" {
+    usecase "Calculate Bus Load" as UC19
+    usecase "Compare DBC Files" as UC20
+    usecase "Manage Environment Variables" as UC21
+    usecase "Handle J1939 Protocol" as UC22
+    usecase "Handle AUTOSAR" as UC23
+}
+
+user --> UC19
+user --> UC20
+user --> UC21
+user --> UC22
+user --> UC23
+
+@enduml
+```
+
+### Import DBC File Sequence Diagram
+
+```plantuml
+@startuml Import DBC File Sequence
+
+actor User
+participant "MainWindow" as MW
+participant "DBC_IO_Controller" as Controller
+participant "DBC_IO_Handler" as Handler
+participant "DBCModel" as Model
+
+User -> MW : Clicks 'Import DBC'
+MW -> Controller : import_dbc()
+Controller -> Model : load_dbc(file_path)
+Model --> Controller : DBC loaded
+Controller -> Handler : Create handler for file
+Handler -> Model : Parse nodes/messages/signals
+Handler --> Controller : Handler ready
+Controller -> MW : handler_created signal
+MW -> MW : Update UI with new file
+
+@enduml
+```
+
+### Edit Signal Sequence Diagram
+
+```plantuml
+@startuml Edit Signal Sequence
+
+actor User
+participant "DBCDisplayView" as View
+participant "SignalDetailView" as SignalView
+participant "EditController" as EditCtrl
+participant "EditHandler" as EditHdlr
+participant "DBC_IO_Handler" as Handler
+
+User -> View : Double-clicks signal
+View -> SignalView : Open SignalDetailView
+User -> SignalView : Edits signal and clicks OK
+SignalView -> EditCtrl : edit_signal_property(...)
+EditCtrl -> EditHdlr : edit_signal_property(...)
+EditHdlr -> Handler : Update in-memory database
+Handler -> View : signals_changed signal
+View -> View : Update signals table
+
+@enduml
+```
+
+### Export DBC File Sequence Diagram
+
+```plantuml
+@startuml Export DBC File Sequence
+
+actor User
+participant "MainWindow" as MW
+participant "DBC_IO_Controller" as Controller
+participant "DBC_IO_Handler" as Handler
+participant "EditHandler" as EditHdlr
+participant "DBCModel" as Model
+
+User -> MW : Clicks 'Export DBC'
+MW -> Controller : export_dbc(file_path)
+Controller -> Handler : has_changes()
+alt If changes exist
+    Handler -> EditHdlr : get_changes_summary()
+    Controller -> MW : Show changes summary dialog
+end
+Controller -> Handler : edit_handler.save_to_file(target_file)
+Handler -> EditHdlr : Save to file
+EditHdlr -> Model : Write DBC file
+Model --> EditHdlr : File written
+EditHdlr --> Handler : Success
+Handler -> Controller : Success
+Controller -> MW : dbc_exported signal
+MW -> MW : Show success message
+
+@enduml
+```
+
+### Routing Analysis Sequence Diagram
+
+```plantuml
+@startuml Routing Analysis Sequence
+
+actor User
+participant "DBCRoutingView" as RoutingView
+participant "DBC_IO_Controller" as Controller
+participant "DBC_IO_Handler" as Handler
+
+User -> RoutingView : Clicks 'Check Messages'
+RoutingView -> Controller : get_all_handlers()
+Controller -> Handler : get_messages(), get_nodes()
+Handler --> Controller : Messages, Nodes
+Controller --> RoutingView : Handlers data
+RoutingView -> RoutingView : Analyze routing
+RoutingView -> RoutingView : Show results dialog
+
+@enduml
+```
+
+</rewritten_file> 
