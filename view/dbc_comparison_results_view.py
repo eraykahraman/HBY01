@@ -44,6 +44,12 @@ class DBCComparisonResultsView(QMainWindow):
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         
+        # Add Check Messages button
+        self.check_messages_button = QPushButton("Check Messages")
+        self.check_messages_button.setToolTip("Check messages for selected DBC files")
+        self.check_messages_button.clicked.connect(self.check_messages)
+        button_layout.addWidget(self.check_messages_button)
+        
         self.compare_button = QPushButton("Compare")
         self.compare_button.setToolTip("Compare selected DBC files")
         self.compare_button.clicked.connect(self.compare_selected_files)
@@ -114,5 +120,55 @@ class DBCComparisonResultsView(QMainWindow):
             results.append("")
             results.append("No duplicates found.")
         print("\n".join(results))
+        self.results_text_edit.setPlainText("\n".join(results))
+        self.results_text_edit.setVisible(True)
+
+    def check_messages(self):
+        selected_files = []
+        for i in range(self.dbc_list_widget.count()):
+            item = self.dbc_list_widget.item(i)
+            if item.checkState() == Qt.Checked:
+                selected_files.append(item.text())
+        if len(selected_files) < 2:
+            QMessageBox.warning(self, "Select DBC Files", "Please select at least two DBC files to check messages.")
+            return
+        # Get handlers from parent window
+        handlers = self.parent_window.dbc_controller.get_all_handlers()
+        handler_map = {handler.get_file_info()['file_name']: handler for handler in handlers}
+        file_to_frameid_msgs = {}
+        missing_files = []
+        for file_name in selected_files:
+            handler = handler_map.get(file_name)
+            if handler:
+                frameid_to_msgs = {}
+                messages = handler.get_messages() if hasattr(handler, 'get_messages') else []
+                for msg in messages:
+                    frame_id = msg['frame_id']
+                    if frame_id not in frameid_to_msgs:
+                        frameid_to_msgs[frame_id] = []
+                    frameid_to_msgs[frame_id].append(msg['name'])
+                file_to_frameid_msgs[file_name] = frameid_to_msgs
+            else:
+                missing_files.append(file_name)
+        if missing_files:
+            QMessageBox.warning(self, "Missing Handlers", f"No handler found for the following files:\n" + "\n".join(missing_files))
+        results = []
+        files = list(file_to_frameid_msgs.keys())
+        for i in range(len(files)):
+            for j in range(i+1, len(files)):
+                f1, f2 = files[i], files[j]
+                frameids1 = set(file_to_frameid_msgs[f1].keys())
+                frameids2 = set(file_to_frameid_msgs[f2].keys())
+                common = frameids1.intersection(frameids2)
+                if common:
+                    results.append(f"Duplicate Frame IDs in {f1} and {f2}:")
+                    for frame_id in sorted(common):
+                        results.append(f"- Frame ID: 0x{frame_id:X}")
+                        results.append(f"  {f1}: Message(s): {', '.join(file_to_frameid_msgs[f1][frame_id])}")
+                        results.append(f"  {f2}: Message(s): {', '.join(file_to_frameid_msgs[f2][frame_id])}")
+                    results.append("")
+                else:
+                    results.append(f"No duplicate Frame IDs in {f1} and {f2}.")
+                    results.append("")
         self.results_text_edit.setPlainText("\n".join(results))
         self.results_text_edit.setVisible(True) 
