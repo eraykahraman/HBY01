@@ -103,8 +103,6 @@ class DBCComparisonResultsView(QMainWindow):
                 missing_files.append(file_name)
         if missing_files:
             QMessageBox.warning(self, "Missing Handlers", f"No handler found for the following files:\n" + "\n".join(missing_files))
-        print("Selected files:", selected_files)
-        print("Files with signals:", list(file_to_signals.keys()))
         # Compare each pair
         results = []
         files = list(file_to_signals.keys())
@@ -130,7 +128,6 @@ class DBCComparisonResultsView(QMainWindow):
                 results.append(f"- {f}")
             results.append("")
             results.append("No duplicates found.")
-        print("\n".join(results))
         self.results_text_edit.setPlainText("\n".join(results))
         self.results_text_edit.setVisible(True)
 
