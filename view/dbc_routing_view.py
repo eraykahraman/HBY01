@@ -51,6 +51,12 @@ class DBCRoutingView(QMainWindow):
         self.show_topology_button.clicked.connect(self.show_topology)
         button_layout.addWidget(self.show_topology_button)
 
+        # Add Compare button
+        self.compare_button = QPushButton("Compare")
+        self.compare_button.setToolTip("Compare selected DBC files")
+        self.compare_button.clicked.connect(self.compare_dbc_files)
+        button_layout.addWidget(self.compare_button)
+
         close_button = QPushButton("Close")
         close_button.clicked.connect(self.close)
         button_layout.addWidget(close_button)
@@ -142,7 +148,7 @@ class DBCRoutingView(QMainWindow):
                     tx_entries.add((frame_id, tx_msg, tx_file))
         # Prepare table data
         table_data = []
-        covered_tx = set()
+        # Show every possible Rx/Tx route
         for frame_id, rx_msg, rx_file in sorted(rx_entries):
             found_tx = False
             for tx_file, tx_frames in tx_map.items():
@@ -150,25 +156,25 @@ class DBCRoutingView(QMainWindow):
                     continue
                 if frame_id in tx_frames:
                     for tx_msg in tx_frames[frame_id]:
-                        table_data.append([f"0x{frame_id:X}", rx_msg, rx_file, tx_file])
-                        covered_tx.add((frame_id, tx_msg, tx_file))
-                        found_tx = True
+                        # Only show if message name matches as well
+                        if tx_msg == rx_msg:
+                            table_data.append([f"0x{frame_id:X}", rx_msg, rx_file, tx_file])
+                            found_tx = True
             if not found_tx:
                 table_data.append([f"0x{frame_id:X}", rx_msg, rx_file, "—"])
+        # Also show Tx messages that are not received anywhere else
         for frame_id, tx_msg, tx_file in sorted(tx_entries):
-            if (frame_id, tx_msg, tx_file) in covered_tx:
-                continue
             found_rx = False
             for rx_file, rx_frames in rx_map.items():
                 if rx_file == tx_file:
                     continue
-                if frame_id in rx_frames:
-                    for rx_msg in rx_frames[frame_id]:
-                        found_rx = True
+                if frame_id in rx_frames and tx_msg in rx_frames[frame_id]:
+                    found_rx = True
             if not found_rx:
                 table_data.append([f"0x{frame_id:X}", tx_msg, "—", tx_file])
         # Show results in a dialog with QTableWidget
         dialog = QDialog(self)
+        dialog.setWindowFlags(Qt.Window)
         dialog.setWindowTitle("Gateway Routing Messages")
         dialog.setMinimumSize(700, 400)
         layout = QVBoxLayout(dialog)
@@ -183,11 +189,12 @@ class DBCRoutingView(QMainWindow):
                 table.setItem(row, col, item)
         table.setAlternatingRowColors(True)
         table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        table.setSortingEnabled(True)
         layout.addWidget(table)
         close_btn = QPushButton("Close")
-        close_btn.clicked.connect(dialog.accept)
+        close_btn.clicked.connect(dialog.close)
         layout.addWidget(close_btn)
-        dialog.exec_()
+        dialog.show()
 
     def show_topology(self):
         # Get selected DBC files
@@ -215,15 +222,191 @@ class DBCRoutingView(QMainWindow):
                 bus_nodes[file_name] = node_names
         # Show topology dialog
         dialog = QDialog(self)
+        dialog.setWindowFlags(Qt.Window)
         dialog.setWindowTitle("Network Topology")
         dialog.setMinimumSize(800, 600)
         layout = QVBoxLayout(dialog)
         topology_widget = TopologyWidget(self.gateway_node, bus_nodes)
         layout.addWidget(topology_widget)
         close_btn = QPushButton("Close")
-        close_btn.clicked.connect(dialog.accept)
+        close_btn.clicked.connect(dialog.close)
         layout.addWidget(close_btn)
-        dialog.exec_()
+        dialog.show()
+
+    def compare_dbc_files(self):
+        """
+        Compare selected DBC files focusing on messages that are routed through the gateway node.
+        Compares message properties for messages with the same message ID.
+        """
+        # Get selected DBC files
+        selected_files = []
+        for i in range(self.dbc_list_widget.count()):
+            item = self.dbc_list_widget.item(i)
+            if item.checkState() == Qt.Checked:
+                selected_files.append(item.text())
+        
+        if len(selected_files) < 2:
+            QMessageBox.warning(self, "Select DBC Files", "Please select at least two DBC files to compare.")
+            return
+
+        if not self.gateway_node:
+            QMessageBox.warning(self, "Select Gateway Node", "Please select a gateway node first.")
+            return
+
+        # Get handlers from parent window
+        handlers = self.parent_window.dbc_controller.get_all_handlers()
+        handler_map = {handler.get_file_info()['file_name']: handler for handler in handlers}
+
+        # Build Rx and Tx maps: {dbc_file: {frame_id: [message_names]}}
+        rx_map = {}
+        tx_map = {}
+        for file_name in selected_files:
+            handler = handler_map.get(file_name)
+            rx_map[file_name] = {}
+            tx_map[file_name] = {}
+            if handler:
+                messages = handler.get_messages() if hasattr(handler, 'get_messages') else []
+                for msg in messages:
+                    # Rx: gateway is a receiver
+                    if self.gateway_node in msg.get('receivers', []):
+                        frame_id = msg['frame_id']
+                        if frame_id not in rx_map[file_name]:
+                            rx_map[file_name][frame_id] = []
+                        rx_map[file_name][frame_id].append(msg)
+                    # Tx: gateway is a sender
+                    if self.gateway_node in msg.get('senders', []):
+                        frame_id = msg['frame_id']
+                        if frame_id not in tx_map[file_name]:
+                            tx_map[file_name][frame_id] = []
+                        tx_map[file_name][frame_id].append(msg)
+
+        # Find messages to compare (messages that are routed through gateway)
+        messages_to_compare = []
+        for rx_file, rx_frames in rx_map.items():
+            for frame_id, rx_msgs in rx_frames.items():
+                for rx_msg in rx_msgs:
+                    for tx_file, tx_frames in tx_map.items():
+                        if tx_file == rx_file:
+                            continue
+                        if frame_id in tx_frames:
+                            for tx_msg in tx_frames[frame_id]:
+                                messages_to_compare.append({
+                                    'frame_id': frame_id,
+                                    'rx_file': rx_file,
+                                    'tx_file': tx_file,
+                                    'rx_msg': rx_msg,
+                                    'tx_msg': tx_msg
+                                })
+
+        if not messages_to_compare:
+            QMessageBox.information(self, "No Messages to Compare", 
+                                  "No routed messages found to compare between the selected DBC files.")
+            return
+
+        # Create comparison dialog
+        dialog = QDialog(self)
+        dialog.setWindowFlags(Qt.Window)
+        dialog.setWindowTitle("Message Comparison Results")
+        dialog.setMinimumSize(1000, 600)
+        layout = QVBoxLayout(dialog)
+
+        # Create table for comparison results
+        table = QTableWidget()
+        table.setColumnCount(5)
+        table.setHorizontalHeaderLabels([
+            "Frame ID", 
+            "Message Name", 
+            "Property", 
+            "Rx Value", 
+            "Tx Value"
+        ])
+
+        # Properties to compare
+        properties_to_compare = [
+            'length',
+            'is_extended_frame',
+            'is_fd',
+            'cycle_time',
+            'send_type'
+        ]
+
+        # Populate table with comparison results
+        row = 0
+        for msg_pair in messages_to_compare:
+            frame_id = msg_pair['frame_id']
+            rx_msg = msg_pair['rx_msg']
+            tx_msg = msg_pair['tx_msg']
+            
+            # Compare each property
+            for prop in properties_to_compare:
+                rx_value = rx_msg.get(prop, 'N/A')
+                tx_value = tx_msg.get(prop, 'N/A')
+                
+                # Add row to table
+                table.insertRow(row)
+                table.setItem(row, 0, QTableWidgetItem(f"0x{frame_id:X}"))
+                table.setItem(row, 1, QTableWidgetItem(rx_msg['name']))
+                table.setItem(row, 2, QTableWidgetItem(prop))
+                table.setItem(row, 3, QTableWidgetItem(str(rx_value)))
+                table.setItem(row, 4, QTableWidgetItem(str(tx_value)))
+                
+                # Highlight differences
+                if rx_value != tx_value:
+                    for col in range(5):
+                        item = table.item(row, col)
+                        item.setBackground(Qt.yellow)
+                
+                row += 1
+
+            # Compare signals
+            rx_signals = {sig['name']: sig for sig in rx_msg.get('signals', [])}
+            tx_signals = {sig['name']: sig for sig in tx_msg.get('signals', [])}
+            
+            # Find common signals
+            common_signals = set(rx_signals.keys()) & set(tx_signals.keys())
+            
+            # Compare signal properties
+            signal_properties = [
+                'start', 'length', 'byte_order', 'is_signed',
+                'scale', 'offset', 'minimum', 'maximum', 'unit'
+            ]
+            
+            for signal_name in common_signals:
+                rx_signal = rx_signals[signal_name]
+                tx_signal = tx_signals[signal_name]
+                
+                for prop in signal_properties:
+                    rx_value = rx_signal.get(prop, 'N/A')
+                    tx_value = tx_signal.get(prop, 'N/A')
+                    
+                    # Add row to table
+                    table.insertRow(row)
+                    table.setItem(row, 0, QTableWidgetItem(f"0x{frame_id:X}"))
+                    table.setItem(row, 1, QTableWidgetItem(f"{rx_msg['name']}.{signal_name}"))
+                    table.setItem(row, 2, QTableWidgetItem(f"signal.{prop}"))
+                    table.setItem(row, 3, QTableWidgetItem(str(rx_value)))
+                    table.setItem(row, 4, QTableWidgetItem(str(tx_value)))
+                    
+                    # Highlight differences
+                    if rx_value != tx_value:
+                        for col in range(5):
+                            item = table.item(row, col)
+                            item.setBackground(Qt.yellow)
+                    
+                    row += 1
+
+        # Set table properties
+        table.setAlternatingRowColors(True)
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        table.verticalHeader().setVisible(False)
+        layout.addWidget(table)
+
+        # Add close button
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dialog.close)
+        layout.addWidget(close_btn)
+
+        dialog.show()
 
 class TopologyWidget(QWidget):
     def __init__(self, gateway_node, bus_nodes, parent=None):
