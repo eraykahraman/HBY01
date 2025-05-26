@@ -9,6 +9,7 @@ from view.dbc_display_view import DBCDisplayView
 from view.dbc_window import DBCWindow
 from view.dbc_comparison_results_view import DBCComparisonResultsView
 from view.dbc_routing_view import DBCRoutingView
+from database import db_session
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -49,6 +50,12 @@ class MainWindow(QMainWindow):
         
         # Create buttons layout for import/export
         buttons_layout = QHBoxLayout()
+        
+        # Create and add the database connect button
+        self.db_connect_button = QPushButton("Connect DB")
+        self.db_connect_button.setFixedWidth(120)
+        self.db_connect_button.clicked.connect(self.connect_database)
+        buttons_layout.addWidget(self.db_connect_button)
         
         # Create and add the import button
         self.import_button = QPushButton("Import DBC")
@@ -108,7 +115,41 @@ class MainWindow(QMainWindow):
         # Connect to display view signals
         self.dbc_display.export_requested.connect(self.on_handler_export)
         
+    def connect_database(self):
+        """Connect to the database and create tables if they don't exist"""
+        try:
+            # Create tables
+            db_session.create_tables()
+            
+            # Update button state and status
+            self.db_connect_button.setEnabled(False)
+            self.db_connect_button.setText("Connected")
+            self.statusBar.showMessage("Successfully connected to database")
+            
+            # Enable import button after successful connection
+            self.import_button.setEnabled(True)
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Database Connection Error",
+                f"Failed to connect to database: {str(e)}",
+                QMessageBox.Ok
+            )
+            self.statusBar.showMessage("Failed to connect to database")
+    
     def import_dbc(self):
+        """Import a DBC file"""
+        # Check if database is connected
+        if self.db_connect_button.text() != "Connected":
+            QMessageBox.warning(
+                self,
+                "Database Not Connected",
+                "Please connect to the database first",
+                QMessageBox.Ok
+            )
+            return
+            
         handler, file_name, error = self.dbc_controller.import_dbc(self)
         if error:
             # Show detailed error message in dialog
