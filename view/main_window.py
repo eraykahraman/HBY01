@@ -10,6 +10,8 @@ from view.dbc_window import DBCWindow
 from view.dbc_comparison_results_view import DBCComparisonResultsView
 from view.dbc_routing_view import DBCRoutingView
 from database import db_session
+from view.user_auth_dialog import UserAuthDialog
+from PyQt5.QtWidgets import QDialog
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -77,6 +79,13 @@ class MainWindow(QMainWindow):
         self.route_button.clicked.connect(self.open_routing_view)
         buttons_layout.addWidget(self.route_button)
         
+        # Create and add the logout button (hidden by default)
+        self.logout_button = QPushButton("Logout")
+        self.logout_button.setFixedWidth(120)
+        self.logout_button.clicked.connect(self.logout_user)
+        self.logout_button.setVisible(False)  # Hidden initially
+        buttons_layout.addWidget(self.logout_button)
+        
         # Add buttons layout to left panel
         left_layout.addLayout(buttons_layout)
         
@@ -116,40 +125,29 @@ class MainWindow(QMainWindow):
         self.dbc_display.export_requested.connect(self.on_handler_export)
         
     def connect_database(self):
-        """Connect to the database and create tables if they don't exist"""
-        try:
-            # Create tables
-            db_session.create_tables()
-            
-            # Update button state and status
-            self.db_connect_button.setEnabled(False)
-            self.db_connect_button.setText("Connected")
-            self.statusBar.showMessage("Successfully connected to database")
-            
-            # Enable import button after successful connection
-            self.import_button.setEnabled(True)
-            
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Database Connection Error",
-                f"Failed to connect to database: {str(e)}",
-                QMessageBox.Ok
-            )
-            self.statusBar.showMessage("Failed to connect to database")
+        """Show user authentication dialog, then connect to the database if successful login/register"""
+        auth_dialog = UserAuthDialog(self)
+        if auth_dialog.exec_() == QDialog.Accepted and auth_dialog.success:
+            try:
+                db_session.create_tables()
+                self.db_connect_button.setEnabled(False)
+                self.db_connect_button.setText("Connected")
+                self.statusBar.showMessage(f"Connected as {auth_dialog.username}")
+                self.import_button.setEnabled(True)
+                self.logout_button.setVisible(True)
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    "Database Connection Error",
+                    f"Failed to connect to database: {str(e)}",
+                    QMessageBox.Ok
+                )
+                self.statusBar.showMessage("Failed to connect to database")
+        else:
+            self.statusBar.showMessage("Database connection cancelled or authentication failed")
     
     def import_dbc(self):
-        """Import a DBC file"""
-        # Check if database is connected
-        if self.db_connect_button.text() != "Connected":
-            QMessageBox.warning(
-                self,
-                "Database Not Connected",
-                "Please connect to the database first",
-                QMessageBox.Ok
-            )
-            return
-            
+        """Import a DBC file (available to all users, even if not connected to DB)"""
         handler, file_name, error = self.dbc_controller.import_dbc(self)
         if error:
             # Show detailed error message in dialog
@@ -294,4 +292,15 @@ class MainWindow(QMainWindow):
         # Get file names for display
         dbc_files = [h.get_file_info()['file_name'] for h in handlers]
         routing_view = DBCRoutingView(dbc_files, self)
-        routing_view.show() 
+        routing_view.show()
+
+    def logout_user(self):
+        """Logout the current user and reset UI state."""
+        self.db_connect_button.setEnabled(True)
+        self.db_connect_button.setText("Connect DB")
+        self.logout_button.setVisible(False)
+        self.statusBar.showMessage("Logged out.")
+        # Optionally, disable features for logged-out users:
+        # self.import_button.setEnabled(False)
+        # self.compare_button.setEnabled(False)
+        # self.route_button.setEnabled(False) 

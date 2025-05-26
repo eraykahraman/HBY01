@@ -1,7 +1,7 @@
 from typing import List, Optional
 from datetime import datetime
 
-from .models import DBCFile
+from .models import DBCFile, User
 from .session import db_session
 
 class DBCRepository:
@@ -62,4 +62,27 @@ class DBCRepository:
                 session.delete(dbc_file)
                 session.commit()
                 return True
-            return False 
+            return False
+
+class UserRepository:
+    @staticmethod
+    def get_user_by_username(username: str) -> Optional[User]:
+        with db_session.get_session() as session:
+            return session.query(User).filter(User.username == username).first()
+
+    @staticmethod
+    def create_user(username: str, password_hash: str) -> Optional[User]:
+        with db_session.get_session() as session:
+            if session.query(User).filter(User.username == username).first():
+                return None  # Username already exists
+            user = User(username=username, password_hash=password_hash)
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+            return user
+
+    @staticmethod
+    def get_user_password_hash(username: str) -> Optional[str]:
+        with db_session.get_session() as session:
+            user = session.query(User).filter(User.username == username).first()
+            return user.password_hash if user else None 
