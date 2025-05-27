@@ -41,6 +41,23 @@ class DBC_IO_Controller(QObject):
         
         return None, None, None
     
+    def import_dbc_from_path(self, file_path):
+        """
+        Import a DBC file directly from a given file path.
+        Returns the handler, file_name, and error (if any).
+        """
+        if file_path:
+            handler = DBC_IO_Handler(file_path, self.model)
+            success, error = handler.load_dbc()
+            if success:
+                self.handlers[file_path] = handler
+                self.handler_created.emit(handler)
+                self.handlers_changed.emit(list(self.handlers.values()))
+                return handler, file_path, None
+            else:
+                return None, None, error
+        return None, None, "No file path provided"
+    
     def export_dbc(self, file_path, parent_window=None):
         """
         Opens a file dialog to select a location to export the DBC file

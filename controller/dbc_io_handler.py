@@ -25,6 +25,7 @@ class DBC_IO_Handler(QObject):
         """
         super().__init__()
         self.file_path = file_path
+        self.file_name = os.path.basename(file_path)
         self.model = model
         self.database: Optional[Database] = None
         self.is_loaded: bool = False
@@ -164,7 +165,7 @@ class DBC_IO_Handler(QObject):
         if not db:
             return {
                 "file_path": self.file_path,
-                "file_name": os.path.basename(self.file_path),
+                "file_name": self.file_name,
                 "is_loaded": self.is_loaded,
                 "messages_count": 0,
                 "nodes_count": 0,
@@ -177,7 +178,7 @@ class DBC_IO_Handler(QObject):
         # Get additional database information
         file_info = {
             "file_path": self.file_path,
-            "file_name": os.path.basename(self.file_path),
+            "file_name": self.file_name,
             "is_loaded": self.is_loaded,
             "messages_count": len(db.messages),
             "nodes_count": len(db.nodes),

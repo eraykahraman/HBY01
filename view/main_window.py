@@ -1,9 +1,10 @@
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QPushButton, QLabel, QStatusBar,
                             QMessageBox, QSpacerItem, QSizePolicy, QFrame,
-                            QSplitter)
+                            QSplitter, QListWidget, QListWidgetItem)
 from PyQt5.QtCore import Qt
 from controller.DBC_IO_Controller import DBC_IO_Controller
+from controller.db_load_controller import DBLoadController
 from view.dbc_listview import DBCListView
 from view.dbc_display_view import DBCDisplayView
 from view.dbc_window import DBCWindow
@@ -12,7 +13,8 @@ from view.dbc_routing_view import DBCRoutingView
 from database import db_session
 from view.user_auth_dialog import UserAuthDialog
 from PyQt5.QtWidgets import QDialog
-from database.models import UserRole
+from database.models import UserRole, DBCFile
+from database.repository import DBCRepository
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -20,8 +22,13 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("DBC Master")
         self.setGeometry(100, 100, 1200, 800)
         
-        # Initialize the DBC controller
+        # Initialize controllers
         self.dbc_controller = DBC_IO_Controller()
+        self.db_load_controller = DBLoadController()
+        
+        # Connect DB load controller signals
+        self.db_load_controller.dbc_loaded.connect(self.on_dbc_loaded)
+        self.db_load_controller.dbc_load_failed.connect(self.on_dbc_load_failed)
         
         # Track open DBC windows by file path
         self.open_dbc_windows = {}  # {file_path: DBCWindow}
@@ -66,6 +73,14 @@ class MainWindow(QMainWindow):
         self.import_button.clicked.connect(self.import_dbc)
         buttons_layout.addWidget(self.import_button)
         
+        # Create and add the load to DB button (hidden by default)
+        self.load_to_db_button = QPushButton("Load to DB")
+        self.load_to_db_button.setFixedWidth(120)
+        self.load_to_db_button.setToolTip("Load DBC file to database (Netcom Engineers only)")
+        self.load_to_db_button.clicked.connect(self.load_dbc_to_database)
+        self.load_to_db_button.setVisible(False)  # Hidden initially
+        buttons_layout.addWidget(self.load_to_db_button)
+        
         # Create and add the compare button
         self.compare_button = QPushButton("Compare")
         self.compare_button.setFixedWidth(120)
@@ -93,6 +108,13 @@ class MainWindow(QMainWindow):
         # Create and add the DBC list view
         self.dbc_list = DBCListView()
         left_layout.addWidget(self.dbc_list)
+        
+        # Create database DBC files list
+        self.db_dbc_list = QListWidget()
+        self.db_dbc_list.setVisible(False)  # Hidden initially
+        self.db_dbc_list.itemDoubleClicked.connect(self.on_db_dbc_selected)
+        left_layout.addWidget(QLabel("DBC Files in Database:"))
+        left_layout.addWidget(self.db_dbc_list)
         
         # Add left panel to splitter
         splitter.addWidget(left_panel)
@@ -127,6 +149,81 @@ class MainWindow(QMainWindow):
         
         self.current_user_role = None
         
+    def load_dbc_to_database(self):
+        """Load the currently selected DBC file to the database"""
+        # Get the selected handler
+        handler = self.dbc_list.get_selected_handler()
+        if not handler:
+            QMessageBox.warning(
+                self,
+                "Load to DB Error",
+                "Please first import a DBC file using the 'Import DBC' button and select it in the list.",
+                QMessageBox.Ok
+            )
+            return
+
+        try:
+            # Get file info
+            file_info = handler.get_file_info()
+            file_path = handler.get_file_path()
+            
+            # Read file content
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            # Use the DB load controller to save to database
+            success, dbc_file, error = self.db_load_controller.load_dbc_to_database(
+                file_name=file_info['file_name'],
+                file_path=file_path,
+                content=content
+            )
+
+            if not success:
+                QMessageBox.critical(
+                    self,
+                    "Load to DB Error",
+                    error,
+                    QMessageBox.Ok
+                )
+
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Load to DB Error",
+                f"Failed to load DBC file to database: {str(e)}",
+                QMessageBox.Ok
+            )
+
+    def on_dbc_loaded(self, dbc_file: DBCFile):
+        """Handle successful DBC file load to database"""
+        try:
+            file_name = dbc_file.file_name
+            self.statusBar.showMessage(f"Successfully loaded DBC file to database: {file_name}")
+            QMessageBox.information(
+                self,
+                "Success",
+                f"DBC file '{file_name}' has been loaded to the database.",
+                QMessageBox.Ok
+            )
+        except Exception as e:
+            self.statusBar.showMessage("Successfully loaded DBC file to database")
+            QMessageBox.information(
+                self,
+                "Success",
+                "DBC file has been loaded to the database.",
+                QMessageBox.Ok
+            )
+
+    def on_dbc_load_failed(self, error_msg: str):
+        """Handle failed DBC file load to database"""
+        self.statusBar.showMessage("Failed to load DBC file to database")
+        QMessageBox.critical(
+            self,
+            "Load to DB Error",
+            error_msg,
+            QMessageBox.Ok
+        )
+    
     def connect_database(self):
         """Show user authentication dialog, then connect to the database if successful login/register"""
         auth_dialog = UserAuthDialog(self)
@@ -139,6 +236,17 @@ class MainWindow(QMainWindow):
                 self.import_button.setEnabled(True)
                 self.logout_button.setVisible(True)
                 self.current_user_role = auth_dialog.role
+
+                # Show Load to DB button only for Netcom Engineers
+                if self.current_user_role == UserRole.NETCOM_ENGINEER.value:
+                    self.load_to_db_button.setVisible(True)
+                else:
+                    self.load_to_db_button.setVisible(False)
+
+                # Show and update database DBC files list
+                self.db_dbc_list.setVisible(True)
+                self.update_db_dbc_list()
+
             except Exception as e:
                 QMessageBox.critical(
                     self,
@@ -168,6 +276,9 @@ class MainWindow(QMainWindow):
             # This will go through on_handler_selected which will handle
             # displaying in main view or new window appropriately
             self.dbc_list.select_handler(handler)
+            # Show message about next steps
+            if self.current_user_role == UserRole.NETCOM_ENGINEER.value:
+                self.statusBar.showMessage("DBC file imported. Select it in the list and click 'Load to DB' to save to database.")
     
     def export_dbc(self):
         """
@@ -299,13 +410,64 @@ class MainWindow(QMainWindow):
         routing_view.show()
 
     def logout_user(self):
-        """Logout the current user and reset UI state."""
+        """Logout the current user and reset UI state"""
         self.db_connect_button.setEnabled(True)
         self.db_connect_button.setText("Connect DB")
         self.logout_button.setVisible(False)
-        self.statusBar.showMessage("Logged out.")
+        self.load_to_db_button.setVisible(False)  # Hide Load to DB button
+        self.db_dbc_list.setVisible(False)  # Hide database DBC files list
+        self.statusBar.showMessage("Logged out")
         self.current_user_role = None
-        # Optionally, disable features for logged-out users:
-        # self.import_button.setEnabled(False)
-        # self.compare_button.setEnabled(False)
-        # self.route_button.setEnabled(False) 
+
+    def on_db_dbc_selected(self, item):
+        """Handle selection of a DBC file from the database list"""
+        try:
+            # Get the DBC file from the database
+            dbc_file = self.db_load_controller.get_dbc_file(item.data(Qt.UserRole))
+            if dbc_file:
+                # Create a temporary file with the content
+                import tempfile
+                import os
+                
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.dbc', delete=False) as temp_file:
+                    temp_file.write(dbc_file.content)
+                    temp_path = temp_file.name
+                
+                # Import the file using the DBC controller (use the new method)
+                handler, file_name, error = self.dbc_controller.import_dbc_from_path(temp_path)
+                if handler:
+                    # Set both file_name and file_path to the original values from the database
+                    handler.file_name = dbc_file.file_name
+                    handler.file_path = dbc_file.file_path
+                    # Clean up the temporary file
+                    os.unlink(temp_path)
+                    # Update the list view to reflect the new file name
+                    self.dbc_list.update_handlers(self.dbc_controller.get_all_handlers())
+                    # Select the handler in the list
+                    self.dbc_list.select_handler(handler)
+                elif error:
+                    QMessageBox.critical(
+                        self,
+                        "Error",
+                        f"Failed to load DBC file from database: {error}",
+                        QMessageBox.Ok
+                    )
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Failed to load DBC file from database: {str(e)}",
+                QMessageBox.Ok
+            )
+
+    def update_db_dbc_list(self):
+        """Update the list of DBC files from the database"""
+        try:
+            self.db_dbc_list.clear()
+            dbc_files = self.db_load_controller.get_all_dbc_files()
+            for dbc_file in dbc_files:
+                item = QListWidgetItem(dbc_file.file_name)
+                item.setData(Qt.UserRole, dbc_file.id)
+                self.db_dbc_list.addItem(item)
+        except Exception as e:
+            self.statusBar.showMessage(f"Failed to load DBC files from database: {str(e)}") 

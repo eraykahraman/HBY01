@@ -20,13 +20,33 @@ class DBCRepository:
             session.add(dbc_file)
             session.commit()
             session.refresh(dbc_file)
-            return dbc_file
+            # Create a new instance with the same data to avoid detached instance issues
+            return DBCFile(
+                id=dbc_file.id,
+                file_name=dbc_file.file_name,
+                file_path=dbc_file.file_path,
+                content=dbc_file.content,
+                version=dbc_file.version,
+                created_at=dbc_file.created_at,
+                updated_at=dbc_file.updated_at
+            )
     
     @staticmethod
     def get_dbc_file(file_id: int) -> Optional[DBCFile]:
         """Get a DBC file by ID"""
         with db_session.get_session() as session:
-            return session.query(DBCFile).filter(DBCFile.id == file_id).first()
+            dbc = session.query(DBCFile).filter(DBCFile.id == file_id).first()
+            if dbc:
+                return DBCFile(
+                    id=dbc.id,
+                    file_name=dbc.file_name,
+                    file_path=dbc.file_path,
+                    content=dbc.content,
+                    version=dbc.version,
+                    created_at=dbc.created_at,
+                    updated_at=dbc.updated_at
+                )
+            return None
     
     @staticmethod
     def get_dbc_file_by_path(file_path: str) -> Optional[DBCFile]:
@@ -38,7 +58,20 @@ class DBCRepository:
     def get_all_dbc_files() -> List[DBCFile]:
         """Get all DBC files"""
         with db_session.get_session() as session:
-            return session.query(DBCFile).all()
+            dbc_files = session.query(DBCFile).all()
+            # Return new instances with all attributes copied to avoid detached instance issues
+            return [
+                DBCFile(
+                    id=dbc.id,
+                    file_name=dbc.file_name,
+                    file_path=dbc.file_path,
+                    content=dbc.content,
+                    version=dbc.version,
+                    created_at=dbc.created_at,
+                    updated_at=dbc.updated_at
+                )
+                for dbc in dbc_files
+            ]
     
     @staticmethod
     def update_dbc_file(file_id: int, content: str, version: Optional[str] = None) -> Optional[DBCFile]:
