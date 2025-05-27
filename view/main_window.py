@@ -149,6 +149,8 @@ class MainWindow(QMainWindow):
         
         self.current_user_role = None
         
+        self.setup_db_dbc_list_context_menu()
+        
     def load_dbc_to_database(self):
         """Load the currently selected DBC file to the database"""
         # Get the selected handler
@@ -436,9 +438,9 @@ class MainWindow(QMainWindow):
                 # Import the file using the DBC controller (use the new method)
                 handler, file_name, error = self.dbc_controller.import_dbc_from_path(temp_path)
                 if handler:
-                    # Set both file_name and file_path to the original values from the database
+                    # Set only file_name to the original value from the database for display
                     handler.file_name = dbc_file.file_name
-                    handler.file_path = dbc_file.file_path
+                    # Do NOT overwrite handler.file_path, keep it as the temp file path
                     # Clean up the temporary file
                     os.unlink(temp_path)
                     # Update the list view to reflect the new file name
@@ -460,6 +462,41 @@ class MainWindow(QMainWindow):
                 QMessageBox.Ok
             )
 
+    def setup_db_dbc_list_context_menu(self):
+        self.db_dbc_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.db_dbc_list.customContextMenuRequested.connect(self.on_db_dbc_list_context_menu)
+
+    def on_db_dbc_list_context_menu(self, position):
+        if self.current_user_role != UserRole.NETCOM_ENGINEER.value:
+            return
+        item = self.db_dbc_list.itemAt(position)
+        if item:
+            from PyQt5.QtWidgets import QMenu
+            menu = QMenu()
+            delete_action = menu.addAction("Delete from Database")
+            action = menu.exec_(self.db_dbc_list.viewport().mapToGlobal(position))
+            if action == delete_action:
+                dbc_id = item.data(Qt.UserRole)
+                dbc_name = item.text()
+                reply = QMessageBox.question(
+                    self,
+                    "Delete DBC File",
+                    f"Are you sure you want to delete '{dbc_name}' from the database?",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+                if reply == QMessageBox.Yes:
+                    success = self.db_load_controller.delete_dbc_file(dbc_id)
+                    if success:
+                        self.statusBar.showMessage(f"Deleted '{dbc_name}' from database.")
+                        self.update_db_dbc_list()
+                    else:
+                        QMessageBox.critical(
+                            self,
+                            "Delete Error",
+                            f"Failed to delete '{dbc_name}' from database.",
+                            QMessageBox.Ok
+                        )
+
     def update_db_dbc_list(self):
         """Update the list of DBC files from the database"""
         try:
@@ -469,5 +506,7 @@ class MainWindow(QMainWindow):
                 item = QListWidgetItem(dbc_file.file_name)
                 item.setData(Qt.UserRole, dbc_file.id)
                 self.db_dbc_list.addItem(item)
+            # Ensure context menu is set up
+            self.setup_db_dbc_list_context_menu()
         except Exception as e:
             self.statusBar.showMessage(f"Failed to load DBC files from database: {str(e)}") 
