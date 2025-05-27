@@ -12,6 +12,7 @@ from view.dbc_routing_view import DBCRoutingView
 from database import db_session
 from view.user_auth_dialog import UserAuthDialog
 from PyQt5.QtWidgets import QDialog
+from database.models import UserRole
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -124,6 +125,8 @@ class MainWindow(QMainWindow):
         # Connect to display view signals
         self.dbc_display.export_requested.connect(self.on_handler_export)
         
+        self.current_user_role = None
+        
     def connect_database(self):
         """Show user authentication dialog, then connect to the database if successful login/register"""
         auth_dialog = UserAuthDialog(self)
@@ -132,9 +135,10 @@ class MainWindow(QMainWindow):
                 db_session.create_tables()
                 self.db_connect_button.setEnabled(False)
                 self.db_connect_button.setText("Connected")
-                self.statusBar.showMessage(f"Connected as {auth_dialog.username}")
+                self.statusBar.showMessage(f"Connected as {auth_dialog.username} ({auth_dialog.role})")
                 self.import_button.setEnabled(True)
                 self.logout_button.setVisible(True)
+                self.current_user_role = auth_dialog.role
             except Exception as e:
                 QMessageBox.critical(
                     self,
@@ -300,6 +304,7 @@ class MainWindow(QMainWindow):
         self.db_connect_button.setText("Connect DB")
         self.logout_button.setVisible(False)
         self.statusBar.showMessage("Logged out.")
+        self.current_user_role = None
         # Optionally, disable features for logged-out users:
         # self.import_button.setEnabled(False)
         # self.compare_button.setEnabled(False)

@@ -1,8 +1,14 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Text
+from sqlalchemy import Column, Integer, String, DateTime, Text, Enum
 from sqlalchemy.orm import declarative_base
+import enum
 
 Base = declarative_base()
+
+class UserRole(str, enum.Enum):
+    NETCOM_ENGINEER = "netcom_engineer"
+    DESIGN_ENGINEER = "design_engineer"
+    GENERIC_USER = "generic_user"
 
 class DBCFile(Base):
     """Model for storing DBC file information"""
@@ -21,4 +27,5 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     username = Column(String(150), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
+    role = Column(String(50), nullable=False, default=UserRole.GENERIC_USER.value)
     created_at = Column(DateTime, default=datetime.utcnow) 
