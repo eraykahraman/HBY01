@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QLabel, QListWidget, QListWidgetItem, QAbstractItemView, QWidget, QPushButton, QHBoxLayout, QInputDialog, QMessageBox, QDialog, QTextEdit, QTableWidget, QTableWidgetItem, QHeaderView
+from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QLabel, QListWidget, QListWidgetItem, QAbstractItemView, QWidget, QPushButton, QHBoxLayout, QInputDialog, QMessageBox, QDialog, QTextEdit, QTableWidget, QTableWidgetItem, QHeaderView, QTreeWidget, QTreeWidgetItem
 from PyQt5.QtCore import Qt, QRect
 from PyQt5.QtGui import QPainter, QPen, QFont
 
@@ -257,7 +257,7 @@ class DBCRoutingView(QMainWindow):
         handlers = self.parent_window.dbc_controller.get_all_handlers()
         handler_map = {handler.get_file_info()['file_name']: handler for handler in handlers}
 
-        # Build Rx and Tx maps: {dbc_file: {frame_id: [message_names]}}
+        # Build Rx and Tx maps: {dbc_file: {frame_id: [message_objs]}}
         rx_map = {}
         tx_map = {}
         for file_name in selected_files:
@@ -280,64 +280,31 @@ class DBCRoutingView(QMainWindow):
                             tx_map[file_name][frame_id] = []
                         tx_map[file_name][frame_id].append(msg)
 
-        # Find messages to compare (messages that are routed through gateway)
-        messages_to_compare = []
-        for rx_file, rx_frames in rx_map.items():
-            for frame_id, rx_msgs in rx_frames.items():
-                for rx_msg in rx_msgs:
-                    for tx_file, tx_frames in tx_map.items():
-                        if tx_file == rx_file:
-                            continue
-                        if frame_id in tx_frames:
-                            for tx_msg in tx_frames[frame_id]:
-                                messages_to_compare.append({
-                                    'frame_id': frame_id,
-                                    'rx_file': rx_file,
-                                    'tx_file': tx_file,
-                                    'rx_msg': rx_msg,
-                                    'tx_msg': tx_msg
-                                })
-
-        if not messages_to_compare:
-            QMessageBox.information(self, "No Messages to Compare", 
-                                  "No routed messages found to compare between the selected DBC files.")
-            return
-
         # Collect all unique (frame_id, message_name) pairs from Rx and Tx
-        unique_keys = set()
+        all_keys = set()
         for rx_file, rx_frames in rx_map.items():
             for frame_id, rx_msgs in rx_frames.items():
                 for rx_msg in rx_msgs:
-                    unique_keys.add((frame_id, rx_msg['name'], 'rx', rx_file))
+                    all_keys.add((frame_id, rx_msg['name']))
         for tx_file, tx_frames in tx_map.items():
             for frame_id, tx_msgs in tx_frames.items():
                 for tx_msg in tx_msgs:
-                    unique_keys.add((frame_id, tx_msg['name'], 'tx', tx_file))
+                    all_keys.add((frame_id, tx_msg['name']))
 
-        # Build a lookup for messages by (frame_id, name, file)
-        rx_lookup = {}
-        tx_lookup = {}
-        for rx_file, rx_frames in rx_map.items():
-            for frame_id, rx_msgs in rx_frames.items():
-                for rx_msg in rx_msgs:
-                    rx_lookup[(frame_id, rx_msg['name'], rx_file)] = None  # Will fill with actual message below
-        for tx_file, tx_frames in tx_map.items():
-            for frame_id, tx_msgs in tx_frames.items():
-                for tx_msg in tx_msgs:
-                    tx_lookup[(frame_id, tx_msg['name'], tx_file)] = None
+        # Prepare dialog
+        dialog = QDialog(self)
+        dialog.setWindowFlags(Qt.Window)
+        dialog.setWindowTitle("Message Comparison Results")
+        dialog.setMinimumSize(1000, 600)
+        layout = QVBoxLayout(dialog)
 
-        # Fill lookups with actual message objects
-        for msg_pair in messages_to_compare:
-            frame_id = msg_pair['frame_id']
-            rx_msg = msg_pair['rx_msg']
-            tx_msg = msg_pair['tx_msg']
-            rx_file = msg_pair['rx_file']
-            tx_file = msg_pair['tx_file']
-            rx_lookup[(frame_id, rx_msg['name'], rx_file)] = rx_msg
-            tx_lookup[(frame_id, tx_msg['name'], tx_file)] = tx_msg
+        # Create QTreeWidget for hierarchical display
+        tree = QTreeWidget()
+        tree.setColumnCount(4)
+        tree.setHeaderLabels(["Frame ID", "Message Name / Property", "Rx Value", "Tx Value"])
+        tree.setAlternatingRowColors(True)
+        tree.setRootIsDecorated(True)
 
-        # For each unique (frame_id, message_name), show all Rx/Tx pairs, and if only Rx or only Tx exists, show -- for the missing side
-        table_data = []
         properties_to_compare = [
             'length',
             'is_extended_frame',
@@ -349,161 +316,122 @@ class DBCRoutingView(QMainWindow):
             'start', 'length', 'byte_order', 'is_signed',
             'scale', 'offset', 'minimum', 'maximum', 'unit'
         ]
-        # Build sets for all (frame_id, name) in Rx and Tx
-        all_keys = set()
-        for (frame_id, name, _, file) in unique_keys:
-            all_keys.add((frame_id, name))
-        # For each (frame_id, name), get all Rx and Tx files
+
+        # For each (frame_id, name), show all Rx/Tx pairs
         for frame_id, name in sorted(all_keys):
-            rx_files = [file for (fid, n, t, file) in unique_keys if fid == frame_id and n == name and t == 'rx']
-            tx_files = [file for (fid, n, t, file) in unique_keys if fid == frame_id and n == name and t == 'tx']
-            # If both Rx and Tx exist, compare all pairs
-            if rx_files and tx_files:
-                for rx_file in rx_files:
-                    for tx_file in tx_files:
-                        rx_msg = None
-                        tx_msg = None
-                        # Find actual message objects
-                        for handler in handler_map.values():
-                            if handler.get_file_info()['file_name'] == rx_file:
-                                for m in handler.get_messages():
-                                    if m['frame_id'] == frame_id and m['name'] == name:
-                                        rx_msg = m
-                                        break
-                        for handler in handler_map.values():
-                            if handler.get_file_info()['file_name'] == tx_file:
-                                for m in handler.get_messages():
-                                    if m['frame_id'] == frame_id and m['name'] == name:
-                                        tx_msg = m
-                                        break
-                        # Compare message properties
+            # Find Rx and Tx messages for this (frame_id, name)
+            rx_msgs = []
+            tx_msgs = []
+            rx_file = tx_file = None
+            for file, rx_frames in rx_map.items():
+                for msg in rx_frames.get(frame_id, []):
+                    if msg['name'] == name:
+                        rx_msgs.append((file, msg))
+            for file, tx_frames in tx_map.items():
+                for msg in tx_frames.get(frame_id, []):
+                    if msg['name'] == name:
+                        tx_msgs.append((file, msg))
+            # For each Rx/Tx pair (or just Rx or just Tx)
+            if rx_msgs and tx_msgs:
+                for rx_file, rx_msg in rx_msgs:
+                    for tx_file, tx_msg in tx_msgs:
+                        # Top-level: message row
+                        msg_item = QTreeWidgetItem(tree, [f"0x{frame_id:X}", name, rx_file, tx_file])
+                        msg_item.setExpanded(False)
+                        # Message property children
                         for prop in properties_to_compare:
-                            rx_value = rx_msg.get(prop, 'N/A') if rx_msg else '--'
-                            tx_value = tx_msg.get(prop, 'N/A') if tx_msg else '--'
-                            table_data.append([
-                                f"0x{frame_id:X}", name, prop, str(rx_value), str(tx_value), rx_file, tx_file
-                            ])
-                        # Compare signals if both exist
-                        if rx_msg and tx_msg:
-                            rx_signals = {sig['name']: sig for sig in rx_msg.get('signals', [])}
-                            tx_signals = {sig['name']: sig for sig in tx_msg.get('signals', [])}
-                            common_signals = set(rx_signals.keys()) & set(tx_signals.keys())
-                            for signal_name in common_signals:
-                                rx_signal = rx_signals[signal_name]
-                                tx_signal = tx_signals[signal_name]
-                                for prop in signal_properties:
-                                    rx_value = rx_signal.get(prop, 'N/A')
-                                    tx_value = tx_signal.get(prop, 'N/A')
-                                    table_data.append([
-                                        f"0x{frame_id:X}", f"{name}.{signal_name}", f"signal.{prop}", str(rx_value), str(tx_value), rx_file, tx_file
-                                    ])
-            # If only Rx exists
-            elif rx_files:
-                for rx_file in rx_files:
-                    rx_msg = None
-                    for handler in handler_map.values():
-                        if handler.get_file_info()['file_name'] == rx_file:
-                            for m in handler.get_messages():
-                                if m['frame_id'] == frame_id and m['name'] == name:
-                                    rx_msg = m
-                                    break
-                    for prop in properties_to_compare:
-                        rx_value = rx_msg.get(prop, 'N/A') if rx_msg else '--'
-                        table_data.append([
-                            f"0x{frame_id:X}", name, prop, str(rx_value), '--', rx_file, '--'
-                        ])
-                    # Show all signals for Rx
-                    if rx_msg:
-                        for sig in rx_msg.get('signals', []):
+                            rx_value = rx_msg.get(prop, '--')
+                            tx_value = tx_msg.get(prop, '--')
+                            child = QTreeWidgetItem(["", prop, str(rx_value), str(tx_value)])
+                            if rx_value != tx_value:
+                                for col in range(4):
+                                    child.setBackground(col, Qt.yellow)
+                            msg_item.addChild(child)
+                        # Signal comparison children
+                        rx_signals = {sig['name']: sig for sig in rx_msg.get('signals', [])}
+                        tx_signals = {sig['name']: sig for sig in tx_msg.get('signals', [])}
+                        common_signals = set(rx_signals.keys()) & set(tx_signals.keys())
+                        for signal_name in sorted(common_signals):
+                            sig_item = QTreeWidgetItem(["", f"Signal: {signal_name}", "", ""])
+                            rx_signal = rx_signals[signal_name]
+                            tx_signal = tx_signals[signal_name]
                             for prop in signal_properties:
-                                rx_value = sig.get(prop, 'N/A')
-                                table_data.append([
-                                    f"0x{frame_id:X}", f"{name}.{sig['name']}", f"signal.{prop}", str(rx_value), '--', rx_file, '--'
-                                ])
-            # If only Tx exists
-            elif tx_files:
-                for tx_file in tx_files:
-                    tx_msg = None
-                    for handler in handler_map.values():
-                        if handler.get_file_info()['file_name'] == tx_file:
-                            for m in handler.get_messages():
-                                if m['frame_id'] == frame_id and m['name'] == name:
-                                    tx_msg = m
-                                    break
+                                rx_val = rx_signal.get(prop, '--')
+                                tx_val = tx_signal.get(prop, '--')
+                                sig_prop_item = QTreeWidgetItem(["", prop, str(rx_val), str(tx_val)])
+                                if rx_val != tx_val:
+                                    for col in range(4):
+                                        sig_prop_item.setBackground(col, Qt.yellow)
+                                sig_item.addChild(sig_prop_item)
+                            msg_item.addChild(sig_item)
+                        msg_item.setExpanded(False)
+            elif rx_msgs:
+                for rx_file, rx_msg in rx_msgs:
+                    msg_item = QTreeWidgetItem(tree, [f"0x{frame_id:X}", name, rx_file, '--'])
+                    msg_item.setExpanded(False)
                     for prop in properties_to_compare:
-                        tx_value = tx_msg.get(prop, 'N/A') if tx_msg else '--'
-                        table_data.append([
-                            f"0x{frame_id:X}", name, prop, '--', str(tx_value), '--', tx_file
-                        ])
-                    # Show all signals for Tx
-                    if tx_msg:
-                        for sig in tx_msg.get('signals', []):
-                            for prop in signal_properties:
-                                tx_value = sig.get(prop, 'N/A')
-                                table_data.append([
-                                    f"0x{frame_id:X}", f"{name}.{sig['name']}", f"signal.{prop}", '--', str(tx_value), '--', tx_file
-                                ])
+                        rx_value = rx_msg.get(prop, '--')
+                        child = QTreeWidgetItem(["", prop, str(rx_value), '--'])
+                        child.setBackground(2, Qt.yellow)
+                        msg_item.addChild(child)
+                    for sig in rx_msg.get('signals', []):
+                        sig_item = QTreeWidgetItem(["", f"Signal: {sig['name']}", "", ""])
+                        for prop in signal_properties:
+                            rx_val = sig.get(prop, '--')
+                            sig_prop_item = QTreeWidgetItem(["", prop, str(rx_val), '--'])
+                            sig_prop_item.setBackground(2, Qt.yellow)
+                            sig_item.addChild(sig_prop_item)
+                        msg_item.addChild(sig_item)
+                    msg_item.setExpanded(False)
+            elif tx_msgs:
+                for tx_file, tx_msg in tx_msgs:
+                    msg_item = QTreeWidgetItem(tree, [f"0x{frame_id:X}", name, '--', tx_file])
+                    msg_item.setExpanded(False)
+                    for prop in properties_to_compare:
+                        tx_value = tx_msg.get(prop, '--')
+                        child = QTreeWidgetItem(["", prop, '--', str(tx_value)])
+                        child.setBackground(3, Qt.yellow)
+                        msg_item.addChild(child)
+                    for sig in tx_msg.get('signals', []):
+                        sig_item = QTreeWidgetItem(["", f"Signal: {sig['name']}", "", ""])
+                        for prop in signal_properties:
+                            tx_val = sig.get(prop, '--')
+                            sig_prop_item = QTreeWidgetItem(["", prop, '--', str(tx_val)])
+                            sig_prop_item.setBackground(3, Qt.yellow)
+                            sig_item.addChild(sig_prop_item)
+                        msg_item.addChild(sig_item)
+                    msg_item.setExpanded(False)
 
-        # Show results in a dialog with QTableWidget
-        dialog = QDialog(self)
-        dialog.setWindowFlags(Qt.Window)
-        dialog.setWindowTitle("Message Comparison Results")
-        dialog.setMinimumSize(1000, 600)
-        layout = QVBoxLayout(dialog)
+        tree.expandAll()
+        # Collapse all top-level items by default
+        for i in range(tree.topLevelItemCount()):
+            tree.topLevelItem(i).setExpanded(False)
 
-        # Create table for comparison results
-        table = QTableWidget()
-        table.setColumnCount(7)
-        table.setHorizontalHeaderLabels([
-            "Frame ID", 
-            "Message Name", 
-            "Property", 
-            "Rx Value", 
-            "Tx Value",
-            "Rx DBC",
-            "Tx DBC"
-        ])
-
-        # Populate table with comparison results
-        row = 0
-        for row_data in table_data:
-            table.insertRow(row)
-            for col, value in enumerate(row_data):
-                item = QTableWidgetItem(str(value))
-                item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # Make cells read-only
-                table.setItem(row, col, item)
-            # Highlight differences if needed (compare Rx and Tx Value columns)
-            if row_data[3] != row_data[4]:
-                for col in range(7):
-                    item = table.item(row, col)
-                    item.setBackground(Qt.yellow)
-            row += 1
-
-        # Set table properties
-        table.setAlternatingRowColors(True)
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        table.verticalHeader().setVisible(False)
-        table.setSortingEnabled(True)
-        layout.addWidget(table)
+        layout.addWidget(tree)
 
         # Add export and close buttons
         button_layout = QHBoxLayout()
         export_btn = QPushButton("Export")
-        def export_table():
+        def export_tree():
             from PyQt5.QtWidgets import QFileDialog
             import csv
             path, _ = QFileDialog.getSaveFileName(dialog, "Export Comparison", "", "CSV Files (*.csv)")
             if path:
                 with open(path, 'w', newline='', encoding='utf-8') as f:
                     writer = csv.writer(f)
-                    # Write headers
-                    headers = [table.horizontalHeaderItem(i).text() for i in range(table.columnCount())]
-                    writer.writerow(headers)
-                    # Write data
-                    for row in range(table.rowCount()):
-                        rowdata = [table.item(row, col).text() if table.item(row, col) else '' for col in range(table.columnCount())]
-                        writer.writerow(rowdata)
-        export_btn.clicked.connect(export_table)
+                    writer.writerow(["Frame ID", "Message Name / Property", "Rx Value", "Tx Value"])
+                    def write_item(item, prefix=""):
+                        writer.writerow([
+                            prefix + item.text(0),
+                            item.text(1),
+                            item.text(2),
+                            item.text(3)
+                        ])
+                        for i in range(item.childCount()):
+                            write_item(item.child(i), prefix + "  ")
+                    for i in range(tree.topLevelItemCount()):
+                        write_item(tree.topLevelItem(i))
+        export_btn.clicked.connect(export_tree)
         button_layout.addWidget(export_btn)
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(dialog.close)
