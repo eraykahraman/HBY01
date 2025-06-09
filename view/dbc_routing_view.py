@@ -389,30 +389,34 @@ class DBCRoutingView(QMainWindow):
                     for col in range(2, 2 + num_files):
                         prop_row.setBackground(col, Qt.yellow)
                 msg_item.addChild(prop_row)
-            # Signal comparison rows
-            all_signal_names = set()
+            # --- Signal comparison by (start, length) ---
+            # 1. Collect all unique (start, length) pairs for signals in this message
+            all_signal_positions = set()
+            signal_map_per_file = {file: {} for file in all_dbc_files}  # {file: {(start, length): signal_obj}}
             for file in all_dbc_files:
                 msg = file_msgs[file]
                 if msg:
                     for sig in msg.get('signals', []):
-                        all_signal_names.add(sig['name'])
-            for signal_name in sorted(all_signal_names):
-                sig_item = QTreeWidgetItem(["", f"Signal: {signal_name}"] + ['' for _ in all_dbc_files])
+                        key = (sig.get('start'), sig.get('length'))
+                        all_signal_positions.add(key)
+                        signal_map_per_file[file][key] = sig
+            # 2. For each (start, length), show a row with signal names and compare properties
+            for start_length in sorted(all_signal_positions):
+                # Gather signal names for each file at this position
+                sig_names = [signal_map_per_file[file][start_length]['name'] if start_length in signal_map_per_file[file] else '' for file in all_dbc_files]
+                sig_item = QTreeWidgetItem([
+                    '',
+                    f"Signal: {start_length[0]}:{start_length[1]}"  # e.g., Signal: 0:8
+                ] + sig_names)
                 for prop in signal_properties:
                     sig_values = []
                     for file in all_dbc_files:
-                        msg = file_msgs[file]
-                        val = ''
-                        if msg:
-                            for sig in msg.get('signals', []):
-                                if sig['name'] == signal_name:
-                                    val = sig.get(prop, '--')
+                        sig = signal_map_per_file[file].get(start_length)
+                        val = sig.get(prop, '--') if sig else ''
                         sig_values.append(val)
-                    sig_row = QTreeWidgetItem(["", prop] + [str(v) for v in sig_values])
-                    highlight = False
+                    sig_row = QTreeWidgetItem(['', prop] + [str(v) for v in sig_values])
+                    # Always highlight the whole row if any difference
                     if len(set(str(v) for v in sig_values)) > 1:
-                        highlight = True
-                    if highlight and not (gateway_is_rx and gateway_is_tx):
                         for col in range(2, 2 + num_files):
                             sig_row.setBackground(col, Qt.yellow)
                     sig_item.addChild(sig_row)
@@ -561,10 +565,8 @@ class TopologyWidget(QWidget):
                                 val = sig.get(prop, '--')
                         sig_values.append(val)
                     sig_row = QTreeWidgetItem(["", prop] + [str(v) for v in sig_values])
-                    highlight = False
+                    # Always highlight the whole row if any difference
                     if len(set(str(v) for v in sig_values)) > 1:
-                        highlight = True
-                    if highlight and not (gateway_is_rx and gateway_is_tx):
                         for col in range(2, 2 + num_files):
                             sig_row.setBackground(col, Qt.yellow)
                     sig_item.addChild(sig_row)
