@@ -316,6 +316,7 @@ class DBCRoutingView(QMainWindow):
             'length',
             'is_extended_frame',
             'is_fd',
+            'frame_format',
             'cycle_time',
             'send_type'
         ]
@@ -378,14 +379,16 @@ class DBCRoutingView(QMainWindow):
             gateway_is_rx = any(file_msgs[file] and self.gateway_node in file_msgs[file].get('receivers', []) for file in all_dbc_files)
             gateway_is_tx = any(file_msgs[file] and self.gateway_node in file_msgs[file].get('senders', []) for file in all_dbc_files)
             # Message property rows
+            def norm_for_display(v):
+                return "None" if v in [None, '', '--'] else str(v)
+
+            def norm_for_compare(v):
+                return "None" if v in [None, '', '--'] else str(v)
+
             for prop in properties_to_compare:
-                values = [file_msgs[file].get(prop, '--') if file_msgs[file] else '' for file in all_dbc_files]
-                prop_row = QTreeWidgetItem(["", prop] + [str(v) for v in values])
-                highlight = False
-                if len(set(str(v) for v in values)) > 1:
-                    highlight = True
-                # Only highlight if not both Rx and Tx somewhere
-                if highlight and not (gateway_is_rx and gateway_is_tx):
+                values = [norm_for_display(file_msgs[file].get(prop, '--') if file_msgs[file] else None) for file in all_dbc_files]
+                prop_row = QTreeWidgetItem(["", prop] + values)
+                if len(set(norm_for_compare(v) for v in values)) > 1:
                     for col in range(2, 2 + num_files):
                         prop_row.setBackground(col, Qt.yellow)
                 msg_item.addChild(prop_row)
@@ -412,11 +415,10 @@ class DBCRoutingView(QMainWindow):
                     sig_values = []
                     for file in all_dbc_files:
                         sig = signal_map_per_file[file].get(start_length)
-                        val = sig.get(prop, '--') if sig else ''
-                        sig_values.append(val)
-                    sig_row = QTreeWidgetItem(['', prop] + [str(v) for v in sig_values])
-                    # Always highlight the whole row if any difference
-                    if len(set(str(v) for v in sig_values)) > 1:
+                        val = sig.get(prop, '--') if sig else None
+                        sig_values.append(norm_for_display(val))
+                    sig_row = QTreeWidgetItem(['', prop] + sig_values)
+                    if len(set(norm_for_compare(v) for v in sig_values)) > 1:
                         for col in range(2, 2 + num_files):
                             sig_row.setBackground(col, Qt.yellow)
                     sig_item.addChild(sig_row)
@@ -537,11 +539,8 @@ class TopologyWidget(QWidget):
         for prop in properties_to_compare:
             values = [file_msgs[file].get(prop, '--') if file_msgs[file] else '' for file in all_dbc_files]
             prop_row = QTreeWidgetItem(["", prop] + [str(v) for v in values])
-            highlight = False
+            # Always highlight the whole row if any difference
             if len(set(str(v) for v in values)) > 1:
-                highlight = True
-            # Only highlight if not both Rx and Tx somewhere
-            if highlight and not (gateway_is_rx and gateway_is_tx):
                 for col in range(2, 2 + num_files):
                     prop_row.setBackground(col, Qt.yellow)
             msg_item.addChild(prop_row)
