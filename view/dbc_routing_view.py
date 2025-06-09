@@ -317,6 +317,23 @@ class DBCRoutingView(QMainWindow):
             'scale', 'offset', 'minimum', 'maximum', 'unit'
         ]
 
+        # Define is_yellow and has_yellow once before the loop
+        def is_yellow(brush):
+            # Robustly check if a brush is yellow
+            if brush is not None and hasattr(brush, 'color'):
+                return brush.color().name().lower() in ['#ffff00', '#ff0']
+            return False
+
+        def has_yellow(item):
+            for i in range(item.childCount()):
+                child = item.child(i)
+                for col in range(child.columnCount()):
+                    if is_yellow(child.background(col)):
+                        return True
+                if has_yellow(child):
+                    return True
+            return False
+
         # For each (frame_id, name), show all Rx/Tx pairs
         for frame_id, name in sorted(all_keys):
             # Find Rx and Tx messages for this (frame_id, name)
@@ -365,6 +382,8 @@ class DBCRoutingView(QMainWindow):
                                 sig_item.addChild(sig_prop_item)
                             msg_item.addChild(sig_item)
                         msg_item.setExpanded(False)
+                        if has_yellow(msg_item):
+                            msg_item.setBackground(1, Qt.yellow)
             elif rx_msgs:
                 for rx_file, rx_msg in rx_msgs:
                     msg_item = QTreeWidgetItem(tree, [f"0x{frame_id:X}", name, rx_file, '--'])
@@ -383,6 +402,8 @@ class DBCRoutingView(QMainWindow):
                             sig_item.addChild(sig_prop_item)
                         msg_item.addChild(sig_item)
                     msg_item.setExpanded(False)
+                    if has_yellow(msg_item):
+                        msg_item.setBackground(1, Qt.yellow)
             elif tx_msgs:
                 for tx_file, tx_msg in tx_msgs:
                     msg_item = QTreeWidgetItem(tree, [f"0x{frame_id:X}", name, '--', tx_file])
@@ -401,6 +422,8 @@ class DBCRoutingView(QMainWindow):
                             sig_item.addChild(sig_prop_item)
                         msg_item.addChild(sig_item)
                     msg_item.setExpanded(False)
+                    if has_yellow(msg_item):
+                        msg_item.setBackground(1, Qt.yellow)
 
         tree.expandAll()
         # Collapse all top-level items by default
