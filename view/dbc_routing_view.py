@@ -334,96 +334,83 @@ class DBCRoutingView(QMainWindow):
                     return True
             return False
 
-        # For each (frame_id, name), show all Rx/Tx pairs
+        # Determine all DBC files involved in this comparison
+        all_dbc_files = []
+        for file_name in selected_files:
+            if file_name not in all_dbc_files:
+                all_dbc_files.append(file_name)
+        num_files = len(all_dbc_files)
+        # Set up tree columns: Frame ID, Message Name/Property, then one column per DBC file
+        tree.setColumnCount(2 + num_files)
+        tree.setHeaderLabels(["Frame ID", "Message Name / Property"] + all_dbc_files)
+
+        # For each (frame_id, name), show all DBC files that have that message
         for frame_id, name in sorted(all_keys):
-            # Find Rx and Tx messages for this (frame_id, name)
-            rx_msgs = []
-            tx_msgs = []
-            rx_file = tx_file = None
+            # Gather all files that have this message
+            file_msgs = {file: None for file in all_dbc_files}
             for file, rx_frames in rx_map.items():
                 for msg in rx_frames.get(frame_id, []):
                     if msg['name'] == name:
-                        rx_msgs.append((file, msg))
+                        file_msgs[file] = msg
             for file, tx_frames in tx_map.items():
                 for msg in tx_frames.get(frame_id, []):
-                    if msg['name'] == name:
-                        tx_msgs.append((file, msg))
-            # For each Rx/Tx pair (or just Rx or just Tx)
-            if rx_msgs and tx_msgs:
-                for rx_file, rx_msg in rx_msgs:
-                    for tx_file, tx_msg in tx_msgs:
-                        # Top-level: message row
-                        msg_item = QTreeWidgetItem(tree, [f"0x{frame_id:X}", name, rx_file, tx_file])
-                        msg_item.setExpanded(False)
-                        # Message property children
-                        for prop in properties_to_compare:
-                            rx_value = rx_msg.get(prop, '--')
-                            tx_value = tx_msg.get(prop, '--')
-                            child = QTreeWidgetItem(["", prop, str(rx_value), str(tx_value)])
-                            if rx_value != tx_value:
-                                for col in range(4):
-                                    child.setBackground(col, Qt.yellow)
-                            msg_item.addChild(child)
-                        # Signal comparison children
-                        rx_signals = {sig['name']: sig for sig in rx_msg.get('signals', [])}
-                        tx_signals = {sig['name']: sig for sig in tx_msg.get('signals', [])}
-                        common_signals = set(rx_signals.keys()) & set(tx_signals.keys())
-                        for signal_name in sorted(common_signals):
-                            sig_item = QTreeWidgetItem(["", f"Signal: {signal_name}", "", ""])
-                            rx_signal = rx_signals[signal_name]
-                            tx_signal = tx_signals[signal_name]
-                            for prop in signal_properties:
-                                rx_val = rx_signal.get(prop, '--')
-                                tx_val = tx_signal.get(prop, '--')
-                                sig_prop_item = QTreeWidgetItem(["", prop, str(rx_val), str(tx_val)])
-                                if rx_val != tx_val:
-                                    for col in range(4):
-                                        sig_prop_item.setBackground(col, Qt.yellow)
-                                sig_item.addChild(sig_prop_item)
-                            msg_item.addChild(sig_item)
-                        msg_item.setExpanded(False)
-                        if has_yellow(msg_item):
-                            msg_item.setBackground(1, Qt.yellow)
-            elif rx_msgs:
-                for rx_file, rx_msg in rx_msgs:
-                    msg_item = QTreeWidgetItem(tree, [f"0x{frame_id:X}", name, rx_file, '--'])
-                    msg_item.setExpanded(False)
-                    for prop in properties_to_compare:
-                        rx_value = rx_msg.get(prop, '--')
-                        child = QTreeWidgetItem(["", prop, str(rx_value), '--'])
-                        child.setBackground(2, Qt.yellow)
-                        msg_item.addChild(child)
-                    for sig in rx_msg.get('signals', []):
-                        sig_item = QTreeWidgetItem(["", f"Signal: {sig['name']}", "", ""])
-                        for prop in signal_properties:
-                            rx_val = sig.get(prop, '--')
-                            sig_prop_item = QTreeWidgetItem(["", prop, str(rx_val), '--'])
-                            sig_prop_item.setBackground(2, Qt.yellow)
-                            sig_item.addChild(sig_prop_item)
-                        msg_item.addChild(sig_item)
-                    msg_item.setExpanded(False)
-                    if has_yellow(msg_item):
-                        msg_item.setBackground(1, Qt.yellow)
-            elif tx_msgs:
-                for tx_file, tx_msg in tx_msgs:
-                    msg_item = QTreeWidgetItem(tree, [f"0x{frame_id:X}", name, '--', tx_file])
-                    msg_item.setExpanded(False)
-                    for prop in properties_to_compare:
-                        tx_value = tx_msg.get(prop, '--')
-                        child = QTreeWidgetItem(["", prop, '--', str(tx_value)])
-                        child.setBackground(3, Qt.yellow)
-                        msg_item.addChild(child)
-                    for sig in tx_msg.get('signals', []):
-                        sig_item = QTreeWidgetItem(["", f"Signal: {sig['name']}", "", ""])
-                        for prop in signal_properties:
-                            tx_val = sig.get(prop, '--')
-                            sig_prop_item = QTreeWidgetItem(["", prop, '--', str(tx_val)])
-                            sig_prop_item.setBackground(3, Qt.yellow)
-                            sig_item.addChild(sig_prop_item)
-                        msg_item.addChild(sig_item)
-                    msg_item.setExpanded(False)
-                    if has_yellow(msg_item):
-                        msg_item.setBackground(1, Qt.yellow)
+                    if msg['name'] == name and file_msgs[file] is None:
+                        file_msgs[file] = msg
+            # Top-level: message row
+            msg_item = QTreeWidgetItem(tree, [f"0x{frame_id:X}", name] + [file for file in all_dbc_files])
+            msg_item.setExpanded(False)
+            # Rx nodes row
+            rx_nodes_row = QTreeWidgetItem(["", "Rx nodes"] + [', '.join(file_msgs[file].get('receivers', [])) if file_msgs[file] else '' for file in all_dbc_files])
+            # Tx nodes row
+            tx_nodes_row = QTreeWidgetItem(["", "Tx nodes"] + [', '.join(file_msgs[file].get('senders', [])) if file_msgs[file] else '' for file in all_dbc_files])
+            msg_item.addChild(rx_nodes_row)
+            msg_item.addChild(tx_nodes_row)
+            # Determine if gateway is Rx anywhere and Tx anywhere
+            gateway_is_rx = any(file_msgs[file] and self.gateway_node in file_msgs[file].get('receivers', []) for file in all_dbc_files)
+            gateway_is_tx = any(file_msgs[file] and self.gateway_node in file_msgs[file].get('senders', []) for file in all_dbc_files)
+            # Message property rows
+            for prop in properties_to_compare:
+                values = [file_msgs[file].get(prop, '--') if file_msgs[file] else '' for file in all_dbc_files]
+                prop_row = QTreeWidgetItem(["", prop] + [str(v) for v in values])
+                highlight = False
+                if len(set(str(v) for v in values)) > 1:
+                    highlight = True
+                # Only highlight if not both Rx and Tx somewhere
+                if highlight and not (gateway_is_rx and gateway_is_tx):
+                    for col in range(2, 2 + num_files):
+                        prop_row.setBackground(col, Qt.yellow)
+                msg_item.addChild(prop_row)
+            # Signal comparison rows
+            all_signal_names = set()
+            for file in all_dbc_files:
+                msg = file_msgs[file]
+                if msg:
+                    for sig in msg.get('signals', []):
+                        all_signal_names.add(sig['name'])
+            for signal_name in sorted(all_signal_names):
+                sig_item = QTreeWidgetItem(["", f"Signal: {signal_name}"] + ['' for _ in all_dbc_files])
+                for prop in signal_properties:
+                    sig_values = []
+                    for file in all_dbc_files:
+                        msg = file_msgs[file]
+                        val = ''
+                        if msg:
+                            for sig in msg.get('signals', []):
+                                if sig['name'] == signal_name:
+                                    val = sig.get(prop, '--')
+                        sig_values.append(val)
+                    sig_row = QTreeWidgetItem(["", prop] + [str(v) for v in sig_values])
+                    highlight = False
+                    if len(set(str(v) for v in sig_values)) > 1:
+                        highlight = True
+                    if highlight and not (gateway_is_rx and gateway_is_tx):
+                        for col in range(2, 2 + num_files):
+                            sig_row.setBackground(col, Qt.yellow)
+                    sig_item.addChild(sig_row)
+                msg_item.addChild(sig_item)
+            msg_item.setExpanded(False)
+            if has_yellow(msg_item):
+                msg_item.setBackground(1, Qt.yellow)
 
         tree.expandAll()
         # Collapse all top-level items by default

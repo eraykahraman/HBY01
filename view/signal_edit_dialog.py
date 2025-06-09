@@ -94,30 +94,32 @@ class SignalEditDialog(QDialog):
         self.scale_spin = QDoubleSpinBox()
         self.scale_spin.setRange(-1e9, 1e9)
         self.scale_spin.setDecimals(6)
-        self.scale_spin.setValue(float(self.signal_data.get('scale', 1.0)))
+        scale_val = self.signal_data.get('scale', 1.0)
+        self.scale_spin.setValue(float(scale_val) if scale_val is not None else 1.0)
         form_layout.addRow("Scale:", self.scale_spin)
 
         # Offset
         self.offset_spin = QDoubleSpinBox()
         self.offset_spin.setRange(-1e9, 1e9)
         self.offset_spin.setDecimals(6)
-        self.offset_spin.setValue(float(self.signal_data.get('offset', 0.0)))
+        offset_val = self.signal_data.get('offset', 0.0)
+        self.offset_spin.setValue(float(offset_val) if offset_val is not None else 0.0)
         form_layout.addRow("Offset:", self.offset_spin)
 
         # Minimum
         self.minimum_spin = QDoubleSpinBox()
         self.minimum_spin.setRange(-1e9, 1e9)
         self.minimum_spin.setDecimals(6)
-        if 'minimum' in self.signal_data:
-            self.minimum_spin.setValue(float(self.signal_data['minimum']))
+        min_val = self.signal_data.get('minimum')
+        self.minimum_spin.setValue(float(min_val) if min_val is not None else 0.0)
         form_layout.addRow("Minimum:", self.minimum_spin)
 
         # Maximum
         self.maximum_spin = QDoubleSpinBox()
         self.maximum_spin.setRange(-1e9, 1e9)
         self.maximum_spin.setDecimals(6)
-        if 'maximum' in self.signal_data:
-            self.maximum_spin.setValue(float(self.signal_data['maximum']))
+        max_val = self.signal_data.get('maximum')
+        self.maximum_spin.setValue(float(max_val) if max_val is not None else 0.0)
         form_layout.addRow("Maximum:", self.maximum_spin)
 
         # Unit
