@@ -233,6 +233,13 @@ class DBCRoutingView(QMainWindow):
         layout.addWidget(close_btn)
         dialog.show()
 
+    def highlight_empty_routing_nodes(self, row_item, file_msgs, all_dbc_files, node_type, start_col=2):
+        for idx, file in enumerate(all_dbc_files):
+            msg = file_msgs[file]
+            col = start_col + idx
+            if msg is not None and not msg.get(node_type, []):
+                row_item.setBackground(col, Qt.yellow)
+
     def compare_dbc_files(self):
         """
         Compare selected DBC files focusing on messages that are routed through the gateway node.
@@ -361,8 +368,10 @@ class DBCRoutingView(QMainWindow):
             msg_item.setExpanded(False)
             # Rx nodes row
             rx_nodes_row = QTreeWidgetItem(["", "Rx nodes"] + [', '.join(file_msgs[file].get('receivers', [])) if file_msgs[file] else '' for file in all_dbc_files])
+            self.highlight_empty_routing_nodes(rx_nodes_row, file_msgs, all_dbc_files, 'receivers')
             # Tx nodes row
             tx_nodes_row = QTreeWidgetItem(["", "Tx nodes"] + [', '.join(file_msgs[file].get('senders', [])) if file_msgs[file] else '' for file in all_dbc_files])
+            self.highlight_empty_routing_nodes(tx_nodes_row, file_msgs, all_dbc_files, 'senders')
             msg_item.addChild(rx_nodes_row)
             msg_item.addChild(tx_nodes_row)
             # Determine if gateway is Rx anywhere and Tx anywhere
@@ -500,3 +509,66 @@ class TopologyWidget(QWidget):
                 painter.drawText(node_rect, Qt.AlignCenter, node)
                 # Draw horizontal line from bus to left edge of node rectangle
                 painter.drawLine(x, node_y + node_height//2, x + node_offset, node_y + node_height//2) 
+
+        def highlight_empty_routing_nodes(row_item, file_msgs, all_dbc_files, node_type, start_col=2):
+            for idx, file in enumerate(all_dbc_files):
+                msg = file_msgs[file]
+                col = start_col + idx
+                if msg is not None and not msg.get(node_type, []):
+                    row_item.setBackground(col, Qt.yellow)
+
+        # Rx nodes row
+        rx_nodes_row = QTreeWidgetItem(["", "Rx nodes"] + [', '.join(file_msgs[file].get('receivers', [])) if file_msgs[file] else '' for file in all_dbc_files])
+        self.highlight_empty_routing_nodes(rx_nodes_row, file_msgs, all_dbc_files, 'receivers')
+        # Tx nodes row
+        tx_nodes_row = QTreeWidgetItem(["", "Tx nodes"] + [', '.join(file_msgs[file].get('senders', [])) if file_msgs[file] else '' for file in all_dbc_files])
+        self.highlight_empty_routing_nodes(tx_nodes_row, file_msgs, all_dbc_files, 'senders')
+        msg_item.addChild(rx_nodes_row)
+        msg_item.addChild(tx_nodes_row)
+
+        # Determine if gateway is Rx anywhere and Tx anywhere
+        gateway_is_rx = any(file_msgs[file] and self.gateway_node in file_msgs[file].get('receivers', []) for file in all_dbc_files)
+        gateway_is_tx = any(file_msgs[file] and self.gateway_node in file_msgs[file].get('senders', []) for file in all_dbc_files)
+        # Message property rows
+        for prop in properties_to_compare:
+            values = [file_msgs[file].get(prop, '--') if file_msgs[file] else '' for file in all_dbc_files]
+            prop_row = QTreeWidgetItem(["", prop] + [str(v) for v in values])
+            highlight = False
+            if len(set(str(v) for v in values)) > 1:
+                highlight = True
+            # Only highlight if not both Rx and Tx somewhere
+            if highlight and not (gateway_is_rx and gateway_is_tx):
+                for col in range(2, 2 + num_files):
+                    prop_row.setBackground(col, Qt.yellow)
+            msg_item.addChild(prop_row)
+        # Signal comparison rows
+        all_signal_names = set()
+        for file in all_dbc_files:
+            msg = file_msgs[file]
+            if msg:
+                for sig in msg.get('signals', []):
+                    all_signal_names.add(sig['name'])
+        for signal_name in sorted(all_signal_names):
+            sig_item = QTreeWidgetItem(["", f"Signal: {signal_name}"] + ['' for _ in all_dbc_files])
+            for prop in signal_properties:
+                sig_values = []
+                for file in all_dbc_files:
+                    msg = file_msgs[file]
+                    val = ''
+                    if msg:
+                        for sig in msg.get('signals', []):
+                            if sig['name'] == signal_name:
+                                val = sig.get(prop, '--')
+                        sig_values.append(val)
+                    sig_row = QTreeWidgetItem(["", prop] + [str(v) for v in sig_values])
+                    highlight = False
+                    if len(set(str(v) for v in sig_values)) > 1:
+                        highlight = True
+                    if highlight and not (gateway_is_rx and gateway_is_tx):
+                        for col in range(2, 2 + num_files):
+                            sig_row.setBackground(col, Qt.yellow)
+                    sig_item.addChild(sig_row)
+                msg_item.addChild(sig_item)
+            msg_item.setExpanded(False)
+            if has_yellow(msg_item):
+                msg_item.setBackground(1, Qt.yellow) 
