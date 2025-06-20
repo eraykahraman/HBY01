@@ -365,6 +365,40 @@ class DBCRoutingView(QMainWindow):
                     gateway_role_item.setBackground(col, Qt.yellow)
             msg_item.addChild(gateway_role_item)
 
+            # Add Rx nodes row
+            rx_nodes_values = []
+            for file in selected_files:
+                msg = file_msgs[file]
+                if msg and 'receivers' in msg:
+                    rx_nodes = msg['receivers']
+                    rx_nodes_str = ', '.join(rx_nodes) if rx_nodes else '--'
+                else:
+                    rx_nodes_str = '--'
+                rx_nodes_values.append(rx_nodes_str)
+            rx_nodes_item = QTreeWidgetItem(['', 'rx_nodes', *rx_nodes_values])
+            # Highlight if gateway transmits but no receivers (routing issue)
+            for idx, file in enumerate(selected_files):
+                msg = file_msgs[file]
+                gateway_role = gateway_roles[idx]
+                rx_nodes_str = rx_nodes_values[idx]
+                # Highlight if gateway is Tx/Rx/Tx but no receivers
+                if gateway_role in ('Tx', 'Rx/Tx') and rx_nodes_str == '--':
+                    rx_nodes_item.setBackground(idx + 2, Qt.yellow)
+            msg_item.addChild(rx_nodes_item)
+
+            # Add Tx nodes row
+            tx_nodes_values = []
+            for file in selected_files:
+                msg = file_msgs[file]
+                if msg and 'senders' in msg:
+                    tx_nodes = msg['senders']
+                    tx_nodes_str = ', '.join(tx_nodes) if tx_nodes else '--'
+                else:
+                    tx_nodes_str = '--'
+                tx_nodes_values.append(tx_nodes_str)
+            tx_nodes_item = QTreeWidgetItem(['', 'tx_nodes', *tx_nodes_values])
+            msg_item.addChild(tx_nodes_item)
+
             # List of properties to compare
             properties_to_compare = [
                 'name',  # Show message name as the first property
