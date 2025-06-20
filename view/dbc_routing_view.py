@@ -287,16 +287,12 @@ class DBCRoutingView(QMainWindow):
                             tx_map[file_name][frame_id] = []
                         tx_map[file_name][frame_id].append(msg)
 
-        # Collect all unique (frame_id, message_name) pairs from Rx and Tx
-        all_keys = set()
-        for rx_file, rx_frames in rx_map.items():
-            for frame_id, rx_msgs in rx_frames.items():
-                for rx_msg in rx_msgs:
-                    all_keys.add((frame_id, rx_msg['name']))
-        for tx_file, tx_frames in tx_map.items():
-            for frame_id, tx_msgs in tx_frames.items():
-                for tx_msg in tx_msgs:
-                    all_keys.add((frame_id, tx_msg['name']))
+        # Collect all unique frame_ids from Rx and Tx
+        all_frame_ids = set()
+        for rx_frames in rx_map.values():
+            all_frame_ids.update(rx_frames.keys())
+        for tx_frames in tx_map.values():
+            all_frame_ids.update(tx_frames.keys())
 
         # Prepare dialog
         dialog = QDialog(self)
@@ -305,132 +301,104 @@ class DBCRoutingView(QMainWindow):
         dialog.setMinimumSize(1000, 600)
         layout = QVBoxLayout(dialog)
 
-        # Create QTreeWidget for hierarchical display
+        # Set up tree columns: Frame ID, Property, then one column per DBC file for message names
         tree = QTreeWidget()
-        tree.setColumnCount(4)
-        tree.setHeaderLabels(["Frame ID", "Message Name / Property", "Rx Value", "Tx Value"])
+        tree.setColumnCount(2 + len(selected_files))
+        tree.setHeaderLabels(["Frame ID", "Property"] + selected_files)
         tree.setAlternatingRowColors(True)
         tree.setRootIsDecorated(True)
 
-        properties_to_compare = [
-            'length',
-            'is_extended_frame',
-            'is_fd',
-            'frame_format',
-            'cycle_time',
-            'send_type'
-        ]
-        signal_properties = [
-            'start', 'length', 'byte_order', 'is_signed',
-            'scale', 'offset', 'minimum', 'maximum', 'unit'
-        ]
+        for frame_id in sorted(all_frame_ids):
+            # For each DBC file, get the message name for this frame_id (if any)
+            msg_names = []
+            file_msgs = {}
+            for file in selected_files:
+                msg = None
+                # Prefer Rx, then Tx
+                rx_msgs = rx_map[file].get(frame_id, [])
+                tx_msgs = tx_map[file].get(frame_id, [])
+                if rx_msgs:
+                    msg = rx_msgs[0]
+                elif tx_msgs:
+                    msg = tx_msgs[0]
+                file_msgs[file] = msg
+                msg_names.append(msg['name'] if msg else "")
+            # Top-level: frame id row with message names
+            msg_item = QTreeWidgetItem([f"0x{frame_id:X}", ""] + msg_names)
+            tree.addTopLevelItem(msg_item)
 
-        # Define is_yellow and has_yellow once before the loop
-        def is_yellow(brush):
-            # Robustly check if a brush is yellow
-            if brush is not None and hasattr(brush, 'color'):
-                return brush.color().name().lower() in ['#ffff00', '#ff0']
-            return False
-
-        def has_yellow(item):
-            for i in range(item.childCount()):
-                child = item.child(i)
-                for col in range(child.columnCount()):
-                    if is_yellow(child.background(col)):
-                        return True
-                if has_yellow(child):
-                    return True
-            return False
-
-        # Determine all DBC files involved in this comparison
-        all_dbc_files = []
-        for file_name in selected_files:
-            if file_name not in all_dbc_files:
-                all_dbc_files.append(file_name)
-        num_files = len(all_dbc_files)
-        # Set up tree columns: Frame ID, Message Name/Property, then one column per DBC file
-        tree.setColumnCount(2 + num_files)
-        tree.setHeaderLabels(["Frame ID", "Message Name / Property"] + all_dbc_files)
-
-        # For each (frame_id, name), show all DBC files that have that message
-        for frame_id, name in sorted(all_keys):
-            # Gather all files that have this message
-            file_msgs = {file: None for file in all_dbc_files}
-            for file, rx_frames in rx_map.items():
-                for msg in rx_frames.get(frame_id, []):
-                    if msg['name'] == name:
-                        file_msgs[file] = msg
-            for file, tx_frames in tx_map.items():
-                for msg in tx_frames.get(frame_id, []):
-                    if msg['name'] == name and file_msgs[file] is None:
-                        file_msgs[file] = msg
-            # Top-level: message row
-            msg_item = QTreeWidgetItem(tree, [f"0x{frame_id:X}", name] + [file for file in all_dbc_files])
-            msg_item.setExpanded(False)
-            # Rx nodes row
-            rx_nodes_row = QTreeWidgetItem(["", "Rx nodes"] + [', '.join(file_msgs[file].get('receivers', [])) if file_msgs[file] else '' for file in all_dbc_files])
-            self.highlight_empty_routing_nodes(rx_nodes_row, file_msgs, all_dbc_files, 'receivers')
-            # Tx nodes row
-            tx_nodes_row = QTreeWidgetItem(["", "Tx nodes"] + [', '.join(file_msgs[file].get('senders', [])) if file_msgs[file] else '' for file in all_dbc_files])
-            self.highlight_empty_routing_nodes(tx_nodes_row, file_msgs, all_dbc_files, 'senders')
-            msg_item.addChild(rx_nodes_row)
-            msg_item.addChild(tx_nodes_row)
-            # Determine if gateway is Rx anywhere and Tx anywhere
-            gateway_is_rx = any(file_msgs[file] and self.gateway_node in file_msgs[file].get('receivers', []) for file in all_dbc_files)
-            gateway_is_tx = any(file_msgs[file] and self.gateway_node in file_msgs[file].get('senders', []) for file in all_dbc_files)
-            # Message property rows
-            def norm_for_display(v):
-                return "None" if v in [None, '', '--'] else str(v)
-
-            def norm_for_compare(v):
-                return "None" if v in [None, '', '--'] else str(v)
-
-            for prop in properties_to_compare:
-                values = [norm_for_display(file_msgs[file].get(prop, '--') if file_msgs[file] else None) for file in all_dbc_files]
-                prop_row = QTreeWidgetItem(["", prop] + values)
-                if len(set(norm_for_compare(v) for v in values)) > 1:
-                    for col in range(2, 2 + num_files):
-                        prop_row.setBackground(col, Qt.yellow)
-                msg_item.addChild(prop_row)
-            # --- Signal comparison by (start, length) ---
-            # 1. Collect all unique (start, length) pairs for signals in this message
-            all_signal_positions = set()
-            signal_map_per_file = {file: {} for file in all_dbc_files}  # {file: {(start, length): signal_obj}}
-            for file in all_dbc_files:
+            # Gateway role row
+            gateway_roles = []
+            rx_count = 0
+            tx_count = 0
+            for file in selected_files:
                 msg = file_msgs[file]
                 if msg:
-                    for sig in msg.get('signals', []):
-                        key = (sig.get('start'), sig.get('length'))
-                        all_signal_positions.add(key)
-                        signal_map_per_file[file][key] = sig
-            # 2. For each (start, length), show a row with signal names and compare properties
-            for start_length in sorted(all_signal_positions):
-                # Gather signal names for each file at this position
-                sig_names = [signal_map_per_file[file][start_length]['name'] if start_length in signal_map_per_file[file] else '' for file in all_dbc_files]
-                sig_item = QTreeWidgetItem([
-                    '',
-                    f"Signal: {start_length[0]}:{start_length[1]}"  # e.g., Signal: 0:8
-                ] + sig_names)
-                for prop in signal_properties:
-                    sig_values = []
-                    for file in all_dbc_files:
-                        sig = signal_map_per_file[file].get(start_length)
-                        val = sig.get(prop, '--') if sig else None
-                        sig_values.append(norm_for_display(val))
-                    sig_row = QTreeWidgetItem(['', prop] + sig_values)
-                    if len(set(norm_for_compare(v) for v in sig_values)) > 1:
-                        for col in range(2, 2 + num_files):
-                            sig_row.setBackground(col, Qt.yellow)
-                    sig_item.addChild(sig_row)
-                msg_item.addChild(sig_item)
-            msg_item.setExpanded(False)
-            if has_yellow(msg_item):
-                msg_item.setBackground(1, Qt.yellow)
+                    is_rx = self.gateway_node in msg.get('receivers', [])
+                    is_tx = self.gateway_node in msg.get('senders', [])
+                    if is_rx and is_tx:
+                        role = "Rx/Tx"
+                    elif is_rx:
+                        role = "Rx"
+                    elif is_tx:
+                        role = "Tx"
+                    else:
+                        role = "--"
+                else:
+                    role = "--"
+                if role in ("Rx", "Rx/Tx"):
+                    rx_count += 1
+                if role in ("Tx", "Rx/Tx"):
+                    tx_count += 1
+                gateway_roles.append(role)
+            gateway_role_item = QTreeWidgetItem(['', 'gateway_role', *gateway_roles])
+            # Highlight only for error conditions:
+            highlight_error = False
+            if rx_count > 1:
+                highlight_error = True
+            elif rx_count > 0 and tx_count == 0:
+                highlight_error = True
+            elif tx_count > 0 and rx_count == 0:
+                highlight_error = True
+            if highlight_error:
+                for col in range(2, 2 + len(selected_files)):
+                    gateway_role_item.setBackground(col, Qt.yellow)
+            msg_item.addChild(gateway_role_item)
 
-        tree.expandAll()
-        # Collapse all top-level items by default
-        for i in range(tree.topLevelItemCount()):
-            tree.topLevelItem(i).setExpanded(False)
+            # List of properties to compare
+            properties_to_compare = [
+                'name',  # Show message name as the first property
+                'length',
+                'is_extended_frame',
+                'is_fd',
+                'frame_format',
+                'cycle_time',
+                'send_type'
+            ]
+
+            # For each property, collect values from each DBC file
+            for prop in properties_to_compare:
+                values = []
+                compare_values = []
+                for idx, file in enumerate(selected_files):
+                    msg = file_msgs[file]
+                    gateway_role = gateway_roles[idx]
+                    if prop == 'name':
+                        val = msg['name'] if msg else '--'
+                    else:
+                        val = msg.get(prop, '--') if msg else '--'
+                    values.append(str(val))
+                    # Only include in comparison if gateway role is not '--'
+                    if gateway_role != '--':
+                        compare_values.append(str(val))
+                prop_item = QTreeWidgetItem(['', prop, *values])
+                # Highlight only if there are differences among non-empty gateway roles
+                if prop != 'name' and len(set(compare_values)) > 1:
+                    for idx, gateway_role in enumerate(gateway_roles):
+                        col = idx + 2
+                        if gateway_role != '--':
+                            prop_item.setBackground(col, Qt.yellow)
+                msg_item.addChild(prop_item)
 
         layout.addWidget(tree)
 
@@ -444,18 +412,10 @@ class DBCRoutingView(QMainWindow):
             if path:
                 with open(path, 'w', newline='', encoding='utf-8') as f:
                     writer = csv.writer(f)
-                    writer.writerow(["Frame ID", "Message Name / Property", "Rx Value", "Tx Value"])
-                    def write_item(item, prefix=""):
-                        writer.writerow([
-                            prefix + item.text(0),
-                            item.text(1),
-                            item.text(2),
-                            item.text(3)
-                        ])
-                        for i in range(item.childCount()):
-                            write_item(item.child(i), prefix + "  ")
+                    writer.writerow(["Frame ID"] + selected_files)
                     for i in range(tree.topLevelItemCount()):
-                        write_item(tree.topLevelItem(i))
+                        item = tree.topLevelItem(i)
+                        writer.writerow([item.text(col) for col in range(tree.columnCount())])
         export_btn.clicked.connect(export_tree)
         button_layout.addWidget(export_btn)
         close_btn = QPushButton("Close")
