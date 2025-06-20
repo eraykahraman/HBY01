@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QLabel, QListWidget, QListWidgetItem, QAbstractItemView, QWidget, QPushButton, QHBoxLayout, QInputDialog, QMessageBox, QDialog, QTextEdit, QTableWidget, QTableWidgetItem, QHeaderView, QTreeWidget, QTreeWidgetItem
+from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QLabel, QListWidget, QListWidgetItem, QAbstractItemView, QWidget, QPushButton, QHBoxLayout, QInputDialog, QMessageBox, QDialog, QTextEdit, QTableWidget, QTableWidgetItem, QHeaderView, QTreeWidget, QTreeWidgetItem, QFileDialog
 from PyQt5.QtCore import Qt, QRect
 from PyQt5.QtGui import QPainter, QPen, QFont
 
@@ -539,19 +539,53 @@ class DBCRoutingView(QMainWindow):
 
         # Add export and close buttons
         button_layout = QHBoxLayout()
-        export_btn = QPushButton("Export")
-        def export_tree():
-            from PyQt5.QtWidgets import QFileDialog
-            import csv
-            path, _ = QFileDialog.getSaveFileName(dialog, "Export Comparison", "", "CSV Files (*.csv)")
-            if path:
+        export_btn = QPushButton("Export to CSV")
+
+        def export_tree_to_csv():
+            path, _ = QFileDialog.getSaveFileName(dialog, "Export Comparison to CSV", "", "CSV Files (*.csv)")
+            if not path:
+                return
+
+            try:
+                import csv
                 with open(path, 'w', newline='', encoding='utf-8') as f:
                     writer = csv.writer(f)
-                    writer.writerow(["Frame ID"] + selected_files)
+                    # Write header
+                    header = ["Frame ID / Property"] + selected_files
+                    writer.writerow(header)
+
+                    # Recursive function to write items
+                    def write_item(item, indent_level=0):
+                        row_data = []
+                        # Indent the property name
+                        prop_name = "  " * indent_level + item.text(1)
+                        # For top-level items, Frame ID is in the first column, property is empty
+                        if indent_level == 0:
+                            row_data.append(item.text(0))
+                        else:
+                            # For child items, the first column is empty
+                            row_data.append("")
+                        
+                        row_data.append(prop_name)
+                        
+                        # Add the rest of the columns
+                        for col in range(2, tree.columnCount()):
+                            row_data.append(item.text(col))
+                        writer.writerow(row_data)
+
+                        # Recursively write children
+                        for i in range(item.childCount()):
+                            write_item(item.child(i), indent_level + 1)
+
+                    # Start writing from top-level items
                     for i in range(tree.topLevelItemCount()):
-                        item = tree.topLevelItem(i)
-                        writer.writerow([item.text(col) for col in range(tree.columnCount())])
-        export_btn.clicked.connect(export_tree)
+                        write_item(tree.topLevelItem(i))
+
+                QMessageBox.information(dialog, "Success", f"Comparison data successfully exported to:\n{path}")
+            except Exception as e:
+                QMessageBox.critical(dialog, "Error", f"Failed to export CSV file: {e}")
+
+        export_btn.clicked.connect(export_tree_to_csv)
         button_layout.addWidget(export_btn)
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(dialog.close)
