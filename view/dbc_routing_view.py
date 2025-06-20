@@ -400,6 +400,66 @@ class DBCRoutingView(QMainWindow):
                             prop_item.setBackground(col, Qt.yellow)
                 msg_item.addChild(prop_item)
 
+            # --- Signal comparison by (start, length) ---
+            # 1. Collect all unique (start, length) pairs for signals in this message
+            all_signal_positions = set();
+            signal_map_per_file = [{} for _ in selected_files]  # List of dicts: { (start, length): signal_obj }
+            for idx, file in enumerate(selected_files):
+                msg = file_msgs[file]
+                if msg and 'signals' in msg:
+                    for sig in msg['signals']:
+                        key = (sig.get('start'), sig.get('length'))
+                        all_signal_positions.add(key)
+                        signal_map_per_file[idx][key] = sig
+
+            signal_properties = [
+                'name', 'byte_order', 'is_signed', 'scale', 'offset', 'minimum', 'maximum', 'unit'
+            ]
+
+            for start_length in sorted(all_signal_positions):
+                # Gather signal names for each file at this position
+                sig_names = []
+                gateway_roles_for_signal = []
+                for idx, file in enumerate(selected_files):
+                    sig = signal_map_per_file[idx].get(start_length)
+                    sig_names.append(sig['name'] if sig else '--')
+                    gateway_roles_for_signal.append(gateway_roles[idx])
+                # Top-level: signal row
+                sig_item = QTreeWidgetItem(['', f"Signal: {start_length[0]}:{start_length[1]}", *sig_names])
+                msg_item.addChild(sig_item)
+                # For each property, compare values for DBC files where gateway role is not '--'
+                for prop in signal_properties:
+                    values = []
+                    compare_values = []
+                    for idx in range(len(selected_files)):
+                        sig = signal_map_per_file[idx].get(start_length)
+                        val = sig.get(prop, '--') if sig else '--'
+                        values.append(str(val))
+                        if gateway_roles_for_signal[idx] != '--':
+                            compare_values.append(str(val))
+                    prop_row = QTreeWidgetItem(['', prop, *values])
+                    # Highlight only if there are differences among non-empty gateway roles
+                    if prop != 'name' and len(set(compare_values)) > 1:
+                        for idx, gateway_role in enumerate(gateway_roles_for_signal):
+                            col = idx + 2
+                            if gateway_role != '--':
+                                prop_row.setBackground(col, Qt.yellow)
+                    sig_item.addChild(prop_row)
+
+            # After all child rows are added to msg_item
+            has_yellow = False
+            for i in range(msg_item.childCount()):
+                child = msg_item.child(i)
+                for col in range(2, 2 + len(selected_files)):
+                    brush = child.background(col)
+                    if hasattr(brush, 'color') and brush.color().name().lower() in ['#ffff00', '#ff0']:
+                        has_yellow = True
+                        break
+                if has_yellow:
+                    break
+            if has_yellow:
+                msg_item.setBackground(0, Qt.yellow)
+
         layout.addWidget(tree)
 
         # Add export and close buttons
