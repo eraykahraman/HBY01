@@ -260,9 +260,10 @@ class DBCRoutingView(QMainWindow):
             QMessageBox.warning(self, "Select Gateway Node", "Please select a gateway node first.")
             return
 
-        # Get handlers from parent window
+        # Get handlers and raw cantools database objects from parent window
         handlers = self.parent_window.dbc_controller.get_all_handlers()
         handler_map = {handler.get_file_info()['file_name']: handler for handler in handlers}
+        db_map = {handler.get_file_info()['file_name']: handler.get_database() for handler in handlers}
 
         # Build Rx and Tx maps: {dbc_file: {frame_id: [message_objs]}}
         rx_map = {}
@@ -479,6 +480,46 @@ class DBCRoutingView(QMainWindow):
                             if gateway_role != '--':
                                 prop_row.setBackground(col, Qt.yellow)
                     sig_item.addChild(prop_row)
+
+                # --- Value Table Comparison ---
+                all_value_keys = set()
+                value_tables_per_file = {}
+                for idx, file in enumerate(selected_files):
+                    sig_dict = signal_map_per_file[idx].get(start_length)
+                    if not sig_dict:
+                        continue
+                    sig_name = sig_dict['name']
+                    db = db_map.get(file)
+                    if db:
+                        try:
+                            message = db.get_message_by_frame_id(frame_id)
+                            raw_signal = message.get_signal_by_name(sig_name)
+                            if raw_signal and raw_signal.choices:
+                                value_tables_per_file[file] = raw_signal.choices
+                                all_value_keys.update(raw_signal.choices.keys())
+                        except KeyError:
+                            pass # Message or signal not in this DB
+                
+                if all_value_keys:
+                    value_table_header = QTreeWidgetItem(['', 'value_table', ''])
+                    sig_item.addChild(value_table_header)
+                    for value_key in sorted(all_value_keys):
+                        descriptions = []
+                        compare_values = []
+                        for idx, file in enumerate(selected_files):
+                            choices = value_tables_per_file.get(file)
+                            description = choices.get(value_key, '--') if choices else '--'
+                            descriptions.append(str(description))
+                            if gateway_roles_for_signal[idx] != '--':
+                                compare_values.append(str(description))
+
+                        prop_row = QTreeWidgetItem(['', f"  {value_key}", *descriptions])
+                        if len(set(compare_values)) > 1:
+                            for idx, gateway_role in enumerate(gateway_roles_for_signal):
+                                col = idx + 2
+                                if gateway_role != '--':
+                                    prop_row.setBackground(col, Qt.yellow)
+                        value_table_header.addChild(prop_row)
 
             # After all child rows are added to msg_item
             has_yellow = False
