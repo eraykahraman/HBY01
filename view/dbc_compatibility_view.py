@@ -289,8 +289,20 @@ class DBCCompatibilityView(QMainWindow):
         tree.setHeaderLabels(["Frame ID", "Property"] + selected_files)
         tree.setAlternatingRowColors(True)
         tree.setRootIsDecorated(True)
-        # For each frame_id, compare messages
-        for frame_id in sorted(all_frame_ids):
+        # Partition all frame_ids into Rx and Tx sets for the selected ECU
+        rx_frame_ids = set()
+        tx_frame_ids = set()
+        for file in selected_files:
+            rx_frame_ids.update(rx_map[file].keys())
+            tx_frame_ids.update(tx_map[file].keys())
+        rx_only_ids = sorted(rx_frame_ids - tx_frame_ids)
+        tx_only_ids = sorted(tx_frame_ids - rx_frame_ids)
+        both_ids = sorted(rx_frame_ids & tx_frame_ids)
+        rx_root = QTreeWidgetItem(["", f"Rx Messages ({len(rx_only_ids) + len(both_ids)})"] + ["" for _ in selected_files])
+        tx_root = QTreeWidgetItem(["", f"Tx Messages ({len(tx_only_ids) + len(both_ids)})"] + ["" for _ in selected_files])
+        tree.addTopLevelItem(rx_root)
+        tree.addTopLevelItem(tx_root)
+        def add_message_comparison(frame_id, parent_item):
             msg_names = []
             file_msgs = {}
             for file in selected_files:
@@ -304,7 +316,7 @@ class DBCCompatibilityView(QMainWindow):
                 file_msgs[file] = msg
                 msg_names.append(msg['name'] if msg else "")
             msg_item = QTreeWidgetItem([f"0x{frame_id:X}", ""] + msg_names)
-            tree.addTopLevelItem(msg_item)
+            parent_item.addChild(msg_item)
             # Role row
             gateway_roles = []
             rx_count = 0
@@ -330,7 +342,6 @@ class DBCCompatibilityView(QMainWindow):
                     tx_count += 1
                 gateway_roles.append(role)
             gateway_role_item = QTreeWidgetItem(['', 'role', *gateway_roles])
-            # Highlight if roles are different between DBC files
             if len(set(gateway_roles)) > 1:
                 for col in range(2, 2 + len(selected_files)):
                     gateway_role_item.setBackground(col, Qt.yellow)
@@ -477,6 +488,13 @@ class DBCCompatibilityView(QMainWindow):
             if any_descendant_highlighted(msg_item):
                 for col in range(0, 2 + len(selected_files)):
                     msg_item.setBackground(col, Qt.yellow)
+        for frame_id in rx_only_ids:
+            add_message_comparison(frame_id, rx_root)
+        for frame_id in tx_only_ids:
+            add_message_comparison(frame_id, tx_root)
+        for frame_id in both_ids:
+            add_message_comparison(frame_id, rx_root)
+            add_message_comparison(frame_id, tx_root)
         layout.addWidget(tree)
         # Export and close buttons
         button_layout = QHBoxLayout()
