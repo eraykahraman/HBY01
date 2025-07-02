@@ -55,6 +55,12 @@ class DBCComparisonResultsView(QMainWindow):
         self.check_messages_button.clicked.connect(self.check_messages)
         button_layout.addWidget(self.check_messages_button)
         
+        # Add Compatibility button
+        self.compatibility_button = QPushButton("Compatibility")
+        self.compatibility_button.setToolTip("Check compatibility between selected DBC files")
+        self.compatibility_button.clicked.connect(self.check_compatibility)
+        button_layout.addWidget(self.compatibility_button)
+        
         self.compare_button = QPushButton("Compare")
         self.compare_button.setToolTip("Compare selected DBC files")
         self.compare_button.clicked.connect(self.compare_selected_files)
@@ -223,6 +229,23 @@ class DBCComparisonResultsView(QMainWindow):
                     results.append("")
         self.results_text_edit.setPlainText("\n".join(results))
         self.results_text_edit.setVisible(True)
+
+    def check_compatibility(self):
+        # Get selected DBC files
+        selected_files = []
+        for i in range(self.dbc_list_widget.count()):
+            item = self.dbc_list_widget.item(i)
+            if item.checkState() == Qt.Checked:
+                selected_files.append(item.text())
+        
+        if len(selected_files) < 2:
+            QMessageBox.warning(self, "Select DBC Files", "Please select at least two DBC files for compatibility analysis.")
+            return
+        
+        # Import and open the compatibility view
+        from view.dbc_compatibility_view import DBCCompatibilityView
+        compatibility_view = DBCCompatibilityView(selected_files, self)
+        compatibility_view.show()
 
     def export_results(self):
         from PyQt5.QtWidgets import QFileDialog
