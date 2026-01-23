@@ -475,6 +475,19 @@ class DBCCompatibilityView(QMainWindow):
                                 if gateway_role != '--':
                                     prop_row.setBackground(col, Qt.yellow)
                         value_table_header.addChild(prop_row)
+                # Highlight signal name if any property is highlighted
+                def signal_has_differences(item):
+                    for col in range(2, 2 + len(selected_files)):
+                        brush = item.background(col)
+                        if hasattr(brush, 'color') and brush.color().name().lower() in ['#ffff00', '#ff0']:
+                            return True
+                    for i in range(item.childCount()):
+                        if signal_has_differences(item.child(i)):
+                            return True
+                    return False
+                if signal_has_differences(sig_item):
+                    for col in range(0, 2 + len(selected_files)):
+                        sig_item.setBackground(col, Qt.yellow)
             # Highlight top-level if any descendant is highlighted
             def any_descendant_highlighted(item):
                 for col in range(2, 2 + len(selected_files)):
