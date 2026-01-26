@@ -1,0 +1,279 @@
+DBC Compatibility Analysis - Differences Report
+ECU: CGW
+Files compared: CGW1.dbc, cgw21.dbc
+================================================================================
+
+
+0x23
+----------------------------------------
+
+0x23
+  CGW1.dbc: rwerw
+  cgw21.dbc: 
+
+0x23 > role
+  CGW1.dbc: Rx
+  cgw21.dbc: --
+
+0x8223211
+----------------------------------------
+
+0x8223211
+  CGW1.dbc: 
+  cgw21.dbc: ewww
+
+0x8223211 > role
+  CGW1.dbc: --
+  cgw21.dbc: Rx
+
+0x33
+----------------------------------------
+
+0x33
+  CGW1.dbc: ER1
+  cgw21.dbc: ER1
+
+0x33 > role
+  CGW1.dbc: Rx
+  cgw21.dbc: Tx
+
+0x33 > rx_nodes
+  CGW1.dbc: CGW
+  cgw21.dbc: --
+
+0x33 > frame_format
+  CGW1.dbc: StandardFD
+  cgw21.dbc: StandardCAN
+
+0x33 > Signal: 0:8
+  CGW1.dbc: e2
+  cgw21.dbc: --
+
+0x33 > Signal: 0:8 > name
+  CGW1.dbc: e2
+  cgw21.dbc: --
+
+0x33 > Signal: 0:8 > byte_order
+  CGW1.dbc: little_endian
+  cgw21.dbc: --
+
+0x33 > Signal: 0:8 > is_signed
+  CGW1.dbc: False
+  cgw21.dbc: --
+
+0x33 > Signal: 0:8 > scale
+  CGW1.dbc: 1.0
+  cgw21.dbc: --
+
+0x33 > Signal: 0:8 > offset
+  CGW1.dbc: 0.0
+  cgw21.dbc: --
+
+0x33 > Signal: 0:8 > minimum
+  CGW1.dbc: 0.0
+  cgw21.dbc: --
+
+0x33 > Signal: 0:8 > maximum
+  CGW1.dbc: 255.0
+  cgw21.dbc: --
+
+0x33 > Signal: 0:8 > unit
+  CGW1.dbc: 
+  cgw21.dbc: --
+
+0x34
+----------------------------------------
+
+0x34
+  CGW1.dbc: VI_DI
+  cgw21.dbc: er2
+
+0x34 > role
+  CGW1.dbc: Rx
+  cgw21.dbc: Tx
+
+0x34 > rx_nodes
+  CGW1.dbc: CGW
+  cgw21.dbc: --
+
+0x34 > frame_format
+  CGW1.dbc: ExtendedCAN
+  cgw21.dbc: StandardCAN
+
+0x34 > cycle_time
+  CGW1.dbc: 10
+  cgw21.dbc: 1000
+
+0x34 > send_type
+  CGW1.dbc: cyclic
+  cgw21.dbc: NotUsed
+
+0x34 > Signal: 0:8
+  CGW1.dbc: sad
+  cgw21.dbc: sad
+
+0x34 > Signal: 0:8 > value_table >   0
+  CGW1.dbc: New Value
+  cgw21.dbc: --
+
+0x34 > Signal: 0:8 > value_table >   1
+  CGW1.dbc: New Value
+  cgw21.dbc: --
+
+0x34 > Signal: 0:8 > value_table >   2
+  CGW1.dbc: New Value
+  cgw21.dbc: --
+
+0x34 > Signal: 0:8 > value_table >   3
+  CGW1.dbc: New Value
+  cgw21.dbc: --
+
+0x445
+----------------------------------------
+
+0x445
+  CGW1.dbc: ee44
+  cgw21.dbc: ee44
+
+0x445 > role
+  CGW1.dbc: Tx
+  cgw21.dbc: Rx
+
+0x321
+----------------------------------------
+
+0x321
+  CGW1.dbc: 
+  cgw21.dbc: eeee
+
+0x321 > role
+  CGW1.dbc: --
+  cgw21.dbc: Tx
+
+0x321 > rx_nodes
+  CGW1.dbc: --
+  cgw21.dbc: --
+
+0x822311
+----------------------------------------
+
+0x822311
+  CGW1.dbc: eeww
+  cgw21.dbc: 
+
+0x822311 > role
+  CGW1.dbc: Tx
+  cgw21.dbc: --
+
+0x33
+----------------------------------------
+
+0x33
+  CGW1.dbc: ER1
+  cgw21.dbc: ER1
+
+0x33 > role
+  CGW1.dbc: Rx
+  cgw21.dbc: Tx
+
+0x33 > rx_nodes
+  CGW1.dbc: CGW
+  cgw21.dbc: --
+
+0x33 > frame_format
+  CGW1.dbc: StandardFD
+  cgw21.dbc: StandardCAN
+
+0x33 > Signal: 0:8
+  CGW1.dbc: e2
+  cgw21.dbc: --
+
+0x33 > Signal: 0:8 > name
+  CGW1.dbc: e2
+  cgw21.dbc: --
+
+0x33 > Signal: 0:8 > byte_order
+  CGW1.dbc: little_endian
+  cgw21.dbc: --
+
+0x33 > Signal: 0:8 > is_signed
+  CGW1.dbc: False
+  cgw21.dbc: --
+
+0x33 > Signal: 0:8 > scale
+  CGW1.dbc: 1.0
+  cgw21.dbc: --
+
+0x33 > Signal: 0:8 > offset
+  CGW1.dbc: 0.0
+  cgw21.dbc: --
+
+0x33 > Signal: 0:8 > minimum
+  CGW1.dbc: 0.0
+  cgw21.dbc: --
+
+0x33 > Signal: 0:8 > maximum
+  CGW1.dbc: 255.0
+  cgw21.dbc: --
+
+0x33 > Signal: 0:8 > unit
+  CGW1.dbc: 
+  cgw21.dbc: --
+
+0x34
+----------------------------------------
+
+0x34
+  CGW1.dbc: VI_DI
+  cgw21.dbc: er2
+
+0x34 > role
+  CGW1.dbc: Rx
+  cgw21.dbc: Tx
+
+0x34 > rx_nodes
+  CGW1.dbc: CGW
+  cgw21.dbc: --
+
+0x34 > frame_format
+  CGW1.dbc: ExtendedCAN
+  cgw21.dbc: StandardCAN
+
+0x34 > cycle_time
+  CGW1.dbc: 10
+  cgw21.dbc: 1000
+
+0x34 > send_type
+  CGW1.dbc: cyclic
+  cgw21.dbc: NotUsed
+
+0x34 > Signal: 0:8
+  CGW1.dbc: sad
+  cgw21.dbc: sad
+
+0x34 > Signal: 0:8 > value_table >   0
+  CGW1.dbc: New Value
+  cgw21.dbc: --
+
+0x34 > Signal: 0:8 > value_table >   1
+  CGW1.dbc: New Value
+  cgw21.dbc: --
+
+0x34 > Signal: 0:8 > value_table >   2
+  CGW1.dbc: New Value
+  cgw21.dbc: --
+
+0x34 > Signal: 0:8 > value_table >   3
+  CGW1.dbc: New Value
+  cgw21.dbc: --
+
+0x445
+----------------------------------------
+
+0x445
+  CGW1.dbc: ee44
+  cgw21.dbc: ee44
+
+0x445 > role
+  CGW1.dbc: Tx
+  cgw21.dbc: Rx

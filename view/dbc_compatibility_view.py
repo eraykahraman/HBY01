@@ -432,7 +432,7 @@ class DBCCompatibilityView(QMainWindow):
                         if gateway_roles_for_signal[idx] != '--':
                             compare_values.append(str(val))
                     prop_row = QTreeWidgetItem(['', prop, *values])
-                    if prop != 'name' and len(set(compare_values)) > 1:
+                    if len(set(compare_values)) > 1:
                         for idx, gateway_role in enumerate(gateway_roles_for_signal):
                             col = idx + 2
                             if gateway_role != '--':
@@ -517,6 +517,7 @@ class DBCCompatibilityView(QMainWindow):
             if not path:
                 return
             import csv
+            import os
             with open(path, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
                 header = ["Frame ID / Property"] + selected_files
@@ -536,7 +537,71 @@ class DBCCompatibilityView(QMainWindow):
                         write_item(item.child(i), indent_level + 1)
                 for i in range(tree.topLevelItemCount()):
                     write_item(tree.topLevelItem(i))
-            QMessageBox.information(dialog, "Success", f"Comparison data successfully exported to:\n{path}")
+            
+            # Export differences to txt
+            def is_item_highlighted(item):
+                """Check if item has yellow background in any column"""
+                for col in range(2, tree.columnCount()):
+                    brush = item.background(col)
+                    if hasattr(brush, 'color') and brush.color().name().lower() in ['#ffff00', '#ff0']:
+                        return True
+                return False
+            
+            def collect_highlighted_items(item, parent_path=""):
+                """Recursively collect all highlighted items with their hierarchy"""
+                highlighted = []
+                current_path = parent_path
+                item_text = item.text(1) if item.text(1) else item.text(0)
+                
+                if is_item_highlighted(item):
+                    current_path = parent_path + " > " + item_text if parent_path else item_text
+                    highlighted.append((current_path, item))
+                elif parent_path:
+                    current_path = parent_path + " > " + item_text
+                
+                for i in range(item.childCount()):
+                    child_highlighted = collect_highlighted_items(item.child(i), current_path)
+                    highlighted.extend(child_highlighted)
+                
+                return highlighted
+            
+            # Collect all highlighted items
+            all_differences = []
+            for i in range(tree.topLevelItemCount()):
+                top_item = tree.topLevelItem(i)
+                differences = collect_highlighted_items(top_item)
+                all_differences.extend(differences)
+            
+            # Write differences to txt file
+            if all_differences:
+                txt_path = os.path.splitext(path)[0] + "_differences.txt"
+                with open(txt_path, 'w', encoding='utf-8') as txt_f:
+                    txt_f.write(f"DBC Compatibility Analysis - Differences Report\n")
+                    txt_f.write(f"ECU: {self.selected_ecu}\n")
+                    txt_f.write(f"Files compared: {', '.join(selected_files)}\n")
+                    txt_f.write("=" * 80 + "\n\n")
+                    
+                    current_group = None
+                    for path_str, item in all_differences:
+                        # Extract top-level group (Rx/Tx Messages)
+                        group = path_str.split(" > ")[0]
+                        if group != current_group:
+                            txt_f.write(f"\n{group}\n")
+                            txt_f.write("-" * 40 + "\n")
+                            current_group = group
+                        
+                        txt_f.write(f"\n{path_str}\n")
+                        
+                        # Write the values from each file
+                        for col in range(2, tree.columnCount()):
+                            file_name = selected_files[col - 2]
+                            value = item.text(col)
+                            txt_f.write(f"  {file_name}: {value}\n")
+                
+                QMessageBox.information(dialog, "Success", f"Comparison data successfully exported to:\n{path}\n\nDifferences exported to:\n{txt_path}")
+            else:
+                QMessageBox.information(dialog, "Success", f"Comparison data successfully exported to:\n{path}\n\nNo differences found to export.")
+        
         export_btn.clicked.connect(export_tree_to_csv)
         button_layout.addWidget(export_btn)
         close_btn = QPushButton("Close")

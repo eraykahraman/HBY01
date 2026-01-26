@@ -1,0 +1,43 @@
+DBC Compatibility Analysis - Differences Report
+ECU: ABS
+Files compared: CGW1.dbc, cgw11.dbc
+================================================================================
+
+
+0x33
+----------------------------------------
+
+0x33
+  CGW1.dbc: ER1
+  cgw11.dbc: ER1
+
+0x33 > send_type
+  CGW1.dbc: NotUsed
+  cgw11.dbc: cyclic
+
+0x34
+----------------------------------------
+
+0x34
+  CGW1.dbc: VI_DI
+  cgw11.dbc: VI_DI
+
+0x34 > Signal: 0:8
+  CGW1.dbc: sad
+  cgw11.dbc: sad
+
+0x34 > Signal: 0:8 > offset
+  CGW1.dbc: 2.0
+  cgw11.dbc: 0.0
+
+0x34 > Signal: 0:8 > value_table >   1
+  CGW1.dbc: New Value
+  cgw11.dbc: --
+
+0x34 > Signal: 0:8 > value_table >   2
+  CGW1.dbc: New Value
+  cgw11.dbc: --
+
+0x34 > Signal: 0:8 > value_table >   3
+  CGW1.dbc: New Value
+  cgw11.dbc: --

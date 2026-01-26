@@ -1,0 +1,108 @@
+Frame ID / Property,CGW1.dbc,cgw11.dbc
+,Rx Messages (2),,
+,  ,ee44,ee44
+,    role,Rx,Rx
+,    rx_nodes,"ABS, EPB, EPS","ABS, EPB, EPS"
+,    tx_nodes,CGW,CGW
+,    name,ee44,ee44
+,    length,5,5
+,    is_extended_frame,False,False
+,    is_fd,False,False
+,    frame_format,StandardCAN,StandardCAN
+,    cycle_time,1000,1000
+,    send_type,NotUsed,NotUsed
+,    Signal: 0:8,ew,ew
+,      name,ew,ew
+,      byte_order,little_endian,little_endian
+,      is_signed,False,False
+,      scale,1.0,1.0
+,      offset,0.0,0.0
+,      minimum,0.0,0.0
+,      maximum,255.0,255.0
+,      unit,None,None
+,  ,eeww,eeww
+,    role,Rx,Rx
+,    rx_nodes,ABS,ABS
+,    tx_nodes,CGW,CGW
+,    name,eeww,eeww
+,    length,6,6
+,    is_extended_frame,True,True
+,    is_fd,False,False
+,    frame_format,ExtendedCAN,ExtendedCAN
+,    cycle_time,1000,1000
+,    send_type,NotUsed,NotUsed
+,    Signal: 0:8,dsa,dsa
+,      name,dsa,dsa
+,      byte_order,little_endian,little_endian
+,      is_signed,False,False
+,      scale,1.0,1.0
+,      offset,0.0,0.0
+,      minimum,0.0,0.0
+,      maximum,255.0,255.0
+,      unit,None,None
+,Tx Messages (3),,
+,  ,rwerw,rwerw
+,    role,Tx,Tx
+,    rx_nodes,CGW,CGW
+,    tx_nodes,ABS,ABS
+,    name,rwerw,rwerw
+,    length,7,7
+,    is_extended_frame,False,False
+,    is_fd,False,False
+,    frame_format,StandardCAN,StandardCAN
+,    cycle_time,1000,1000
+,    send_type,NotUsed,NotUsed
+,    Signal: 0:8,dsadada,dsadada
+,      name,dsadada,dsadada
+,      byte_order,little_endian,little_endian
+,      is_signed,False,False
+,      scale,1.0,1.0
+,      offset,0.0,0.0
+,      minimum,0.0,0.0
+,      maximum,255.0,255.0
+,      unit,None,None
+,  ,ER1,ER1
+,    role,Tx,Tx
+,    rx_nodes,CGW,CGW
+,    tx_nodes,ABS,ABS
+,    name,ER1,ER1
+,    length,6,6
+,    is_extended_frame,False,False
+,    is_fd,False,False
+,    frame_format,StandardFD,StandardFD
+,    cycle_time,1000,1000
+,    send_type,NotUsed,cyclic
+,    Signal: 0:8,e2,e1
+,      name,e2,e1
+,      byte_order,little_endian,little_endian
+,      is_signed,False,False
+,      scale,1.0,1.0
+,      offset,0.0,0.0
+,      minimum,0.0,0.0
+,      maximum,255.0,255.0
+,      unit,,
+,  ,VI_DI,VI_DI
+,    role,Tx,Tx
+,    rx_nodes,CGW,CGW
+,    tx_nodes,ABS,ABS
+,    name,VI_DI,VI_DI
+,    length,3,3
+,    is_extended_frame,False,False
+,    is_fd,False,False
+,    frame_format,ExtendedCAN,ExtendedCAN
+,    cycle_time,10,10
+,    send_type,cyclic,cyclic
+,    Signal: 0:8,sad,sad
+,      name,sad,sad
+,      byte_order,little_endian,little_endian
+,      is_signed,False,False
+,      scale,1.0,1.0
+,      offset,0.0,0.0
+,      minimum,0.0,0.0
+,      maximum,255.0,255.0
+,      unit,None,None
+,      value_table,,
+,          0,New Value,New Value
+,          1,New Value,New Value
+,          2,New Value,New Value
+,          3,New Value,New Value

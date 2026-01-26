@@ -1,0 +1,16 @@
+DBC Compatibility Analysis - Differences Report
+ECU: ABS
+Files compared: CGW1.dbc, cgw11.dbc
+================================================================================
+
+
+0x33
+----------------------------------------
+
+0x33
+  CGW1.dbc: ER1
+  cgw11.dbc: ER1
+
+0x33 > send_type
+  CGW1.dbc: NotUsed
+  cgw11.dbc: cyclic
