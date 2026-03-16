@@ -462,6 +462,11 @@ class DBCRoutingView(QMainWindow):
                 # Top-level: signal row
                 sig_item = QTreeWidgetItem(['', f"Signal: {start_length[0]}:{start_length[1]}", *sig_names])
                 msg_item.addChild(sig_item)
+                
+                # Track if any signal property differs for this signal
+                signal_has_differences = False
+                cols_with_differences = set()
+                
                 # For each property, compare values for DBC files where gateway role is not '--'
                 for prop in signal_properties:
                     values = []
@@ -475,11 +480,18 @@ class DBCRoutingView(QMainWindow):
                     prop_row = QTreeWidgetItem(['', prop, *values])
                     # Highlight only if there are differences among non-empty gateway roles
                     if prop != 'name' and len(set(compare_values)) > 1:
+                        signal_has_differences = True
                         for idx, gateway_role in enumerate(gateway_roles_for_signal):
                             col = idx + 2
                             if gateway_role != '--':
                                 prop_row.setBackground(col, Qt.yellow)
+                                cols_with_differences.add(col)
                     sig_item.addChild(prop_row)
+                
+                # Highlight the signal row itself if any property differs
+                if signal_has_differences:
+                    for col in cols_with_differences:
+                        sig_item.setBackground(col, Qt.yellow)
 
                 # --- Value Table Comparison ---
                 all_value_keys = set()
