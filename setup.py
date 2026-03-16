@@ -14,7 +14,8 @@ build_exe_options = {
         "orjson",
         "textparser",
         "bitstruct",
-        "can"
+        "can",
+        "openpyxl"
     ],
     "excludes": [
         "matplotlib", 
