@@ -565,51 +565,95 @@ class DBCRoutingView(QMainWindow):
 
         # Add export and close buttons
         button_layout = QHBoxLayout()
-        export_btn = QPushButton("Export to CSV")
+        export_btn = QPushButton("Export to Excel")
 
         def export_tree_to_csv():
-            path, _ = QFileDialog.getSaveFileName(dialog, "Export Comparison to CSV", "", "CSV Files (*.csv)")
+            path, _ = QFileDialog.getSaveFileName(dialog, "Export Comparison to Excel", "", "Excel Files (*.xlsx)")
             if not path:
                 return
 
             try:
-                import csv
-                with open(path, 'w', newline='', encoding='utf-8') as f:
-                    writer = csv.writer(f)
-                    # Write header
-                    header = ["Frame ID / Property"] + selected_files
-                    writer.writerow(header)
+                from openpyxl import Workbook
+                from openpyxl.styles import PatternFill, Alignment, Font
+                
+                wb = Workbook()
+                ws = wb.active
+                ws.title = "Comparison"
+                
+                # Write header
+                header = ["Frame ID / Property"] + selected_files
+                ws.append(header)
+                
+                # Style header row
+                header_fill = PatternFill(start_color="D3D3D3", end_color="D3D3D3", fill_type="solid")
+                header_font = Font(bold=True)
+                for col_idx, header_text in enumerate(header, 1):
+                    cell = ws.cell(row=1, column=col_idx)
+                    cell.fill = header_fill
+                    cell.font = header_font
+                    cell.alignment = Alignment(wrap_text=True)
+                
+                row_num = 2
+                yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
 
-                    # Recursive function to write items
-                    def write_item(item, indent_level=0):
-                        row_data = []
-                        # Indent the property name
-                        prop_name = "  " * indent_level + item.text(1)
-                        # For top-level items, Frame ID is in the first column, property is empty
-                        if indent_level == 0:
-                            row_data.append(item.text(0))
-                        else:
-                            # For child items, the first column is empty
-                            row_data.append("")
+                # Recursive function to write items
+                def write_item(item, indent_level=0):
+                    nonlocal row_num
+                    
+                    # Indent the property name
+                    prop_name = "  " * indent_level + item.text(1)
+                    
+                    # For top-level items, Frame ID is in the first column, property is empty
+                    if indent_level == 0:
+                        col1_text = item.text(0)
+                    else:
+                        # For child items, the first column is empty
+                        col1_text = ""
+                    
+                    # Write first two columns
+                    ws.cell(row=row_num, column=1).value = col1_text
+                    ws.cell(row=row_num, column=2).value = prop_name
+                    
+                    # Write the rest of the columns and apply color if needed
+                    for col in range(2, tree.columnCount()):
+                        cell_value = item.text(col)
+                        cell = ws.cell(row=row_num, column=col + 1)
+                        cell.value = cell_value
                         
-                        row_data.append(prop_name)
-                        
-                        # Add the rest of the columns
-                        for col in range(2, tree.columnCount()):
-                            row_data.append(item.text(col))
-                        writer.writerow(row_data)
+                        # Check if this cell has yellow background in the tree
+                        brush = item.background(col)
+                        if hasattr(brush, 'color'):
+                            color_name = brush.color().name().lower()
+                            if color_name in ['#ffff00', '#ff0']:
+                                cell.fill = yellow_fill
+                    
+                    # Set alignment
+                    for col in range(1, tree.columnCount() + 1):
+                        ws.cell(row=row_num, column=col).alignment = Alignment(wrap_text=True, vertical='top')
+                    
+                    row_num += 1
 
-                        # Recursively write children
-                        for i in range(item.childCount()):
-                            write_item(item.child(i), indent_level + 1)
+                    # Recursively write children
+                    for i in range(item.childCount()):
+                        write_item(item.child(i), indent_level + 1)
 
-                    # Start writing from top-level items
-                    for i in range(tree.topLevelItemCount()):
-                        write_item(tree.topLevelItem(i))
-
+                # Start writing from top-level items
+                for i in range(tree.topLevelItemCount()):
+                    write_item(tree.topLevelItem(i))
+                
+                # Auto-adjust column widths
+                ws.column_dimensions['A'].width = 15
+                ws.column_dimensions['B'].width = 25
+                for idx, file_name in enumerate(selected_files, start=3):
+                    ws.column_dimensions[chr(64 + idx)].width = 20
+                
+                # Save the workbook
+                wb.save(path)
                 QMessageBox.information(dialog, "Success", f"Comparison data successfully exported to:\n{path}")
+            except ImportError:
+                QMessageBox.critical(dialog, "Error", "openpyxl library is required for Excel export.\nPlease install it using: pip install openpyxl")
             except Exception as e:
-                QMessageBox.critical(dialog, "Error", f"Failed to export CSV file: {e}")
+                QMessageBox.critical(dialog, "Error", f"Failed to export Excel file: {e}")
 
         export_btn.clicked.connect(export_tree_to_csv)
         button_layout.addWidget(export_btn)
