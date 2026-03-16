@@ -515,6 +515,9 @@ class DBCRoutingView(QMainWindow):
                 if all_value_keys:
                     value_table_header = QTreeWidgetItem(['', 'value_table', ''])
                     sig_item.addChild(value_table_header)
+                    value_table_has_differences = False
+                    value_table_cols_with_differences = set()
+                    
                     for value_key in sorted(all_value_keys):
                         descriptions = []
                         compare_values = []
@@ -527,11 +530,22 @@ class DBCRoutingView(QMainWindow):
 
                         prop_row = QTreeWidgetItem(['', f"  {value_key}", *descriptions])
                         if len(set(compare_values)) > 1:
+                            value_table_has_differences = True
                             for idx, gateway_role in enumerate(gateway_roles_for_signal):
                                 col = idx + 2
                                 if gateway_role != '--':
                                     prop_row.setBackground(col, Qt.yellow)
+                                    value_table_cols_with_differences.add(col)
                         value_table_header.addChild(prop_row)
+                    
+                    # Highlight the value_table header row itself if any entries differ
+                    if value_table_has_differences:
+                        for col in value_table_cols_with_differences:
+                            value_table_header.setBackground(col, Qt.yellow)
+                        # Also highlight the signal row for value table differences
+                        for col in value_table_cols_with_differences:
+                            sig_item.setBackground(col, Qt.yellow)
+                            cols_with_differences.add(col)
 
             # After all child rows are added to msg_item
             has_yellow = False
