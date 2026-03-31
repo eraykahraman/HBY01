@@ -581,7 +581,7 @@ class DBCRoutingView(QMainWindow):
                 ws.title = "Comparison"
                 
                 # Write header
-                header = ["Frame ID / Property", ""] + selected_files
+                header = ["", "Frame ID / Property"] + selected_files
                 ws.append(header)
                 
                 # Style header row
@@ -598,7 +598,6 @@ class DBCRoutingView(QMainWindow):
                 id_fill = PatternFill(start_color="B8CCE4", end_color="B8CCE4", fill_type="solid")
                 id_mismatch_fill = PatternFill(start_color="FFD966", end_color="FFD966", fill_type="solid")  # Yellow-gold for ID with mismatches
                 id_font = Font(bold=True)
-                merge_ranges = []  # Track row ranges for merging
 
                 # Helper function to check if item or any children have yellow highlighting
                 def has_yellow_highlight(item):
@@ -617,11 +616,8 @@ class DBCRoutingView(QMainWindow):
                     return False
 
                 # Recursive function to write items
-                def write_item(item, indent_level=0, parent_has_mismatch=False):
+                def write_item(item, indent_level=0, parent_column_fill=None):
                     nonlocal row_num
-                    
-                    # Track start row for top-level items (for merging)
-                    start_row = row_num if indent_level == 0 else None
                     
                     # Indent the property name
                     prop_name = "  " * indent_level + item.text(1)
@@ -650,15 +646,22 @@ class DBCRoutingView(QMainWindow):
                             if color_name in ['#ffff00', '#ff0']:
                                 cell.fill = yellow_fill
                     
-                    # Highlight ID rows (top-level items)
+                    # Determine column fill color based on top-level item
+                    column_fill = parent_column_fill
                     if indent_level == 0:
                         item_has_mismatch = has_yellow_highlight(item)
-                        fill_color = id_mismatch_fill if item_has_mismatch else id_fill
+                        column_fill = id_mismatch_fill if item_has_mismatch else id_fill
+                    
+                    # Apply column fill to column A for all rows
+                    if column_fill:
+                        ws.cell(row=row_num, column=1).fill = column_fill
+                    
+                    # Highlight header text for ID rows (top-level items)
+                    if indent_level == 0:
                         for col in range(1, tree.columnCount() + 1):
                             cell = ws.cell(row=row_num, column=col)
-                            cell.fill = fill_color
+                            cell.fill = column_fill
                             cell.font = id_font
-                        parent_has_mismatch = item_has_mismatch
                     
                     # Set alignment
                     for col in range(1, tree.columnCount() + 1):
@@ -668,21 +671,11 @@ class DBCRoutingView(QMainWindow):
 
                     # Recursively write children
                     for i in range(item.childCount()):
-                        write_item(item.child(i), indent_level + 1, parent_has_mismatch)
-                    
-                    # Track end row for top-level items (for merging)
-                    if indent_level == 0 and start_row is not None:
-                        if row_num - start_row > 1:  # Only merge if there's more than one row
-                            merge_ranges.append((start_row, row_num - 1))
+                        write_item(item.child(i), indent_level + 1, column_fill)
 
                 # Start writing from top-level items
                 for i in range(tree.topLevelItemCount()):
-                    write_item(tree.topLevelItem(i), 0, False)
-                
-                # Merge cells in column A for each frame ID
-                from openpyxl.utils import get_column_letter
-                for start_row, end_row in merge_ranges:
-                    ws.merge_cells(f'A{start_row}:A{end_row}')
+                    write_item(tree.topLevelItem(i), 0, None)
                 
                 # Auto-adjust column widths
                 ws.column_dimensions['A'].width = 15
