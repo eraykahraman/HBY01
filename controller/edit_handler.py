@@ -695,14 +695,11 @@ class EditHandler:
         if not self.database:
             return False
         try:
-            import unicodedata
             # Get the database as DBC string
             dbc_string = self.database.as_dbc_string()
-            # Normalize unicode to handle special characters like quotes properly
-            normalized_string = unicodedata.normalize('NFKD', dbc_string)
-            # Write to file with proper encoding error handling
-            with open(file_path, 'w', encoding='utf-8', errors='replace') as f:
-                f.write(normalized_string)
+            # Write to file using UTF-8 encoding (preserve original data)
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(dbc_string)
             return True
         except Exception as e:
             print(f"Error saving DBC file: {e}")

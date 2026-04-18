@@ -71,19 +71,17 @@ class DBCModel(QObject):
             tuple[bool, str]: (Success status, Error message if any)
         """
         try:
-            import unicodedata
             # Check if the source file exists in our database
             db = self.dbc_files.get(source_file_path)
             if not db:
                 return False, "Source DBC file not loaded in the application"
             
-            # Get the database string and normalize unicode to handle special characters like quotes
+            # Get the database string and save to target file using UTF-8 encoding
             dbc_string = db.as_dbc_string()
-            normalized_string = unicodedata.normalize('NFKD', dbc_string)
             
-            # Save the current database state to the target file with proper encoding error handling
-            with open(target_file_path, 'w', encoding='utf-8', errors='replace') as f:
-                f.write(normalized_string)
+            # Save the current database state to the target file
+            with open(target_file_path, 'w', encoding='utf-8') as f:
+                f.write(dbc_string)
             
             # Emit signal for successful export
             self.dbc_exported.emit(target_file_path)
