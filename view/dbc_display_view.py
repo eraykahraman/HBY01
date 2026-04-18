@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                             QFrame, QSizePolicy, QTableWidget, QTableWidgetItem,
                             QHeaderView, QSplitter, QStackedWidget, QPushButton,
                             QMenu, QAction, QDialog, QCheckBox, QScrollArea, QDialogButtonBox,
-                            QAbstractItemView, QMessageBox)
+                            QAbstractItemView, QMessageBox, QFileDialog)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QIcon, QColor, QPalette, QFont
 from controller.dbc_io_handler import DBC_IO_Handler
@@ -13,6 +13,9 @@ from view.node_detail_view import NodeDetailView
 from view.bus_load_dialog import BusLoadDialog
 from view.node_creation_dialog import NodeCreationDialog
 from decimal import Decimal
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill
+import os
 
 class NumericTableWidgetItem(QTableWidgetItem):
     """Custom QTableWidgetItem that handles numeric sorting correctly"""
@@ -135,6 +138,7 @@ class DBCDisplayView(QWidget):
         self.current_handler = None
         self.bus_load_button = None  # Initialize as None
         self.export_button = None    # Initialize as None
+        self.table_export_button = None  # Initialize as None
         self.setup_ui()
         
     def setup_ui(self):
@@ -350,6 +354,10 @@ class DBCDisplayView(QWidget):
         # Setup header context menu for column visibility
         self.setup_table_header_context_menu(self.signals_table)
         
+        # Add export button
+        self.signals_table.export_button = QPushButton("Export to Excel")
+        self.signals_table.export_button.clicked.connect(lambda: self.export_table_to_excel(self.signals_table, "Signals"))
+        
         self.signals_table.setVisible(False)  # Hide table initially
 
     def setup_messages_table(self):
@@ -411,6 +419,10 @@ class DBCDisplayView(QWidget):
         # Setup header context menu for column visibility
         self.setup_table_header_context_menu(self.messages_table)
         
+        # Add export button
+        self.messages_table.export_button = QPushButton("Export to Excel")
+        self.messages_table.export_button.clicked.connect(lambda: self.export_table_to_excel(self.messages_table, "Messages"))
+        
         self.messages_table.setVisible(False)  # Hide table initially
 
     def setup_nodes_table(self):
@@ -468,6 +480,10 @@ class DBCDisplayView(QWidget):
         
         # Setup header context menu for column visibility
         self.setup_table_header_context_menu(self.nodes_table)
+        
+        # Add export button
+        self.nodes_table.export_button = QPushButton("Export to Excel")
+        self.nodes_table.export_button.clicked.connect(lambda: self.export_table_to_excel(self.nodes_table, "Nodes"))
         
         self.nodes_table.setVisible(False)  # Hide table initially
 
@@ -841,6 +857,10 @@ class DBCDisplayView(QWidget):
         self.signals_table.setVisible(False)
         self.messages_table.setVisible(False)
         self.nodes_table.setVisible(False)
+        
+        # Hide table export button
+        if self.table_export_button:
+            self.table_export_button.hide()
             
         # Check if the clicked item is the Signals, Messages, or Network Nodes root
         if item.text(0) == "Signals":
@@ -862,27 +882,37 @@ class DBCDisplayView(QWidget):
                         self.signals_table.setVisible(True)
                         self.tables_stack.setCurrentWidget(self.signals_table)
                         self.update_signals_table(signals)
+                        if self.table_export_button:
+                            self.table_export_button.show()
                         return
                 # If not found, fallback to empty
                 self.signals_table.setVisible(True)
                 self.tables_stack.setCurrentWidget(self.signals_table)
                 self.update_signals_table([])
+                if self.table_export_button:
+                    self.table_export_button.show()
             else:
                 # Root "Signals" node
                 signals = self.current_handler.get_signals()
                 self.signals_table.setVisible(True)
                 self.tables_stack.setCurrentWidget(self.signals_table)
                 self.update_signals_table(signals)
+                if self.table_export_button:
+                    self.table_export_button.show()
         elif item.text(0) == "Messages":
             messages = self.current_handler.get_messages()
             self.messages_table.setVisible(True)
             self.tables_stack.setCurrentWidget(self.messages_table)
             self.update_messages_table(messages)
+            if self.table_export_button:
+                self.table_export_button.show()
         elif item.text(0) == "Network Nodes":
             nodes = self.current_handler.get_nodes()
             self.nodes_table.setVisible(True)
             self.tables_stack.setCurrentWidget(self.nodes_table)
             self.update_nodes_table(nodes)
+            if self.table_export_button:
+                self.table_export_button.show()
         # Check if the clicked item is "Tx Messages" or "Rx Messages" under a node
         elif item.text(0) in ["Tx Messages", "Rx Messages"]:
             parent_node = item.parent()
@@ -899,6 +929,8 @@ class DBCDisplayView(QWidget):
                 # Make messages table visible and current
                 self.messages_table.setVisible(True)
                 self.tables_stack.setCurrentWidget(self.messages_table)
+                if self.table_export_button:
+                    self.table_export_button.show()
         # Check if the clicked item is "Tx Signals" or "Rx Signals" under a node
         elif item.text(0) in ["Tx Signals", "Rx Signals"]:
             parent_node = item.parent()
@@ -915,6 +947,8 @@ class DBCDisplayView(QWidget):
                 # Make signals table visible and current
                 self.signals_table.setVisible(True)
                 self.tables_stack.setCurrentWidget(self.signals_table)
+                if self.table_export_button:
+                    self.table_export_button.show()
         else:
             # Check if this is a node item directly under Network Nodes
             parent = item.parent()
@@ -1215,6 +1249,15 @@ class DBCDisplayView(QWidget):
             # Insert before the stretch
             self.buttons_layout.insertWidget(self.buttons_layout.count() - 1, self.bus_load_button)
         
+        # Add export button for tables
+        if not hasattr(self, 'table_export_button') or not self.table_export_button:
+            self.table_export_button = QPushButton("Export Table to Excel")
+            self.table_export_button.setToolTip("Export the current table to Excel format")
+            self.table_export_button.clicked.connect(self.on_table_export_clicked)
+            self.table_export_button.hide()  # Hide until a table is visible
+            # Insert before the stretch
+            self.buttons_layout.insertWidget(self.buttons_layout.count() - 1, self.table_export_button)
+        
         # Show the main splitter when file is loaded
         self.main_splitter.show()
         
@@ -1389,7 +1432,6 @@ class DBCDisplayView(QWidget):
                 detail_item = QTreeWidgetItem()
                 detail_item.setText(0, detail)
                 signal_item.addChild(detail_item)
-            
     def get_node_icon(self):
         """Returns a default icon for nodes"""
         return QIcon()
@@ -1421,6 +1463,11 @@ class DBCDisplayView(QWidget):
         if self.export_button:
             self.export_button.setParent(None)  # Remove from layout
             self.export_button = None
+        
+        # Remove table export button if it exists
+        if self.table_export_button:
+            self.table_export_button.setParent(None)  # Remove from layout
+            self.table_export_button = None
 
     def is_message_item(self, item):
         """Check if the tree item represents a message"""
@@ -1512,4 +1559,93 @@ class DBCDisplayView(QWidget):
             
             # Refresh the display to show the new node
             self.refresh_tree()
-            self.update_nodes_table(self.current_handler.get_nodes()) 
+            self.update_nodes_table(self.current_handler.get_nodes())
+
+    def on_table_export_clicked(self):
+        """Handle table export button click"""
+        if self.signals_table.isVisible():
+            self.export_table_to_excel(self.signals_table, "Signals")
+        elif self.messages_table.isVisible():
+            self.export_table_to_excel(self.messages_table, "Messages")
+        elif self.nodes_table.isVisible():
+            self.export_table_to_excel(self.nodes_table, "Nodes")
+
+    def export_table_to_excel(self, table, table_name):
+        """Export a table to Excel format"""
+        if table.rowCount() == 0:
+            QMessageBox.warning(self, "Export", f"Cannot export empty {table_name} table")
+            return
+        
+        # Get file path from user
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            f"Export {table_name} Table",
+            f"{table_name}_export.xlsx",
+            "Excel Files (*.xlsx)"
+        )
+        
+        if not file_path:
+            return
+        
+        try:
+            # Create a new workbook
+            wb = Workbook()
+            ws = wb.active
+            ws.title = table_name[:31]  # Excel sheet name max 31 chars
+            
+            # Add header row
+            header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+            header_font = Font(bold=True, color="FFFFFF")
+            
+            for col in range(table.columnCount()):
+                header_text = table.horizontalHeaderItem(col).text() if table.horizontalHeaderItem(col) else ""
+                cell = ws.cell(row=1, column=col+1, value=header_text)
+                cell.fill = header_fill
+                cell.font = header_font
+            
+            # Add data rows
+            for row in range(table.rowCount()):
+                for col in range(table.columnCount()):
+                    item = table.item(row, col)
+                    if item:
+                        cell_value = item.text()
+                    else:
+                        cell_value = ""
+                    ws.cell(row=row+2, column=col+1, value=cell_value)
+            
+            # Auto-adjust column widths
+            from openpyxl.utils import get_column_letter
+            for col_idx in range(table.columnCount()):
+                max_length = 0
+                col_letter = get_column_letter(col_idx + 1)
+                
+                # Check header
+                header_item = table.horizontalHeaderItem(col_idx)
+                if header_item:
+                    max_length = len(str(header_item.text()))
+                
+                # Check all cells in column
+                for row_idx in range(table.rowCount()):
+                    cell_item = table.item(row_idx, col_idx)
+                    if cell_item:
+                        cell_text = cell_item.text()
+                        max_length = max(max_length, len(str(cell_text)))
+                
+                # Set column width (add some padding)
+                adjusted_width = min(max_length + 2, 50)  # Cap at 50 to avoid extremely wide columns
+                ws.column_dimensions[col_letter].width = adjusted_width
+            
+            # Save the workbook
+            wb.save(file_path)
+            
+            QMessageBox.information(
+                self,
+                "Export Success",
+                f"{table_name} table exported successfully to:\n{file_path}"
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Export Error",
+                f"Error exporting table:\n{str(e)}"
+            ) 
